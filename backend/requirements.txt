@@ -1,0 +1,20 @@
+# Wersje PRZYPIĘTE — bez pinów Render instaluje niezgodne wersje (lekcja z Partner-Findera)
+
+# Agent LLM
+openai-agents==0.17.7
+openai==2.44.0
+
+# Serwer web
+starlette==1.3.1
+uvicorn[standard]
+
+# Scraper
+requests
+beautifulsoup4
+
+# Szukaj podobnych
+tavily-python==0.7.25
+
+# Konfiguracja i walidacja
+python-dotenv
+pydantic==2.13.4
