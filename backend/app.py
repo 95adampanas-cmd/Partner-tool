@@ -357,6 +357,11 @@ async def api_email(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+async def api_columns(request):
+    """Kolumny eksportu — front renderuje podgląd DOKŁADNIE tak, jak zapisze CSV."""
+    return JSONResponse({"kolumny": [{"naglowek": n, "klucz": k} for n, k in KOLUMNY]})
+
+
 async def api_export(request):
     """Funkcja 4 — CSV do POBRANIA (nie zapisujemy na serwerze)."""
     try:
@@ -380,6 +385,7 @@ app = Starlette(routes=[
     Route("/api/research", api_research, methods=["POST"]),
     Route("/api/similar", api_similar, methods=["POST"]),
     Route("/api/email", api_email, methods=["POST"]),
+    Route("/api/columns", api_columns, methods=["GET"]),
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),
 ])

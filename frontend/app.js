@@ -6,10 +6,13 @@ const output = document.getElementById("output");
 const koszykBar = document.getElementById("koszyk");
 const koszykIle = document.getElementById("koszyk-ile");
 
-let tabs = [];      // [{id, nazwa, firma}]
+let tabs = [];      // [{id, nazwa, firma}] lub {id, nazwa, typ:"eksport"}
 let activeId = null;
 let tabSeq = 0;
 let koszyk = [];    // firmy zaznaczone do eksportu
+let kolumny = [];   // definicja kolumn CSV — pobrana z backendu (jedno źródło prawdy)
+
+fetch("/api/columns").then((r) => r.json()).then((d) => { kolumny = d.kolumny || []; });
 
 const BRAK = "nie do ustalenia";
 
@@ -83,6 +86,60 @@ function renderTabBar() {
       <span class="tab-name">${esc(t.nazwa)}</span>
       <span class="tab-close" data-close="${t.id}" title="Zamknij">×</span>
     </div>`).join("");
+}
+
+// ── Zakładka podglądu eksportu ──
+function otworzEksport() {
+  let tab = tabs.find((t) => t.typ === "eksport");
+  if (!tab) {
+    const id = "tab" + ++tabSeq;
+    tab = { id, nazwa: "📋 Eksport", typ: "eksport" };
+    tabs.push(tab);
+    document.getElementById("panels").insertAdjacentHTML(
+      "beforeend",
+      `<div class="panel" data-id="${id}"><div class="eksport-box"></div></div>`
+    );
+  }
+  setActive(tab.id);
+  renderEksport();
+}
+
+function renderEksport() {
+  const tab = tabs.find((t) => t.typ === "eksport");
+  if (!tab) return;
+  const box = document.querySelector(`#panels .panel[data-id="${tab.id}"] .eksport-box`);
+  if (!box) return;
+
+  if (!koszyk.length) {
+    box.innerHTML = `<div class="card"><div class="mono"><span class="sq"></span> EKSPORT</div>
+      <p class="hint">Koszyk pusty — zaznacz „Dodaj do eksportu" na karcie firmy.</p></div>`;
+    return;
+  }
+
+  const naglowki = kolumny.map((k) => `<th>${esc(k.naglowek)}</th>`).join("");
+  const wiersze = koszyk.map((f) => {
+    const komorki = kolumny.map((k) => {
+      const v = komorka(f[k.klucz]);
+      return `<td class="${v === BRAK ? "brak" : ""}">${esc(v)}</td>`;
+    }).join("");
+    return `<tr>${komorki}</tr>`;
+  }).join("");
+
+  box.innerHTML = `<div class="card">
+    <div class="mono"><span class="sq"></span> PODGLĄD EKSPORTU (${koszyk.length})</div>
+    <p class="hint">Dokładnie te kolumny i wartości trafią do CSV. Sprawdź mapowanie przed importem do Pipedrive.</p>
+    <div class="tabela-scroll"><table class="tabela">
+      <thead><tr>${naglowki}</tr></thead>
+      <tbody>${wiersze}</tbody>
+    </table></div>
+    <button class="akcja pobierz-csv" type="button" style="margin-top:16px">Pobierz CSV ↓</button>
+  </div>`;
+}
+
+function komorka(v) {
+  if (Array.isArray(v)) return v.length ? v.join(", ") : BRAK;
+  if (typeof v === "boolean") return v ? "TAK" : "NIE";
+  return v ?? BRAK;
 }
 
 // ── Panel firmy ──
@@ -166,6 +223,7 @@ output.addEventListener("click", (e) => {
   if (e.target.classList.contains("mail")) return generujMaile(e.target);
   if (e.target.classList.contains("researchuj")) return researchujPodobna(e.target);
   if (e.target.classList.contains("kopiuj")) return kopiuj(e.target);
+  if (e.target.classList.contains("pobierz-csv")) return pobierzCSV();
 });
 
 output.addEventListener("change", (e) => {
@@ -293,9 +351,11 @@ function kopiuj(przycisk) {
 function renderKoszyk() {
   koszykIle.textContent = koszyk.length;
   koszykBar.hidden = koszyk.length === 0;
+  renderEksport(); // odśwież podgląd, jeśli zakładka otwarta
 }
 
-document.getElementById("koszyk-pobierz").addEventListener("click", async () => {
+async function pobierzCSV() {
+  if (!koszyk.length) return;
   const res = await fetch("/api/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -308,7 +368,10 @@ document.getElementById("koszyk-pobierz").addEventListener("click", async () => 
   a.download = "partnerzy.csv";
   a.click();
   URL.revokeObjectURL(a.href);
-});
+}
+
+document.getElementById("koszyk-podglad").addEventListener("click", otworzEksport);
+document.getElementById("koszyk-pobierz").addEventListener("click", pobierzCSV);
 
 // ── Pomocnicze ──
 function loadingHTML(tekst) {

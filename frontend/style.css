@@ -491,6 +491,45 @@ h1 {
   z-index: 50;
 }
 .koszyk-info { font-size: 14px; color: #dcdad6; white-space: nowrap; }
+.koszyk-podglad {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: #dcdad6;
+  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.koszyk-podglad:hover { border-color: var(--orange); color: var(--orange); }
+
+/* ── Tabela podglądu eksportu ── */
+.tabela-scroll { overflow-x: auto; margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.tabela { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
+.tabela th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--orange);
+  text-align: left;
+  padding: 11px 14px;
+  background: var(--card-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+}
+.tabela td {
+  padding: 11px 14px;
+  color: #dcdad6;
+  border-bottom: 1px solid var(--border);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tabela tr:last-child td { border-bottom: none; }
+.tabela tr:hover td { background: rgba(255,255,255,.02); }
+.tabela td.brak { color: #5f5f65; font-style: italic; }
 .koszyk-info strong { color: var(--orange); font-size: 16px; }
 #koszyk-pobierz {
   border: none;
