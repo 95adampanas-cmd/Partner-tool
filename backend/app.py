@@ -322,6 +322,12 @@ async def api_research(request):
 async def api_similar(request):
     """Funkcja 2 — szukaj podobnych firm (LLM tylko generuje zapytanie, filtr jest deterministyczny)."""
     try:
+        if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
+            return JSONResponse({
+                "ok": False,
+                "error": "Brak klucza Tavily. Dodaj TAVILY_API_KEY do .env (lokalnie) "
+                         "i do zmiennych środowiskowych na Render.",
+            })
         body = await request.json()
         firma = body.get("firma") or {}
         opis = f"Branża: {firma.get('branza', '')}. Usługi: {', '.join(firma.get('uslugi', []))}."

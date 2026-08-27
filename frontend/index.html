@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Partner Tool — Last Agency</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="logo">Last<em>Agency</em></div>
+      <div class="mono"><span class="sq"></span> PARTNER TOOL</div>
+    </header>
+
+    <main class="hero">
+      <div class="mono center"><span class="sq"></span> RESEARCH PARTNERSKI</div>
+      <h1>Zbadaj firmę <span class="accent">partnerską</span></h1>
+      <p class="sub">Wklej adres strony. Narzędzie zbierze dane o firmie — usługi, zespół, realizacje,
+        kontakt — i oznaczy, czy to <strong>konkurent</strong>. Ocenę robisz Ty.</p>
+
+      <form id="form" class="search">
+        <input id="url" type="text" placeholder="https://firma.pl" autocomplete="off" spellcheck="false" required>
+        <button id="btn" type="submit">Researchuj <span class="arrow">→</span></button>
+      </form>
+
+      <section id="output" class="output" hidden></section>
+    </main>
+
+    <footer class="foot mono"><span class="sq"></span> © 2026 LAST AGENCY. COPYRIGHT.</footer>
+  </div>
+
+  <!-- koszyk eksportu — pasek na dole, widoczny gdy coś zaznaczone -->
+  <div id="koszyk" class="koszyk" hidden>
+    <span class="koszyk-info"><strong id="koszyk-ile">0</strong> firm w eksporcie</span>
+    <button id="koszyk-pobierz" type="button">Pobierz CSV ↓</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
