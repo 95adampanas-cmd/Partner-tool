@@ -131,19 +131,44 @@ def scrape_firme(url: str) -> tuple[str, list[str]]:
 #  TAVILY + FILTR — zwykłe funkcje (deterministyczne, powtarzalne)
 # ══════════════════════════════════════════════════════════════════════
 KATALOGI = (
+    # katalogi firm i agregatory
     "clutch.co", "sortlist", "themanifest", "goodfirms", "designrush", "techbehemoths",
-    "topcssgallery", "wikipedia", "facebook", "linkedin", "instagram", "youtube",
-    "oferteo", "ceneo", "opineo", "wordpress.org", "domenomania",
-    "useme", "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io",
+    "topcssgallery", "infoisinfo", "biznesfinder", "panoramafirm", "pkt.pl", "aleo.com",
+    "firmy.net", "zumi.pl", "targeo", "oferteo", "ceneo", "opineo", "useme",
+    "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io",
+    # portale, social, fora
+    "wikipedia", "facebook", "linkedin", "instagram", "youtube", "egospodarka",
+    "wordpress.org", "domenomania", "forum.", "/forum",
+    "trustpilot", "zleca.pl", "/wykonawcy/", "/categories/", "marketingibiznes",
+    # strony przeglądowe, nie firmy
+    "/tag/", "/tematy/", "/karta/", "/kategoria/", "/szukaj", "/search",
     "/ranking", "najlepsze-", "top-10", "top10", "firm-i-agencji", "/blog/", "/artykul",
 )
+
+# Pliki i obce domeny — nigdy nie są stroną polskiej firmy partnerskiej.
+ROZSZERZENIA = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".pdf", ".zip")
+OBCE_TLD = (".es", ".de", ".fr", ".it", ".ru", ".ua", ".cz", ".sk", ".hu", ".nl", ".se")
+
+
+def czy_smiec(url: str) -> bool:
+    u = url.lower()
+    if any(k in u for k in KATALOGI):
+        return True
+    if u.split("?")[0].endswith(ROZSZERZENIA):
+        return True
+    domena = urlparse(u).netloc
+    return domena.endswith(OBCE_TLD)
 
 # Tytuły artykułów, poradników i wydarzeń — to nie są firmy, tylko treści o branży.
 FRAZY_NIE_FIRMA = (
     "jak zbudowa", "jak wybra", "jak zrobi", "jak dziala", "jak działa", "poradnik",
     "co to jest", "czym jest", "blog", "konferencja", "webinar", "targi", "szkolenie online",
     "przewodnik", " vs ", "porównanie", "porownanie", "definicja", "słownik", "slownik",
+    "najlepsze w kategorii", "najwieksze agencje", "największe agencje", "warto zna",
 )
+
+# Zestawienia typu "50 agencji digital", "10 Najlepszych Agencji" — to artykuły, nie firmy.
+LISTICLE = re.compile(r"\b\d{1,3}\s*(najlepsz|agencj|firm|softwarehous|software\s*hous)", re.IGNORECASE)
 
 
 def tavily_search(zapytanie: str, max_results: int = 15) -> list:
@@ -153,12 +178,13 @@ def tavily_search(zapytanie: str, max_results: int = 15) -> list:
     return TavilyClient(api_key=key).search(zapytanie, max_results=max_results).get("results", [])
 
 
-# Firma, która sama nazywa się agencją SEO/SEM = konkurent. Nie chcemy jej wśród "podobnych".
+# Odsiewamy TYLKO jawne agencje SEO/pozycjonowania (SEO jako rdzeń oferty).
+# Agencje SEM / Google Ads / marketingowe zostawiamy — to partnerzy komplementarni
+# (oni płatne kampanie, my organiczne), nie konkurenci.
 FRAZY_KONKURENTA = (
-    "agencja seo", "agencji seo", "agencja sem", "pozycjonowanie", "pozycjonowania",
-    "link building", "audyt seo", "specjalisci seo", "specjaliści seo",
+    "agencja seo", "agencji seo", "agencja pozycjonowania", "pozycjonowanie stron",
+    "pozycjonowanie sklep", "seo agency", "specjalisci seo", "specjaliści seo",
 )
-TOKEN_KONKURENTA = re.compile(r"\b(seo|sem|ppc|adwords)\b", re.IGNORECASE)
 
 # Usługi, których NIE wolno wpuścić do zapytania — inaczej szukamy własnych konkurentów.
 USLUGI_KONKURENCYJNE = ("seo", "sem", "pozycjonowanie", "google ads", "meta ads", "adwords", "ppc")
@@ -166,9 +192,7 @@ USLUGI_KONKURENCYJNE = ("seo", "sem", "pozycjonowanie", "google ads", "meta ads"
 
 def czy_konkurent_w_wyniku(tytul: str, url: str) -> bool:
     t = (tytul or "").lower()
-    if any(f in t for f in FRAZY_KONKURENTA):
-        return True
-    return bool(TOKEN_KONKURENTA.search(tytul or ""))
+    return any(f in t for f in FRAZY_KONKURENTA)
 
 
 def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[list, int]:
@@ -184,9 +208,11 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[li
             continue
         if wlasna_domena and wlasna_domena in dom:
             continue
-        if any(k in url.lower() for k in KATALOGI):
+        if czy_smiec(url):
             continue
         if any(f in tytul.lower() for f in FRAZY_NIE_FIRMA):
+            continue
+        if LISTICLE.search(tytul) or LISTICLE.search(url.replace("-", " ")):
             continue
         widziane.add(dom)
         if czy_konkurent_w_wyniku(tytul, url):

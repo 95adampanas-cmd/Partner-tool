@@ -40,6 +40,24 @@ prosiliśmy wyszukiwarkę o konkurentów. Model dokładał też miasto z powietr
 Po zmianie: `agencja kreatywna branding design logo Polska` → 10 realnych agencji kreatywnych.
 KPI zakłada trafność 60% — te filtry są warunkiem jej osiągnięcia.
 
+## 2026-08-27 — Agencja SEM / Google Ads = partner komplementarny, NIE konkurent
+**Decyzja:** Z listy „podobnych" odsiewamy **tylko jawne agencje SEO/pozycjonowania**
+(„Agencja SEO", „pozycjonowanie stron"). Agencje SEM, Google Ads, marketingowe i 360 **zostają** —
+nawet jeśli mają SEO wśród usług. Zasada ta sama co przy fladze konkurenta: liczy się **rdzeń oferty**.
+**Powód:** Decyzja Adama na przykładzie orangejuice.pl — agencja od płatnych kampanii to dobry
+partner (oni płatne, my organiczne). Pierwsza wersja filtra wykluczała każdy tytuł ze słowem
+„SEO/SEM/PPC", co wycinało wartościowych partnerów. Jeśli firma jednak okaże się konkurentem,
+wyjdzie to na karcie po researchu (flaga) — lepiej pokazać za dużo niż zgubić partnera.
+
+## 2026-08-27 — Twardy filtr śmieci w wynikach wyszukiwania
+**Decyzja:** Odrzucamy deterministycznie: katalogi firm (infoisinfo, biznesfinder, panoramafirm,
+pkt.pl, aleo, zleca, Trustpilot…), portale i fora, strony przeglądowe (`/tag/`, `/tematy/`, `/karta/`,
+`/kategoria/`), pliki (`.jpg`, `.pdf`…), obce domeny (`.es`, `.de`…) oraz **zestawienia typu
+„50 agencji digital", „10 Najlepszych Agencji"** (regex: liczba + agencje/firmy).
+**Powód:** Zgłoszenie Adama („czasem linki z dupy, na 2 jpg"). Test na zapytaniu „agencja
+marketingowa Polska": przed filtrem 10 wyników, z czego 4 to katalogi i listicle; po filtrze
+**8 realnych firm, same strony główne**.
+
 ---
 
 ## Do rozstrzygnięcia (otwarte)
