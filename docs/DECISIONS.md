@@ -28,6 +28,18 @@ LLM tylko tam, gdzie potrzebne jest rozumienie języka (ekstrakcja, generowanie 
 z tool+filtr+structured output naraz był niestabilny (raz 0 firm, raz 10). Po rozdzieleniu —
 LLM generuje zapytanie, kod filtruje — wyniki stały się powtarzalne. Dodatkowo tańsze.
 
+## 2026-08-27 — „Szukaj podobnych": krótkie zapytanie + odsiewanie konkurentów
+**Decyzja:** (1) Do generowania zapytania przekazujemy **max 5 usług**, wcześniej **deterministycznie
+wycinając usługi konkurencyjne** (SEO, SEM, pozycjonowanie, Google/Meta Ads). (2) Zapytanie ma
+**max 5-8 słów**, bez miasta, którego nie było w danych. (3) Wyniki, które w tytule nazywają się
+agencją SEO/SEM, są **odsiewane** — z licznikiem `odsiani_konkurenci`. (4) Odsiewamy też artykuły,
+poradniki, definicje, konferencje i agregatory (useme, rocketreach…).
+**Powód:** Test na firmie brantt (agencja kreatywna) zwracał **same agencje SEO**. Przyczyna:
+do zapytania szło wszystkie 25 usług firmy — w tym „SEO, Google Ads, Meta Ads" — więc sami
+prosiliśmy wyszukiwarkę o konkurentów. Model dokładał też miasto z powietrza („Poznań").
+Po zmianie: `agencja kreatywna branding design logo Polska` → 10 realnych agencji kreatywnych.
+KPI zakłada trafność 60% — te filtry są warunkiem jej osiągnięcia.
+
 ---
 
 ## Do rozstrzygnięcia (otwarte)

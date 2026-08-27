@@ -20,6 +20,7 @@ from urllib.parse import urlparse, urljoin
 import csv
 import io
 import os
+import re
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -133,7 +134,15 @@ KATALOGI = (
     "clutch.co", "sortlist", "themanifest", "goodfirms", "designrush", "techbehemoths",
     "topcssgallery", "wikipedia", "facebook", "linkedin", "instagram", "youtube",
     "oferteo", "ceneo", "opineo", "wordpress.org", "domenomania",
-    "/ranking", "najlepsze-", "top-10", "top10", "firm-i-agencji", "/blog/",
+    "useme", "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io",
+    "/ranking", "najlepsze-", "top-10", "top10", "firm-i-agencji", "/blog/", "/artykul",
+)
+
+# Tytuły artykułów, poradników i wydarzeń — to nie są firmy, tylko treści o branży.
+FRAZY_NIE_FIRMA = (
+    "jak zbudowa", "jak wybra", "jak zrobi", "jak dziala", "jak działa", "poradnik",
+    "co to jest", "czym jest", "blog", "konferencja", "webinar", "targi", "szkolenie online",
+    "przewodnik", " vs ", "porównanie", "porownanie", "definicja", "słownik", "slownik",
 )
 
 
@@ -144,11 +153,32 @@ def tavily_search(zapytanie: str, max_results: int = 15) -> list:
     return TavilyClient(api_key=key).search(zapytanie, max_results=max_results).get("results", [])
 
 
-def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> list:
-    """Zostawia realne firmy: bez katalogów/rankingów, bez badanej firmy, bez duplikatów domen."""
-    firmy, widziane = [], set()
+# Firma, która sama nazywa się agencją SEO/SEM = konkurent. Nie chcemy jej wśród "podobnych".
+FRAZY_KONKURENTA = (
+    "agencja seo", "agencji seo", "agencja sem", "pozycjonowanie", "pozycjonowania",
+    "link building", "audyt seo", "specjalisci seo", "specjaliści seo",
+)
+TOKEN_KONKURENTA = re.compile(r"\b(seo|sem|ppc|adwords)\b", re.IGNORECASE)
+
+# Usługi, których NIE wolno wpuścić do zapytania — inaczej szukamy własnych konkurentów.
+USLUGI_KONKURENCYJNE = ("seo", "sem", "pozycjonowanie", "google ads", "meta ads", "adwords", "ppc")
+
+
+def czy_konkurent_w_wyniku(tytul: str, url: str) -> bool:
+    t = (tytul or "").lower()
+    if any(f in t for f in FRAZY_KONKURENTA):
+        return True
+    return bool(TOKEN_KONKURENTA.search(tytul or ""))
+
+
+def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[list, int]:
+    """Zostawia realne firmy. Odrzuca: katalogi/rankingi, badaną firmę, duplikaty domen
+    oraz agencje SEO/SEM (konkurentów — nie są kandydatami na partnera).
+    Zwraca (firmy, ile_odsianych_konkurentow)."""
+    firmy, widziane, odsiani = [], set(), 0
     for r in wyniki:
         url = r.get("url", "")
+        tytul = r.get("title") or ""
         dom = urlparse(url).netloc.replace("www.", "").lower()
         if not dom or dom in widziane:
             continue
@@ -156,9 +186,14 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> list:
             continue
         if any(k in url.lower() for k in KATALOGI):
             continue
+        if any(f in tytul.lower() for f in FRAZY_NIE_FIRMA):
+            continue
         widziane.add(dom)
-        firmy.append({"nazwa": (r.get("title") or dom)[:60], "url": url})
-    return firmy[:limit]
+        if czy_konkurent_w_wyniku(tytul, url):
+            odsiani += 1
+            continue
+        firmy.append({"nazwa": tytul[:60] or dom, "url": url})
+    return firmy[:limit], odsiani
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -259,10 +294,19 @@ agent_ekstrakcja = Agent(
 
 agent_zapytanie = Agent(
     name="zapytanie",
-    instructions="""Dostajesz opis firmy (branża + usługi). Napisz JEDNO krótkie zapytanie
-do wyszukiwarki (po polsku), które znajdzie REALNE firmy z tej samej branży w Polsce.
-Używaj fraz USŁUGOWYCH (np. "agencja e-commerce PrestaShop", "tworzenie stron WordPress Poznań"),
-NIGDY fraz typu "ranking / top 10 / najlepsze firmy". Zwróć TYLKO samo zapytanie, bez cudzysłowów.""",
+    instructions="""Dostajesz branżę i kilka usług firmy. Napisz JEDNO zapytanie do wyszukiwarki,
+które znajdzie inne firmy TEGO SAMEGO typu w Polsce.
+
+ZASADY (twarde):
+- MAKSYMALNIE 5 słów. Krótkie zapytanie = trafne wyniki. Długie = śmieci.
+- Opisz TYP FIRMY, nie listę jej usług. Dobrze: "agencja brandingowa Polska".
+  Źle: "agencja kreatywna branding design naming logo identyfikacja wizualna strony".
+- NIGDY nie dodawaj miasta ani regionu, jeśli nie dostałeś go wprost w danych.
+- NIGDY nie używaj słów: SEO, SEM, pozycjonowanie, Google Ads, marketing.
+  Szukamy PARTNERÓW, nie agencji marketingowych.
+- NIGDY fraz typu "ranking", "top 10", "najlepsze firmy".
+
+Zwróć TYLKO samo zapytanie, bez cudzysłowów i komentarza.""",
     model=MODEL_TANI,
 )
 
@@ -330,14 +374,21 @@ async def api_similar(request):
             })
         body = await request.json()
         firma = body.get("firma") or {}
-        opis = f"Branża: {firma.get('branza', '')}. Usługi: {', '.join(firma.get('uslugi', []))}."
+
+        # Deterministycznie: wywalamy usługi konkurencyjne (inaczej szukamy agencji SEO)
+        # i ograniczamy listę — długie zapytanie = śmieciowe wyniki.
+        uslugi = [u for u in firma.get("uslugi", [])
+                  if not any(z in u.lower() for z in USLUGI_KONKURENCYJNE)][:5]
+        opis = f"Branża: {firma.get('branza', '')}. Główne usługi: {', '.join(uslugi)}."
 
         r = await Runner.run(agent_zapytanie, opis)
-        zapytanie = (r.final_output or "").strip().strip('"')
+        zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])
 
         wlasna = urlparse(firma.get("url", "")).netloc.replace("www.", "").lower()
-        firmy = filtruj_firmy(tavily_search(zapytanie), wlasna)
-        return JSONResponse({"ok": True, "firmy": firmy, "zapytanie": zapytanie})
+        firmy, odsiani = filtruj_firmy(tavily_search(zapytanie), wlasna)
+        return JSONResponse({
+            "ok": True, "firmy": firmy, "zapytanie": zapytanie, "odsiani_konkurenci": odsiani,
+        })
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 

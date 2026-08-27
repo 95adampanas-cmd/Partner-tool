@@ -263,7 +263,9 @@ async function szukajPodobnych(przycisk) {
     } else {
       box.innerHTML = `<div class="card similar">
         <div class="mono"><span class="sq"></span> PODOBNE FIRMY (${data.firmy.length})</div>
-        <p class="hint">Zapytanie: „${esc(data.zapytanie)}"</p>
+        <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
+          data.odsiani_konkurenci ? ` · odsiano ${data.odsiani_konkurenci} agencji SEO/SEM` : ""
+        }</p>
         <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
       </div>`;
     }
