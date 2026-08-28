@@ -22,3 +22,6 @@ Thumbs.db
 # Node
 node_modules/
 dist/
+
+# raport z testu filtra (generowany)
+raport_filtr.txt

@@ -176,8 +176,12 @@ def sprawdz_zywotnosc(url: str) -> str:
     if not html:
         return "niepewna"
     tekst = tekst_ze_strony(html)[:2500].lower()
-    if len(tekst) < 200 or any(m in tekst for m in MARKERY_MARTWEJ):
+    if any(m in tekst for m in MARKERY_MARTWEJ):
         return "martwa"
+    # Mało tekstu to NIE dowód śmierci: bywa bramka językowa (cyrekdigital.com)
+    # albo strona renderowana JS-em (SPA) — HTML jest wtedy prawie pusty.
+    if len(tekst) < 200:
+        return "niepewna"
     return "zywa"
 
 
@@ -187,6 +191,7 @@ DOMENY_ODPADAJACE = (
     "topcssgallery", "infoisinfo", "biznesfinder", "panoramafirm", "pkt.pl", "aleo.com",
     "firmy.net", "zumi.pl", "targeo", "oferteo", "ceneo", "opineo", "useme",
     "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io", "zleca.pl",
+    "prospeo", "hunter.io", "snov.io", "clearbit", "zoominfo", "crunchbase", "dnb.com",
     "trustpilot", "marketingibiznes", "egospodarka", "wikipedia", "facebook", "linkedin",
     "instagram", "youtube", "wordpress.org", "domenomania",
     # media/blogi/fora — po ucięciu do domeny i tak nie byłyby firmą
