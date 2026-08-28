@@ -150,6 +150,38 @@ button { font-family: var(--sans); }
 .presety .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
 .wynik:not(:empty) { margin-top: 26px; }
 
+/* Panel informacyjny / statystyki pod polem wejściowym */
+#research-panel:not(:empty) { margin-top: 30px; }
+.panel-info { max-width: 860px; }
+.siatka-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 2px;
+  background: var(--border-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.info-poz {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--surface); padding: 14px 16px;
+}
+.info-poz .ico { color: var(--faint); margin-top: 2px; }
+.info-poz div { display: flex; flex-direction: column; }
+.info-poz b { font-size: 13.5px; font-weight: 550; }
+.info-poz span { color: var(--faint); font-size: 12.5px; line-height: 1.45; }
+
+.kafle { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; max-width: 860px; }
+.kafel {
+  display: flex; align-items: center; gap: 13px;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--r); padding: 16px 18px;
+}
+.kafel .ico { color: var(--faint); }
+.kafel div { display: flex; flex-direction: column; line-height: 1.25; }
+.kafel b { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+.kafel span { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+
 .pusto {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
   color: var(--muted); text-align: center; padding: 64px 0;

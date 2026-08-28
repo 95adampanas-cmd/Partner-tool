@@ -60,6 +60,64 @@ async function research(url) {
   return res.json();
 }
 
+// ══ Panel pod polem researchu ══
+// Pusty ekran nic nie mówi. Przed pierwszym researchem tłumaczymy, CO wyciągamy;
+// potem pokazujemy stan pracy i skrót do ostatnio zbadanych firm.
+const ZBIERAMY = [
+  ["tag", "Usługi i oferta", "pełna lista usług z podstron"],
+  ["file", "Realizacje i case studies", "nazwy klientów, liczba wdrożeń"],
+  ["users", "Wielkość zespołu", "jeśli firma ją podaje"],
+  ["user", "Osoba decyzyjna", "imię, stanowisko, bezpośredni kontakt"],
+  ["mail", "Kontakt firmowy", "telefon i e-mail ze strony"],
+  ["building", "Dane spółki", "nazwa prawna, NIP, adres, miasto"],
+  ["alert", "Flaga konkurenta", "czy rdzeniem oferty jest SEO/SEM"],
+  ["pin", "Źródło danych", "które podstrony odwiedziliśmy"],
+];
+
+function renderResearchPanel() {
+  const box = document.getElementById("research-panel");
+
+  if (!tabs.length) {
+    box.innerHTML = `<div class="card panel-info">
+      <div class="mono"><i class="sq"></i>Co zbierzemy ze strony</div>
+      <div class="siatka-info">${ZBIERAMY.map(([ikona, tytul, opis]) => `
+        <div class="info-poz">
+          <svg class="ico"><use href="#i-${ikona}"/></svg>
+          <div><b>${esc(tytul)}</b><span>${esc(opis)}</span></div>
+        </div>`).join("")}</div>
+      <p class="hint">Czego nie ma na stronie, oznaczamy jako „nie do ustalenia" — nigdy nie zgadujemy.</p>
+    </div>`;
+    return;
+  }
+
+  const konkurenci = tabs.filter((t) => t.firma.konkurent).length;
+  const ostatnie = tabs.slice(-4).reverse();
+  box.innerHTML = `
+    <div class="kafle">
+      ${kafel(tabs.length, "zbadane firmy", "building")}
+      ${kafel(koszyk.length, "w eksporcie", "table")}
+      ${kafel(konkurenci, konkurenci === 1 ? "konkurent" : "konkurenci", "alert")}
+    </div>
+    <div class="card">
+      <div class="mono"><i class="sq"></i>Ostatnio zbadane</div>
+      <div class="similar-list">${ostatnie.map((t) => `
+        <div class="sim-row firma-row" data-id="${t.id}" style="margin:0">
+          <div class="sim-info">
+            <span class="sim-name">${esc(t.firma.nazwa)}</span>
+            <span class="firma-row-meta">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</span>
+          </div>
+          <button class="otworz" type="button">Otwórz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>`).join("")}</div>
+    </div>`;
+}
+
+function kafel(liczba, etykieta, ikona) {
+  return `<div class="kafel">
+    <svg class="ico"><use href="#i-${ikona}"/></svg>
+    <div><b>${liczba}</b><span>${esc(etykieta)}</span></div>
+  </div>`;
+}
+
 // ══ SEKCJA: Szukaj po branży ══
 const formKryteria = document.getElementById("form-kryteria");
 const btnKryteria = document.getElementById("btn-kryteria");
@@ -106,6 +164,7 @@ function otworzFirme(firma) {
     tabs.push(wpis);
     document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, firma));
     odswiezBadge("badge-firmy", tabs.length);
+    renderResearchPanel();
   }
   pokazSekcje("firmy");
   pokazDetal(wpis.id);
@@ -161,6 +220,7 @@ function usunFirme(id) {
   tabs = tabs.filter((t) => t.id !== id);
   document.querySelector(`#panels .panel[data-id="${id}"]`)?.remove();
   odswiezBadge("badge-firmy", tabs.length);
+  renderResearchPanel();
   pokazListe();
 }
 
@@ -248,7 +308,7 @@ document.addEventListener("click", (e) => {
   const usun = e.target.closest("[data-usun]");
   if (usun) { e.stopPropagation(); return usunFirme(usun.dataset.usun); }
   const wiersz = e.target.closest(".firma-row");
-  if (wiersz) return pokazDetal(wiersz.dataset.id);
+  if (wiersz) { pokazSekcje("firmy"); return pokazDetal(wiersz.dataset.id); }
   if (e.target.classList.contains("wroc")) return pokazListe();
 
   const wzor = e.target.closest(".wybierz-wzor");
@@ -287,6 +347,7 @@ document.addEventListener("change", (e) => {
   odswiezBadge("badge-eksport", koszyk.length);
   renderEksport();
   renderListeFirm(); // odśwież znacznik „w eksporcie" na liście
+  renderResearchPanel();
 });
 
 function firmaZPanelu(panel) {
@@ -521,3 +582,5 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 }
 function escAttr(s) { return esc(s).replace(/"/g, "&quot;"); }
+
+renderResearchPanel();  // stan startowy
