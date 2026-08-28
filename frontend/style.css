@@ -87,6 +87,28 @@ h1 {
 }
 .sub strong { color: var(--text); font-weight: 600; }
 
+/* ── Przełącznik trybów ── */
+.tryby { display: flex; gap: 8px; margin-bottom: 16px; }
+.tryb {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 14px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.tryb:hover { color: var(--text); }
+.tryb.aktywny { color: var(--orange); border-color: var(--orange); background: rgba(240,78,42,.1); }
+.search.kryteria { gap: 0; padding-left: 22px; }
+.search.kryteria input { min-width: 0; }
+.search.kryteria #miasto {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  max-width: 210px;
+}
+
 /* ── Search form ── */
 .search {
   display: flex;

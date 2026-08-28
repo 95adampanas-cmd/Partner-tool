@@ -44,6 +44,58 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
+// ── TRYB B: szukanie po branży i mieście (bez firmy wejściowej) ──
+const formKryteria = document.getElementById("form-kryteria");
+const btnKryteria = document.getElementById("btn-kryteria");
+
+document.querySelectorAll(".tryb").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tryb").forEach((x) => x.classList.remove("aktywny"));
+    b.classList.add("aktywny");
+    const poUrl = b.dataset.tryb === "url";
+    form.hidden = !poUrl;
+    formKryteria.hidden = poUrl;
+  });
+});
+
+formKryteria.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const branza = document.getElementById("branza").value.trim();
+  const miasto = document.getElementById("miasto").value.trim();
+  if (!branza) return;
+
+  output.hidden = false;
+  output.innerHTML = loadingHTML("Szukam firm i sprawdzam, które strony żyją… ~10 s.");
+  btnKryteria.disabled = true;
+
+  try {
+    const res = await fetch("/api/szukaj", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branza, miasto }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      output.innerHTML = errorHTML(data.error);
+    } else {
+      tabs = [];
+      activeId = null;
+      output.innerHTML = `<div id="tabbar" class="tabbar"></div><div id="panels"></div>`;
+      const id = "tab" + ++tabSeq;
+      tabs.push({ id, nazwa: "🔍 Wyniki", typ: "wyniki" });
+      document.getElementById("panels").insertAdjacentHTML(
+        "beforeend",
+        `<div class="panel" data-id="${id}">${listaFirmHTML(data, "ZNALEZIONE FIRMY")}</div>`
+      );
+      setActive(id);
+    }
+  } catch (err) {
+    output.innerHTML = errorHTML(err.message);
+  } finally {
+    btnKryteria.disabled = false;
+  }
+});
+
 async function research(url) {
   const res = await fetch("/api/research", {
     method: "POST",
@@ -264,18 +316,8 @@ async function szukajPodobnych(przycisk) {
     const data = await res.json();
     if (!data.ok) {
       box.innerHTML = errorHTML(data.error);
-    } else if (!data.firmy.length) {
-      box.innerHTML = `<div class="card"><p class="sim-err">Nie znalazłem podobnych firm.</p></div>`;
     } else {
-      box.innerHTML = `<div class="card similar">
-        <div class="mono"><span class="sq"></span> PODOBNE FIRMY (${data.firmy.length})</div>
-        <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
-          data.odsiani_konkurenci ? ` · odsiano ${data.odsiani_konkurenci} agencji SEO` : ""
-        }${
-          data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
-        }</p>
-        <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
-      </div>`;
+      box.innerHTML = listaFirmHTML(data, "PODOBNE FIRMY");
     }
   } catch (err) {
     box.innerHTML = errorHTML(err.message);
@@ -283,6 +325,23 @@ async function szukajPodobnych(przycisk) {
     przycisk.disabled = false;
     przycisk.textContent = "🔍 Szukaj podobnych";
   }
+}
+
+// wspólny render listy firm — dla „szukaj podobnych" (Tryb A) i szukania po kryteriach (Tryb B)
+function listaFirmHTML(data, naglowek) {
+  if (!data.firmy.length) {
+    return `<div class="card"><p class="sim-err">Nie znalazłem firm dla „${esc(data.zapytanie)}".
+      Spróbuj innej branży albo bez miasta.</p></div>`;
+  }
+  return `<div class="card similar">
+    <div class="mono"><span class="sq"></span> ${esc(naglowek)} (${data.firmy.length})</div>
+    <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
+      data.odsiani_konkurenci ? ` · odsiano ${data.odsiani_konkurenci} agencji SEO` : ""
+    }${
+      data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
+    }</p>
+    <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
+  </div>`;
 }
 
 function wierszHTML(f) {

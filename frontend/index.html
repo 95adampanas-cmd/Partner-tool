@@ -16,12 +16,23 @@
     <main class="hero">
       <div class="mono center"><span class="sq"></span> RESEARCH PARTNERSKI</div>
       <h1>Zbadaj firmę <span class="accent">partnerską</span></h1>
-      <p class="sub">Wklej adres strony. Narzędzie zbierze dane o firmie — usługi, zespół, realizacje,
-        kontakt — i oznaczy, czy to <strong>konkurent</strong>. Ocenę robisz Ty.</p>
+      <p class="sub">Zbierz dane o firmie — usługi, zespół, realizacje, kontakt, osoba decyzyjna —
+        i sprawdź, czy to <strong>konkurent</strong>. Ocenę robisz Ty.</p>
+
+      <div class="tryby">
+        <button class="tryb aktywny" data-tryb="url" type="button">Po adresie firmy</button>
+        <button class="tryb" data-tryb="kryteria" type="button">Po branży i mieście</button>
+      </div>
 
       <form id="form" class="search">
         <input id="url" type="text" placeholder="https://firma.pl" autocomplete="off" spellcheck="false" required>
         <button id="btn" type="submit">Researchuj <span class="arrow">→</span></button>
+      </form>
+
+      <form id="form-kryteria" class="search kryteria" hidden>
+        <input id="branza" type="text" placeholder="agencja brandingowa" autocomplete="off" required>
+        <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
+        <button id="btn-kryteria" type="submit">Szukaj firm <span class="arrow">→</span></button>
       </form>
 
       <section id="output" class="output" hidden></section>

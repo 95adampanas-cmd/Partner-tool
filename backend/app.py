@@ -135,22 +135,6 @@ def scrape_firme(url: str) -> tuple[str, list[str]]:
 # ══════════════════════════════════════════════════════════════════════
 #  TAVILY + FILTR — zwykłe funkcje (deterministyczne, powtarzalne)
 # ══════════════════════════════════════════════════════════════════════
-KATALOGI = (
-    # katalogi firm i agregatory
-    "clutch.co", "sortlist", "themanifest", "goodfirms", "designrush", "techbehemoths",
-    "topcssgallery", "infoisinfo", "biznesfinder", "panoramafirm", "pkt.pl", "aleo.com",
-    "firmy.net", "zumi.pl", "targeo", "oferteo", "ceneo", "opineo", "useme",
-    "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io",
-    # portale, social, fora
-    "wikipedia", "facebook", "linkedin", "instagram", "youtube", "egospodarka",
-    "wordpress.org", "domenomania", "forum.", "/forum",
-    "trustpilot", "zleca.pl", "/wykonawcy/", "/categories/", "marketingibiznes",
-    # strony przeglądowe, nie firmy
-    "/tag/", "/tematy/", "/karta/", "/kategoria/", "/category/", "/szukaj", "/search",
-    "/newsy", "/aktualnosci",
-    "/ranking", "najlepsze-", "top-10", "top10", "firm-i-agencji", "/blog/", "/artykul",
-)
-
 # Pliki i obce domeny — nigdy nie są stroną polskiej firmy partnerskiej.
 ROZSZERZENIA = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".pdf", ".zip")
 OBCE_TLD = (
@@ -196,6 +180,9 @@ DOMENY_ODPADAJACE = (
     "firmy.net", "zumi.pl", "targeo", "oferteo", "ceneo", "opineo", "useme",
     "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io", "zleca.pl",
     "prospeo", "hunter.io", "snov.io", "clearbit", "zoominfo", "crunchbase", "dnb.com",
+    # portale ogłoszeniowe / z ofertami pracy — to nie są firmy partnerskie
+    "pracuj.pl", "bulldogjob", "nofluffjobs", "justjoin", "indeed", "olx.", "gowork",
+    "jooble", "jobs.pl", "startup-house.com", "f6s.com",
     "trustpilot", "marketingibiznes", "egospodarka", "wikipedia", "facebook", "linkedin",
     "instagram", "youtube", "wordpress.org", "domenomania",
     # media/blogi/fora — po ucięciu do domeny i tak nie byłyby firmą
@@ -232,7 +219,17 @@ FRAZY_NIE_FIRMA = (
 
 # Zestawienia: "50 agencji digital", "Top 5 Najlepszych...". Kotwiczymy na POCZĄTKU tytułu,
 # inaczej wpadały firmy typu "360agencja.pl" albo "Grupa 3 Agencja Reklamowa".
-LISTICLE = re.compile(r"^\s*(top\s*)?\d{1,3}\s+(najlepsz|agencj|firm|software)", re.IGNORECASE)
+LISTICLE = re.compile(
+    r"^\s*(top\s+)?\d{1,3}\s+(top\s+|best\s+)?(najlepsz|agencj|firm|software|companies)",
+    re.IGNORECASE,
+)
+
+# Tytuły, po których ODRZUCAMY wynik nawet po ucięciu do strony głównej — bo cała domena
+# okazuje się rankingiem, katalogiem albo portalem z ogłoszeniami, a nie firmą.
+TYTULY_ODRZUCAJACE = (
+    "ranking", "top 10", "top10", "directory", "katalog firm", "zestawienie",
+    "najlepszych agencji", "najlepsze agencje", "oferty pracy", "praca ", " praca",
+)
 
 
 def tavily_search(zapytanie: str, max_results: int = 15) -> list:
@@ -274,6 +271,8 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[li
         widziane.add(dom)
 
         tytul = (r.get("title") or "").strip()
+        if any(f in tytul.lower() for f in TYTULY_ODRZUCAJACE):
+            continue
         if czy_konkurent_w_wyniku(tytul, strona):
             odsiani += 1
             continue
@@ -482,6 +481,52 @@ async def api_research(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+def znajdz_firmy(zapytanie: str, wlasna_domena: str = "") -> dict:
+    """Wspólny silnik wyszukiwania: Tavily -> filtr -> kontrola żywotności.
+    Używany i przez 'szukaj podobnych' (Tryb A), i przez szukanie po kryteriach (Tryb B)."""
+    firmy, odsiani = filtruj_firmy(tavily_search(zapytanie), wlasna_domena, limit=14)
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        stany = list(pool.map(lambda f: sprawdz_zywotnosc(f["url"]), firmy))
+
+    zostaja = []
+    for f, stan in zip(firmy, stany):
+        if stan == "martwa":
+            continue
+        if stan == "niepewna":
+            f["niepewna"] = True  # front pokaże adnotację, user decyduje
+        zostaja.append(f)
+
+    return {
+        "firmy": zostaja[:10],
+        "zapytanie": zapytanie,
+        "odsiani_konkurenci": odsiani,
+        "odsiane_martwe": stany.count("martwa"),
+    }
+
+
+async def api_szukaj(request):
+    """TRYB B — szukanie po kryteriach (branża + miasto), bez firmy wejściowej.
+
+    Zapytanie składamy DETERMINISTYCZNIE (zasada z PRD) — user sam podaje branżę i miasto,
+    więc nie ma czego zgadywać przez LLM. Zero kosztu tokenów.
+    """
+    try:
+        if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
+            return JSONResponse({"ok": False, "error": "Brak klucza Tavily w środowisku."})
+        body = await request.json()
+        branza = (body.get("branza") or "").strip()
+        miasto = (body.get("miasto") or "").strip()
+        if not branza:
+            return JSONResponse({"ok": False, "error": "Podaj branżę lub typ firmy."})
+
+        zapytanie = f"{branza} {miasto}".strip() if miasto else f"{branza} Polska"
+        wynik = znajdz_firmy(zapytanie)
+        return JSONResponse({"ok": True, **wynik})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
 async def api_similar(request):
     """Funkcja 2 — szukaj podobnych firm (LLM tylko generuje zapytanie, filtr jest deterministyczny)."""
     try:
@@ -504,27 +549,7 @@ async def api_similar(request):
         zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])
 
         wlasna = urlparse(firma.get("url", "")).netloc.replace("www.", "").lower()
-        firmy, odsiani = filtruj_firmy(tavily_search(zapytanie), wlasna, limit=14)
-
-        # Kontrola żywotności — równolegle, żeby nie czekać po kolei na 14 stron.
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            stany = list(pool.map(lambda f: sprawdz_zywotnosc(f["url"]), firmy))
-
-        zostaja = []
-        for f, stan in zip(firmy, stany):
-            if stan == "martwa":
-                continue
-            if stan == "niepewna":
-                f["niepewna"] = True  # front pokaże adnotację, user decyduje
-            zostaja.append(f)
-
-        return JSONResponse({
-            "ok": True,
-            "firmy": zostaja[:10],
-            "zapytanie": zapytanie,
-            "odsiani_konkurenci": odsiani,
-            "odsiane_martwe": stany.count("martwa"),
-        })
+        return JSONResponse({"ok": True, **znajdz_firmy(zapytanie, wlasna)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
@@ -576,6 +601,7 @@ frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 app = Starlette(routes=[
     Route("/api/research", api_research, methods=["POST"]),
     Route("/api/similar", api_similar, methods=["POST"]),
+    Route("/api/szukaj", api_szukaj, methods=["POST"]),
     Route("/api/email", api_email, methods=["POST"]),
     Route("/api/columns", api_columns, methods=["GET"]),
     Route("/api/export", api_export, methods=["POST"]),
