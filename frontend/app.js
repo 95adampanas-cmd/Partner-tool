@@ -65,6 +65,15 @@ const formKryteria = document.getElementById("form-kryteria");
 const btnKryteria = document.getElementById("btn-kryteria");
 const szukajWynik = document.getElementById("szukaj-wynik");
 
+// presety branż — kategorie partnerskie Last Agency (PRD: dobre kategorie partnerów)
+const PRESETY = [
+  "agencja brandingowa", "agencja kreatywna", "software house", "agencja e-commerce",
+  "agencja social media", "marketing automation", "doradztwo e-commerce",
+  "agencja UX/UI", "kancelaria prawna e-commerce", "integrator ERP",
+];
+document.getElementById("presety-branz").innerHTML =
+  PRESETY.map((p) => `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`).join("");
+
 formKryteria.addEventListener("submit", async (e) => {
   e.preventDefault();
   const branza = document.getElementById("branza").value.trim();
@@ -248,6 +257,11 @@ document.addEventListener("click", (e) => {
     podobneWybrana = null; podobneTagi.clear();
     document.getElementById("podobne-wynik").innerHTML = "";
     return renderPodobne();
+  }
+  const preset = e.target.closest("[data-preset]");
+  if (preset) {
+    document.getElementById("branza").value = preset.dataset.preset;
+    return document.getElementById("miasto").focus();
   }
   const tag = e.target.closest("[data-tag]");
   if (tag) {

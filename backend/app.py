@@ -438,6 +438,36 @@ Zwróć TYLKO samo zapytanie, bez cudzysłowów i komentarza.""",
 )
 
 
+class WariantyZapytan(BaseModel):
+    zapytania: list[str]
+
+
+agent_warianty = Agent(
+    name="warianty",
+    instructions="""Dostajesz typ firmy i (opcjonalnie) miasto. Wygeneruj 4 RÓŻNE zapytania
+do wyszukiwarki, które znajdą takie firmy w Polsce.
+
+CEL: dotrzeć do firm, które NIE są w TOP10 na najbardziej oczywistą frazę. Jedno zapytanie
+zwraca wciąż tych samych liderów rynku; cztery różne wyciągają mniejsze, słabiej
+wypozycjonowane firmy — a to one są najciekawsze jako partnerzy.
+
+ZASADY:
+- Każde zapytanie MAKSYMALNIE 5 słów.
+- Warianty muszą się REALNIE różnić. Użyj kolejno:
+  (1) nazwy branży, (2) synonimu / innej nazwy tej samej branży,
+  (3) KONKRETNEJ USŁUGI, którą taka firma świadczy, (4) innej konkretnej usługi.
+- Jeśli dostałeś miasto — dodaj je do KAŻDEGO wariantu. Jeśli nie — dodaj "Polska".
+- NIGDY fraz typu "ranking", "top 10", "najlepsze", "opinie", "cennik".
+- Nie dodawaj od siebie SEO/SEM/marketing, chyba że to wprost wskazana branża.
+
+Przykład dla "agencja brandingowa" + "Kraków":
+  agencja brandingowa Kraków | studio brandingowe Kraków |
+  projektowanie identyfikacji wizualnej Kraków | tworzenie logo marki Kraków""",
+    output_type=WariantyZapytan,
+    model=MODEL_TANI,
+)
+
+
 MAIL_SYSTEM = """Jesteś partnership managerem w Last Agency — agencji SEO/GEO/SEM.
 Piszesz krótkiego, spersonalizowanego maila z propozycją współpracy partnerskiej.
 
@@ -511,11 +541,17 @@ async def api_research(request):
 
 
 def znajdz_firmy(zapytanie: str, wlasna_domena: str = "") -> dict:
-    """Wspólny silnik wyszukiwania: Tavily -> filtr -> kontrola żywotności.
-    Używany i przez 'szukaj podobnych' (Tryb A), i przez szukanie po kryteriach (Tryb B)."""
-    firmy, odsiani = filtruj_firmy(tavily_search(zapytanie), wlasna_domena, limit=14)
+    """Jedno zapytanie -> Tavily -> filtr -> kontrola żywotności."""
+    return {"zapytanie": zapytanie,
+            **znajdz_firmy_z_wynikow(tavily_search(zapytanie), wlasna_domena)}
 
-    with ThreadPoolExecutor(max_workers=10) as pool:
+
+def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
+    """Filtr + deduplikacja + kontrola żywotności na gotowej puli wyników.
+    Osobno od pobierania, bo Tryb B scala wyniki z kilku zapytań naraz."""
+    firmy, odsiani = filtruj_firmy(wyniki, wlasna_domena, limit=18)
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
         stany = list(pool.map(lambda f: sprawdz_zywotnosc(f["url"]), firmy))
 
     zostaja = []
@@ -527,8 +563,7 @@ def znajdz_firmy(zapytanie: str, wlasna_domena: str = "") -> dict:
         zostaja.append(f)
 
     return {
-        "firmy": zostaja[:10],
-        "zapytanie": zapytanie,
+        "firmy": zostaja[:12],
         "odsiani_konkurenci": odsiani,
         "odsiane_martwe": stany.count("martwa"),
     }
@@ -549,9 +584,21 @@ async def api_szukaj(request):
         if not branza:
             return JSONResponse({"ok": False, "error": "Podaj branżę lub typ firmy."})
 
-        zapytanie = f"{branza} {miasto}".strip() if miasto else f"{branza} Polska"
-        wynik = znajdz_firmy(zapytanie)
-        return JSONResponse({"ok": True, **wynik})
+        # LLM rozpisuje branżę na kilka RÓŻNYCH fraz — jedno zapytanie zwraca tylko TOP10
+        # najlepiej wypozycjonowanych, a szukamy tych mniej widocznych (główny ból z PRD).
+        polecenie = f"Typ firmy: {branza}." + (f" Miasto: {miasto}." if miasto else "")
+        r = await Runner.run(agent_warianty, polecenie)
+        warianty = [" ".join(z.split()[:6]) for z in (r.final_output.zapytania or [])][:4]
+        if not warianty:
+            warianty = [f"{branza} {miasto}".strip() or f"{branza} Polska"]
+
+        # Wszystkie warianty równolegle, potem scalamy w jedną pulę wyników.
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            partie = list(pool.map(lambda q: tavily_search(q, max_results=10), warianty))
+        wszystkie = [w for partia in partie for w in partia]
+
+        wynik = znajdz_firmy_z_wynikow(wszystkie)
+        return JSONResponse({"ok": True, "zapytanie": " | ".join(warianty), **wynik})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 

@@ -151,6 +151,8 @@ body {
 }
 .pasek button:hover { background: var(--orange-dim); }
 .pasek button:disabled { opacity: .55; cursor: default; }
+.presety { margin-top: 18px; max-width: 720px; }
+.presety .mono { margin-bottom: 10px; font-size: 10px; }
 .wynik:not(:empty) { margin-top: 24px; }
 .pusto { color: var(--muted); font-size: 15px; padding: 40px 0; }
 

@@ -107,6 +107,19 @@ klik otwiera pełną kartę.
 **Powód:** Decyzja Adama (wzór: dashboard Tavily). Każda funkcja ma swoje miejsce zamiast wisieć
 w jednym scrollu. Rozdzielenie: Research/Szukaj = ekrany wejścia, Firmy = workspace, Eksport = wyjście.
 
+## 2026-08-28 — „Szukaj po branży": 4 warianty zapytania zamiast jednego
+**Decyzja:** Tryb B nie wysyła jednego zapytania. LLM rozpisuje branżę (+ miasto) na **4 różne
+frazy** — nazwa branży, synonim, konkretna usługa, inna usługa — które lecą **równolegle** do
+Tavily. Wyniki są scalane, deduplikowane po domenie i dopiero potem filtrowane.
+**Powód:** Uwaga Adama: „czy to jak zwykłe Google? to trzeba coś dodać". Miał rację — jedno
+zapytanie zwracało TOP10 najlepiej wypozycjonowanych, a PRD mówi wprost, że problemem jest
+**dotarcie do firm, które NIE są na topowych pozycjach**. Jedna fraza mijała się z celem produktu.
+**Efekt (agencja brandingowa Kraków):** 12 firm zamiast 10, w tym **5 zupełnie nowych**
+(total-design, happyrebels, connectthedots, ivento, studionoto) — mniejsze studia niewidoczne
+na najbardziej oczywistą frazę.
+**Koszt:** 4 zapytania Tavily zamiast 1 (przy limicie 1000/mies. to ~250 wyszukiwań miesięcznie)
++ 1 tanie wywołanie LLM (nano) na warianty. Dodane presety branż w UI (klik zamiast pisania).
+
 ---
 
 ## Do rozstrzygnięcia (otwarte)
