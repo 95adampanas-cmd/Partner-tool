@@ -180,9 +180,15 @@ function kartaHTML(f) {
       ${pole("Branża", f.branza)}
       ${pole("Wielkość zespołu", f.wielkosc_zespolu)}
       ${pole("Liczba projektów", f.liczba_projektow)}
-      ${pole("Telefon", f.telefon)}
-      ${pole("Email", f.email)}
-      ${pole("Persona", f.persona)}
+      ${pole("Telefon (firma)", f.telefon)}
+      ${pole("Email (firma)", f.email)}
+    </div>
+
+    <div class="pola osoba">
+      ${pole("Osoba decyzyjna", f.persona_imie)}
+      ${pole("Stanowisko", f.persona_stanowisko)}
+      ${pole("Email osoby", f.persona_email)}
+      ${pole("Telefon osoby", f.persona_telefon)}
     </div>
 
     ${lista("Usługi", f.uslugi)}

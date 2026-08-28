@@ -375,6 +375,8 @@ h1 {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
+.pola.osoba { border-top: none; }
+.pola.osoba .pole-etykieta { color: var(--orange); }
 .pole { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pole-etykieta {
   font-family: var(--mono);

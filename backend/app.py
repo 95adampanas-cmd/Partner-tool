@@ -55,9 +55,12 @@ class Firma(BaseModel):
     wielkosc_zespolu: str        # liczba lub "nie do ustalenia"
     liczba_projektow: str        # liczba lub "nie do ustalenia"
     case_studies: list[str]      # nazwy klientów / realizacji
-    telefon: str
-    email: str
-    persona: str                 # ⚠️ do potwierdzenia: osoba decyzyjna (imię + stanowisko)
+    telefon: str                 # ogólny kontakt firmowy
+    email: str                   # ogólny kontakt firmowy
+    persona_imie: str            # osoba decyzyjna: imię i nazwisko
+    persona_stanowisko: str      # jej rola (CEO, właściciel, dyrektor...)
+    persona_email: str           # jej bezpośredni mail, jeśli podany przy osobie
+    persona_telefon: str         # jej bezpośredni telefon, jeśli podany przy osobie
     konkurent: bool              # czy GŁÓWNA oferta to SEO/SEM/GEO
     konkurent_uzasadnienie: str
     opis: str                    # 2-3 zdania, czym firma się zajmuje
@@ -296,7 +299,10 @@ KOLUMNY = [
     ("Case studies", "case_studies"),
     ("Phone", "telefon"),
     ("Email", "email"),
-    ("Persona", "persona"),
+    ("Person name", "persona_imie"),
+    ("Person position", "persona_stanowisko"),
+    ("Person email", "persona_email"),
+    ("Person phone", "persona_telefon"),
     ("Konkurent", "konkurent"),
     ("Konkurent - uzasadnienie", "konkurent_uzasadnienie"),
 ]
@@ -342,9 +348,17 @@ CO WYCIĄGNĄĆ:
 - wielkosc_zespolu: liczba osób, jeśli podana (np. "20+ specjalistów")
 - liczba_projektow: liczba wdrożeń/projektów/klientów, jeśli podana
 - case_studies: nazwy klientów lub realizacji wymienione na stronie
-- telefon / email: TYLKO jeśli faktycznie są w tekście
-- persona: osoba decyzyjna wymieniona na stronie (imię + stanowisko), np. "Jan Kowalski, CEO"
+- telefon / email: OGÓLNY kontakt firmowy, TYLKO jeśli faktycznie jest w tekście
 - opis: 2-3 zdania, czym firma się zajmuje
+
+OSOBA DECYZYJNA (persona_*) — to ma być KONKRETNY CZŁOWIEK do kontaktu, nie opis profilu firmy:
+- persona_imie: imię i nazwisko osoby decyzyjnej wymienionej na stronie
+- persona_stanowisko: jej rola, np. CEO, właściciel, founder, prezes, dyrektor zarządzający
+- persona_email / persona_telefon: JEJ bezpośredni kontakt, jeśli podany obok nazwiska
+  (jeśli na stronie jest tylko ogólny kontakt firmowy, wpisz tu "{BRAK}")
+Kogo wybrać: osobę NAJWYŻEJ w hierarchii (właściciel/CEO/founder przed managerem).
+Szukaj w sekcjach "o nas", "zespół", "kontakt". Jeśli nikt nie jest wymieniony z nazwiska
+— wszystkie pola persona_* to "{BRAK}". NIE zgaduj i NIE wymyślaj nazwisk.
 
 KONKURENT (SEO/SEM/GEO) — to samo oznaczenie, NIE ocena wartości firmy.
 

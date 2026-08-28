@@ -40,11 +40,27 @@
 | `konkurent` | bool + uzasadnienie | LLM | tak | ? |
 | `zrodlo_danych` | str (które podstrony) | scraper | tak | — |
 
+## ✅ Rozstrzygnięte
+
+**Persona = dane OSOBY DECYZYJNEJ** (decyzja Adama, 2026-08-28). Nie profil klienta firmy.
+Rozbita na 4 pola, bo do Pipedrive trafia jako osobny rekord osoby:
+
+| Pole | Opis |
+|------|------|
+| `persona_imie` | imię i nazwisko |
+| `persona_stanowisko` | rola (CEO, właściciel, founder, dyrektor) |
+| `persona_email` | JEJ bezpośredni mail (nie ogólnofirmowy) |
+| `persona_telefon` | JEJ bezpośredni telefon |
+
+Zasada wyboru: osoba **najwyżej w hierarchii** (właściciel/CEO przed managerem).
+Szukamy w sekcjach „o nas", „zespół", „kontakt". Brak nazwiska → wszystkie pola `nie do ustalenia`.
+
+**Braki danych** = literalny string `"nie do ustalenia"` (spójny, filtrowalny w arkuszu), nie puste pole.
+
+**Konkurent** = flaga `true/false` + `konkurent_uzasadnienie` (na jakiej podstawie).
+
 ## Otwarte pytania
 
-1. **Czym jest „persona"?** Osoba decyzyjna (imię + stanowisko ze strony)? Czy typ profilu
-   klienta firmy? To zmienia i prompt, i wartość dla maila. → **wymaga decyzji**
-2. **Nazwy kolumn Pipedrive** — jakie dokładnie pola ma import? Bez tego mapowanie jest zgadywaniem.
-3. **Braki danych** — PRD mówi „nie do ustalenia" zamiast zgadywania. Potwierdzić, że to literalna
-   wartość w CSV (spójna, filtrowalna), nie puste pole.
-4. **Konkurent** — sama flaga `true/false`, czy flaga + uzasadnienie? (patrz definicja w DECISIONS)
+1. **Nazwy kolumn Pipedrive** — jakie dokładnie pola ma import? Bez tego mapowanie w `KOLUMNY`
+   (`app.py`) jest zgadywaniem. Obecny szkic: `Organization / Website / Phone / Email /
+   Person name / Person position / Person email / Person phone / ...`
