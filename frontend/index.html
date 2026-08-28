@@ -7,46 +7,91 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="topbar">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="brand">
       <div class="logo">Last<em>Agency</em></div>
       <div class="mono"><span class="sq"></span> PARTNER TOOL</div>
-    </header>
+    </div>
 
-    <main class="hero">
-      <div class="mono center"><span class="sq"></span> RESEARCH PARTNERSKI</div>
-      <h1>Zbadaj firmę <span class="accent">partnerską</span></h1>
-      <p class="sub">Zbierz dane o firmie — usługi, zespół, realizacje, kontakt, osoba decyzyjna —
-        i sprawdź, czy to <strong>konkurent</strong>. Ocenę robisz Ty.</p>
+    <nav class="nav">
+      <div class="nav-grupa mono">POZYSKIWANIE</div>
+      <button class="nav-item aktywny" data-sekcja="research">
+        <span class="ikona">🔎</span> Research po URL
+      </button>
+      <button class="nav-item" data-sekcja="szukaj">
+        <span class="ikona">📍</span> Szukaj po branży
+      </button>
 
-      <div class="tryby">
-        <button class="tryb aktywny" data-tryb="url" type="button">Po adresie firmy</button>
-        <button class="tryb" data-tryb="kryteria" type="button">Po branży i mieście</button>
-      </div>
+      <div class="nav-grupa mono">PRACA</div>
+      <button class="nav-item" data-sekcja="firmy">
+        <span class="ikona">🏢</span> Firmy
+        <span class="badge" id="badge-firmy" hidden>0</span>
+      </button>
+      <button class="nav-item" data-sekcja="eksport">
+        <span class="ikona">📋</span> Eksport
+        <span class="badge" id="badge-eksport" hidden>0</span>
+      </button>
+    </nav>
 
-      <form id="form" class="search">
+    <div class="sidebar-stopka mono"><span class="sq"></span> © 2026 LAST AGENCY</div>
+  </aside>
+
+  <!-- ── GŁÓWNY OBSZAR ── -->
+  <main class="main">
+
+    <!-- SEKCJA: Research po URL -->
+    <section class="sekcja aktywna" data-sekcja="research">
+      <header class="sekcja-head">
+        <h1>Research po URL</h1>
+        <p>Wklej adres firmy — zbierzemy usługi, zespół, realizacje, kontakt i osobę decyzyjną.
+          Oznaczymy też, czy to konkurent. <strong>Ocenę robisz Ty.</strong></p>
+      </header>
+      <form id="form" class="pasek">
         <input id="url" type="text" placeholder="https://firma.pl" autocomplete="off" spellcheck="false" required>
         <button id="btn" type="submit">Researchuj <span class="arrow">→</span></button>
       </form>
+      <div id="research-wynik" class="wynik"></div>
+    </section>
 
-      <form id="form-kryteria" class="search kryteria" hidden>
+    <!-- SEKCJA: Szukaj po branży -->
+    <section class="sekcja" data-sekcja="szukaj">
+      <header class="sekcja-head">
+        <h1>Szukaj po branży</h1>
+        <p>Nie masz firmy na start? Podaj typ firmy i miasto — znajdziemy kandydatów,
+          odsiejemy katalogi i martwe strony.</p>
+      </header>
+      <form id="form-kryteria" class="pasek">
         <input id="branza" type="text" placeholder="agencja brandingowa" autocomplete="off" required>
         <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
         <button id="btn-kryteria" type="submit">Szukaj firm <span class="arrow">→</span></button>
       </form>
+      <div id="szukaj-wynik" class="wynik"></div>
+    </section>
 
-      <section id="output" class="output" hidden></section>
-    </main>
+    <!-- SEKCJA: Firmy (zbadane) -->
+    <section class="sekcja" data-sekcja="firmy">
+      <header class="sekcja-head">
+        <h1>Firmy</h1>
+        <p>Zbadane firmy. Każda ma własną kartę — dane, podobne firmy i generowanie maili.</p>
+      </header>
+      <div id="tabbar" class="tabbar"></div>
+      <div id="panels"></div>
+      <div id="firmy-pusto" class="pusto">
+        Nic tu jeszcze nie ma. Zacznij od <b>Research po URL</b> albo <b>Szukaj po branży</b>.
+      </div>
+    </section>
 
-    <footer class="foot mono"><span class="sq"></span> © 2026 LAST AGENCY. COPYRIGHT.</footer>
-  </div>
+    <!-- SEKCJA: Eksport -->
+    <section class="sekcja" data-sekcja="eksport">
+      <header class="sekcja-head">
+        <h1>Eksport</h1>
+        <p>Firmy zaznaczone do eksportu. Sprawdź mapowanie kolumn, zanim zaimportujesz do Pipedrive.</p>
+      </header>
+      <div id="eksport-box"></div>
+    </section>
 
-  <!-- koszyk eksportu — pasek na dole, widoczny gdy coś zaznaczone -->
-  <div id="koszyk" class="koszyk" hidden>
-    <span class="koszyk-info"><strong id="koszyk-ile">0</strong> firm w eksporcie</span>
-    <button id="koszyk-podglad" class="koszyk-podglad" type="button">Podgląd</button>
-    <button id="koszyk-pobierz" type="button">Pobierz CSV ↓</button>
-  </div>
+  </main>
 
   <script src="app.js"></script>
 </body>

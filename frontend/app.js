@@ -1,98 +1,51 @@
-// Partner Tool — frontend
-const form = document.getElementById("form");
-const urlInput = document.getElementById("url");
-const btn = document.getElementById("btn");
-const output = document.getElementById("output");
-const koszykBar = document.getElementById("koszyk");
-const koszykIle = document.getElementById("koszyk-ile");
+// Partner Tool — aplikacja (sekcje + zakładki firm)
+const BRAK = "nie do ustalenia";
 
-let tabs = [];      // [{id, nazwa, firma}] lub {id, nazwa, typ:"eksport"}
+let tabs = [];       // [{id, nazwa, firma}]
 let activeId = null;
 let tabSeq = 0;
-let koszyk = [];    // firmy zaznaczone do eksportu
-let kolumny = [];   // definicja kolumn CSV — pobrana z backendu (jedno źródło prawdy)
+let koszyk = [];     // firmy zaznaczone do eksportu
+let kolumny = [];    // definicja kolumn CSV — z backendu (jedno źródło prawdy)
 
 fetch("/api/columns").then((r) => r.json()).then((d) => { kolumny = d.kolumny || []; });
 
-const BRAK = "nie do ustalenia";
+// ══ Nawigacja między sekcjami ══
+function pokazSekcje(nazwa) {
+  document.querySelectorAll(".sekcja").forEach((s) =>
+    s.classList.toggle("aktywna", s.dataset.sekcja === nazwa));
+  document.querySelectorAll(".nav-item").forEach((b) =>
+    b.classList.toggle("aktywny", b.dataset.sekcja === nazwa));
+  if (nazwa === "eksport") renderEksport();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".nav-item").forEach((b) =>
+  b.addEventListener("click", () => pokazSekcje(b.dataset.sekcja)));
 
-// ── Research po URL ──
+// ══ SEKCJA: Research po URL ══
+const form = document.getElementById("form");
+const btn = document.getElementById("btn");
+const researchWynik = document.getElementById("research-wynik");
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  let url = urlInput.value.trim();
+  let url = document.getElementById("url").value.trim();
   if (!url) return;
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 
-  output.hidden = false;
-  output.innerHTML = loadingHTML("Zbieram dane… (strona główna + podstrony → ekstrakcja). ~20-40 s.");
+  researchWynik.innerHTML = loadingHTML("Zbieram dane… (strona główna + podstrony → ekstrakcja). ~20-40 s.");
   btn.disabled = true;
-
   try {
     const data = await research(url);
     if (!data.ok) {
-      output.innerHTML = errorHTML(data.error);
+      researchWynik.innerHTML = errorHTML(data.error);
     } else {
-      tabs = [];
-      activeId = null;
-      output.innerHTML = `<div id="tabbar" class="tabbar"></div><div id="panels"></div>`;
-      openTab(data.firma);
+      researchWynik.innerHTML = "";
+      otworzFirme(data.firma);
     }
   } catch (err) {
-    output.innerHTML = errorHTML(err.message);
+    researchWynik.innerHTML = errorHTML(err.message);
   } finally {
     btn.disabled = false;
-  }
-});
-
-// ── TRYB B: szukanie po branży i mieście (bez firmy wejściowej) ──
-const formKryteria = document.getElementById("form-kryteria");
-const btnKryteria = document.getElementById("btn-kryteria");
-
-document.querySelectorAll(".tryb").forEach((b) => {
-  b.addEventListener("click", () => {
-    document.querySelectorAll(".tryb").forEach((x) => x.classList.remove("aktywny"));
-    b.classList.add("aktywny");
-    const poUrl = b.dataset.tryb === "url";
-    form.hidden = !poUrl;
-    formKryteria.hidden = poUrl;
-  });
-});
-
-formKryteria.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const branza = document.getElementById("branza").value.trim();
-  const miasto = document.getElementById("miasto").value.trim();
-  if (!branza) return;
-
-  output.hidden = false;
-  output.innerHTML = loadingHTML("Szukam firm i sprawdzam, które strony żyją… ~10 s.");
-  btnKryteria.disabled = true;
-
-  try {
-    const res = await fetch("/api/szukaj", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branza, miasto }),
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      output.innerHTML = errorHTML(data.error);
-    } else {
-      tabs = [];
-      activeId = null;
-      output.innerHTML = `<div id="tabbar" class="tabbar"></div><div id="panels"></div>`;
-      const id = "tab" + ++tabSeq;
-      tabs.push({ id, nazwa: "🔍 Wyniki", typ: "wyniki" });
-      document.getElementById("panels").insertAdjacentHTML(
-        "beforeend",
-        `<div class="panel" data-id="${id}">${listaFirmHTML(data, "ZNALEZIONE FIRMY")}</div>`
-      );
-      setActive(id);
-    }
-  } catch (err) {
-    output.innerHTML = errorHTML(err.message);
-  } finally {
-    btnKryteria.disabled = false;
   }
 });
 
@@ -105,12 +58,46 @@ async function research(url) {
   return res.json();
 }
 
-// ── Zakładki ──
-function openTab(firma) {
+// ══ SEKCJA: Szukaj po branży ══
+const formKryteria = document.getElementById("form-kryteria");
+const btnKryteria = document.getElementById("btn-kryteria");
+const szukajWynik = document.getElementById("szukaj-wynik");
+
+formKryteria.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const branza = document.getElementById("branza").value.trim();
+  const miasto = document.getElementById("miasto").value.trim();
+  if (!branza) return;
+
+  szukajWynik.innerHTML = loadingHTML("Szukam firm i sprawdzam, które strony żyją… ~10 s.");
+  btnKryteria.disabled = true;
+  try {
+    const res = await fetch("/api/szukaj", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branza, miasto }),
+    });
+    const data = await res.json();
+    szukajWynik.innerHTML = data.ok ? listaFirmHTML(data, "ZNALEZIONE FIRMY") : errorHTML(data.error);
+  } catch (err) {
+    szukajWynik.innerHTML = errorHTML(err.message);
+  } finally {
+    btnKryteria.disabled = false;
+  }
+});
+
+// ══ SEKCJA: Firmy (zakładki) ══
+function otworzFirme(firma) {
+  const istnieje = tabs.find((t) => t.firma.url === firma.url);
+  if (istnieje) { pokazSekcje("firmy"); return setActive(istnieje.id); }
+
   const id = "tab" + ++tabSeq;
   tabs.push({ id, nazwa: hostname(firma.url), firma });
   document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, firma));
+  document.getElementById("firmy-pusto").hidden = true;
+  pokazSekcje("firmy");
   setActive(id);
+  odswiezBadge("badge-firmy", tabs.length);
 }
 
 function setActive(id) {
@@ -124,87 +111,32 @@ function setActive(id) {
 function closeTab(id) {
   tabs = tabs.filter((t) => t.id !== id);
   document.querySelector(`#panels .panel[data-id="${id}"]`)?.remove();
-  if (activeId === id) {
-    activeId = tabs.length ? tabs[tabs.length - 1].id : null;
-    if (activeId) return setActive(activeId);
-  }
+  odswiezBadge("badge-firmy", tabs.length);
+  document.getElementById("firmy-pusto").hidden = tabs.length > 0;
+  if (activeId === id && tabs.length) return setActive(tabs[tabs.length - 1].id);
   renderTabBar();
 }
 
 function renderTabBar() {
-  const bar = document.getElementById("tabbar");
-  if (!bar) return;
-  bar.innerHTML = tabs.map((t) => `<div class="tab ${t.id === activeId ? "active" : ""}" data-id="${t.id}">
-      <span class="tab-name">${esc(t.nazwa)}</span>
-      <span class="tab-close" data-close="${t.id}" title="Zamknij">×</span>
-    </div>`).join("");
+  document.getElementById("tabbar").innerHTML = tabs.map((t) =>
+    `<div class="tab ${t.id === activeId ? "aktywny" : ""}" data-id="${t.id}">
+       <span>${esc(t.nazwa)}</span>
+       <span class="tab-close" data-close="${t.id}" title="Zamknij">×</span>
+     </div>`).join("");
 }
 
-// ── Zakładka podglądu eksportu ──
-function otworzEksport() {
-  let tab = tabs.find((t) => t.typ === "eksport");
-  if (!tab) {
-    const id = "tab" + ++tabSeq;
-    tab = { id, nazwa: "📋 Eksport", typ: "eksport" };
-    tabs.push(tab);
-    document.getElementById("panels").insertAdjacentHTML(
-      "beforeend",
-      `<div class="panel" data-id="${id}"><div class="eksport-box"></div></div>`
-    );
-  }
-  setActive(tab.id);
-  renderEksport();
-}
-
-function renderEksport() {
-  const tab = tabs.find((t) => t.typ === "eksport");
-  if (!tab) return;
-  const box = document.querySelector(`#panels .panel[data-id="${tab.id}"] .eksport-box`);
-  if (!box) return;
-
-  if (!koszyk.length) {
-    box.innerHTML = `<div class="card"><div class="mono"><span class="sq"></span> EKSPORT</div>
-      <p class="hint">Koszyk pusty — zaznacz „Dodaj do eksportu" na karcie firmy.</p></div>`;
-    return;
-  }
-
-  const naglowki = kolumny.map((k) => `<th>${esc(k.naglowek)}</th>`).join("");
-  const wiersze = koszyk.map((f) => {
-    const komorki = kolumny.map((k) => {
-      const v = komorka(f[k.klucz]);
-      return `<td class="${v === BRAK ? "brak" : ""}">${esc(v)}</td>`;
-    }).join("");
-    return `<tr>${komorki}</tr>`;
-  }).join("");
-
-  box.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> PODGLĄD EKSPORTU (${koszyk.length})</div>
-    <p class="hint">Dokładnie te kolumny i wartości trafią do CSV. Sprawdź mapowanie przed importem do Pipedrive.</p>
-    <div class="tabela-scroll"><table class="tabela">
-      <thead><tr>${naglowki}</tr></thead>
-      <tbody>${wiersze}</tbody>
-    </table></div>
-    <button class="akcja pobierz-csv" type="button" style="margin-top:16px">Pobierz CSV ↓</button>
-  </div>`;
-}
-
-function komorka(v) {
-  if (Array.isArray(v)) return v.length ? v.join(", ") : BRAK;
-  if (typeof v === "boolean") return v ? "TAK" : "NIE";
-  return v ?? BRAK;
-}
-
-// ── Panel firmy ──
 function panelHTML(id, f) {
   const wKoszyku = koszyk.some((k) => k.url === f.url);
-  return `<div class="panel" data-id="${id}" data-url="${escAttr(f.url)}">
+  return `<div class="panel" data-id="${id}">
     ${kartaHTML(f)}
-    <div class="card akcje">
-      <button class="akcja szukaj" type="button">🔍 Szukaj podobnych</button>
-      <button class="akcja mail" type="button">✉️ Generuj maile</button>
-      <label class="akcja check">
-        <input type="checkbox" class="do-eksportu" ${wKoszyku ? "checked" : ""}> Dodaj do eksportu
-      </label>
+    <div class="card">
+      <div class="akcje">
+        <button class="akcja szukaj-podobne" type="button">🔍 Szukaj podobnych</button>
+        <button class="akcja mail" type="button">✉️ Generuj maile</button>
+        <label class="akcja check">
+          <input type="checkbox" class="do-eksportu" ${wKoszyku ? "checked" : ""}> Dodaj do eksportu
+        </label>
+      </div>
     </div>
     <div class="similar-box"></div>
     <div class="mail-box"></div>
@@ -215,7 +147,6 @@ function kartaHTML(f) {
   const badge = f.konkurent
     ? `<div class="flaga konkurent">⚠ KONKURENT</div>`
     : `<div class="flaga partner">✓ NIE KONKURENT</div>`;
-
   return `<div class="card firma">
     <div class="firma-head">
       <div>
@@ -224,7 +155,6 @@ function kartaHTML(f) {
       </div>
       ${badge}
     </div>
-
     <p class="firma-opis">${esc(f.opis)}</p>
     <p class="uzasadnienie"><span class="mono-inline">FLAGA:</span> ${esc(f.konkurent_uzasadnienie)}</p>
 
@@ -235,7 +165,6 @@ function kartaHTML(f) {
       ${pole("Telefon (firma)", f.telefon)}
       ${pole("Email (firma)", f.email)}
     </div>
-
     <div class="pola osoba">
       ${pole("Osoba decyzyjna", f.persona_imie)}
       ${pole("Stanowisko", f.persona_stanowisko)}
@@ -248,7 +177,8 @@ function kartaHTML(f) {
 
     <details class="zrodlo">
       <summary>Źródło danych (${(f.zrodlo_danych || []).length} podstron)</summary>
-      <ul>${(f.zrodlo_danych || []).map((u) => `<li><a href="${escAttr(u)}" target="_blank" rel="noopener">${esc(u)}</a></li>`).join("")}</ul>
+      <ul>${(f.zrodlo_danych || []).map((u) =>
+        `<li><a href="${escAttr(u)}" target="_blank" rel="noopener">${esc(u)}</a></li>`).join("")}</ul>
     </details>
   </div>`;
 }
@@ -269,43 +199,42 @@ function lista(etykieta, elementy) {
   </div>`;
 }
 
-// ── Kliknięcia (delegacja) ──
-output.addEventListener("click", (e) => {
+// ══ Kliknięcia (delegacja na całym dokumencie) ══
+document.addEventListener("click", (e) => {
   const close = e.target.closest(".tab-close");
   if (close) return closeTab(close.dataset.close);
-
   const tab = e.target.closest(".tab");
   if (tab) return setActive(tab.dataset.id);
 
-  if (e.target.classList.contains("szukaj")) return szukajPodobnych(e.target);
+  if (e.target.classList.contains("szukaj-podobne")) return szukajPodobnych(e.target);
   if (e.target.classList.contains("mail")) return generujMaile(e.target);
-  if (e.target.classList.contains("researchuj")) return researchujPodobna(e.target);
+  if (e.target.classList.contains("researchuj")) return researchujZListy(e.target);
   if (e.target.classList.contains("kopiuj")) return kopiuj(e.target);
   if (e.target.classList.contains("pobierz-csv")) return pobierzCSV();
 });
 
-output.addEventListener("change", (e) => {
-  if (e.target.classList.contains("do-eksportu")) {
-    const firma = firmaZPanelu(e.target.closest(".panel"));
-    if (e.target.checked) {
-      if (!koszyk.some((k) => k.url === firma.url)) koszyk.push(firma);
-    } else {
-      koszyk = koszyk.filter((k) => k.url !== firma.url);
-    }
-    renderKoszyk();
+document.addEventListener("change", (e) => {
+  if (!e.target.classList.contains("do-eksportu")) return;
+  const firma = firmaZPanelu(e.target.closest(".panel"));
+  if (e.target.checked) {
+    if (!koszyk.some((k) => k.url === firma.url)) koszyk.push(firma);
+  } else {
+    koszyk = koszyk.filter((k) => k.url !== firma.url);
   }
+  odswiezBadge("badge-eksport", koszyk.length);
+  renderEksport();
 });
 
 function firmaZPanelu(panel) {
   return tabs.find((t) => t.id === panel.dataset.id)?.firma || {};
 }
 
-// ── Szukaj podobnych ──
+// ══ Szukaj podobnych (z karty firmy) ══
 async function szukajPodobnych(przycisk) {
   const panel = przycisk.closest(".panel");
   const box = panel.querySelector(".similar-box");
   przycisk.disabled = true;
-  przycisk.textContent = "Szukam… (~5 s)";
+  przycisk.textContent = "Szukam… (~10 s)";
   box.innerHTML = "";
   try {
     const res = await fetch("/api/similar", {
@@ -314,11 +243,7 @@ async function szukajPodobnych(przycisk) {
       body: JSON.stringify({ firma: firmaZPanelu(panel) }),
     });
     const data = await res.json();
-    if (!data.ok) {
-      box.innerHTML = errorHTML(data.error);
-    } else {
-      box.innerHTML = listaFirmHTML(data, "PODOBNE FIRMY");
-    }
+    box.innerHTML = data.ok ? listaFirmHTML(data, "PODOBNE FIRMY") : errorHTML(data.error);
   } catch (err) {
     box.innerHTML = errorHTML(err.message);
   } finally {
@@ -327,19 +252,16 @@ async function szukajPodobnych(przycisk) {
   }
 }
 
-// wspólny render listy firm — dla „szukaj podobnych" (Tryb A) i szukania po kryteriach (Tryb B)
 function listaFirmHTML(data, naglowek) {
   if (!data.firmy.length) {
     return `<div class="card"><p class="sim-err">Nie znalazłem firm dla „${esc(data.zapytanie)}".
       Spróbuj innej branży albo bez miasta.</p></div>`;
   }
-  return `<div class="card similar">
+  return `<div class="card">
     <div class="mono"><span class="sq"></span> ${esc(naglowek)} (${data.firmy.length})</div>
     <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
       data.odsiani_konkurenci ? ` · odsiano ${data.odsiani_konkurenci} agencji SEO` : ""
-    }${
-      data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
-    }</p>
+    }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""}</p>
     <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
   </div>`;
 }
@@ -355,18 +277,18 @@ function wierszHTML(f) {
   </div>`;
 }
 
-async function researchujPodobna(przycisk) {
-  const url = przycisk.closest(".sim-row").dataset.url;
+async function researchujZListy(przycisk) {
+  const row = przycisk.closest(".sim-row");
   przycisk.disabled = true;
   przycisk.textContent = "Zbieram… (~30 s)";
   try {
-    const data = await research(url);
+    const data = await research(row.dataset.url);
     if (!data.ok) {
       przycisk.disabled = false;
       przycisk.textContent = "Spróbuj ponownie";
-      przycisk.closest(".sim-row").insertAdjacentHTML("beforeend", `<p class="sim-err">⚠️ ${esc(data.error)}</p>`);
+      row.insertAdjacentHTML("beforeend", `<p class="sim-err">⚠️ ${esc(data.error)}</p>`);
     } else {
-      openTab(data.firma);
+      otworzFirme(data.firma);
       przycisk.textContent = "✓ Otwarto kartę";
     }
   } catch (err) {
@@ -375,7 +297,7 @@ async function researchujPodobna(przycisk) {
   }
 }
 
-// ── Maile ──
+// ══ Maile ══
 async function generujMaile(przycisk) {
   const panel = przycisk.closest(".panel");
   const box = panel.querySelector(".mail-box");
@@ -389,18 +311,16 @@ async function generujMaile(przycisk) {
       body: JSON.stringify({ firma: firmaZPanelu(panel) }),
     });
     const data = await res.json();
-    if (!data.ok) {
-      box.innerHTML = errorHTML(data.error);
-    } else {
-      box.innerHTML = `<div class="card maile">
-        <div class="mono"><span class="sq"></span> PROPOZYCJE MAILA</div>
-        ${data.maile.map((m) => `<div class="mail-draft">
-          <div class="mail-head"><span class="mono-inline">STYL: ${esc(m.styl).toUpperCase()}</span>
-            <button class="kopiuj" type="button">Kopiuj</button></div>
-          <pre class="mail-tresc">${esc(m.tresc)}</pre>
-        </div>`).join("")}
-      </div>`;
-    }
+    box.innerHTML = data.ok
+      ? `<div class="card">
+           <div class="mono"><span class="sq"></span> PROPOZYCJE MAILA</div>
+           ${data.maile.map((m) => `<div class="mail-draft">
+             <div class="mail-head"><span class="mono-inline">STYL: ${esc(m.styl).toUpperCase()}</span>
+               <button class="kopiuj" type="button">Kopiuj</button></div>
+             <pre class="mail-tresc">${esc(m.tresc)}</pre>
+           </div>`).join("")}
+         </div>`
+      : errorHTML(data.error);
   } catch (err) {
     box.innerHTML = errorHTML(err.message);
   } finally {
@@ -417,15 +337,37 @@ function kopiuj(przycisk) {
   });
 }
 
-// ── Koszyk eksportu ──
-function renderKoszyk() {
-  koszykIle.textContent = koszyk.length;
-  koszykBar.hidden = koszyk.length === 0;
-  renderEksport(); // odśwież podgląd, jeśli zakładka otwarta
+// ══ SEKCJA: Eksport ══
+function renderEksport() {
+  const box = document.getElementById("eksport-box");
+  if (!koszyk.length) {
+    box.innerHTML = `<div class="pusto">Koszyk pusty — zaznacz „Dodaj do eksportu" na karcie firmy.</div>`;
+    return;
+  }
+  const naglowki = kolumny.map((k) => `<th>${esc(k.naglowek)}</th>`).join("");
+  const wiersze = koszyk.map((f) =>
+    `<tr>${kolumny.map((k) => {
+      const v = komorka(f[k.klucz]);
+      return `<td class="${v === BRAK ? "brak" : ""}">${esc(v)}</td>`;
+    }).join("")}</tr>`).join("");
+
+  box.innerHTML = `<div class="card">
+    <div class="mono"><span class="sq"></span> DO EKSPORTU (${koszyk.length})</div>
+    <p class="hint">Dokładnie te kolumny i wartości trafią do pliku CSV.</p>
+    <div class="tabela-scroll"><table class="tabela">
+      <thead><tr>${naglowki}</tr></thead><tbody>${wiersze}</tbody>
+    </table></div>
+    <button class="akcja pobierz-csv" type="button" style="margin-top:18px">Pobierz CSV ↓</button>
+  </div>`;
+}
+
+function komorka(v) {
+  if (Array.isArray(v)) return v.length ? v.join(", ") : BRAK;
+  if (typeof v === "boolean") return v ? "TAK" : "NIE";
+  return v ?? BRAK;
 }
 
 async function pobierzCSV() {
-  if (!koszyk.length) return;
   const res = await fetch("/api/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -440,10 +382,12 @@ async function pobierzCSV() {
   URL.revokeObjectURL(a.href);
 }
 
-document.getElementById("koszyk-podglad").addEventListener("click", otworzEksport);
-document.getElementById("koszyk-pobierz").addEventListener("click", pobierzCSV);
-
-// ── Pomocnicze ──
+// ══ Pomocnicze ══
+function odswiezBadge(id, ile) {
+  const b = document.getElementById(id);
+  b.textContent = ile;
+  b.hidden = ile === 0;
+}
 function loadingHTML(tekst) {
   return `<div class="card loading"><div class="spinner"></div><p>${esc(tekst)}</p></div>`;
 }
