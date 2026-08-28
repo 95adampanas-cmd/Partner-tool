@@ -89,7 +89,7 @@ formKryteria.addEventListener("submit", async (e) => {
       body: JSON.stringify({ branza, miasto }),
     });
     const data = await res.json();
-    szukajWynik.innerHTML = data.ok ? listaFirmHTML(data, "ZNALEZIONE FIRMY") : errorHTML(data.error);
+    szukajWynik.innerHTML = data.ok ? listaFirmHTML(data, "Znalezione firmy") : errorHTML(data.error);
   } catch (err) {
     szukajWynik.innerHTML = errorHTML(err.message);
   } finally {
@@ -143,15 +143,15 @@ function renderListeFirm() {
         <div class="firma-row-top">
           <span class="firma-row-nazwa">${esc(f.nazwa)}</span>
           ${f.konkurent
-            ? `<span class="flaga mini konkurent">⚠ KONKURENT</span>`
-            : `<span class="flaga mini partner">✓ NIE KONKURENT</span>`}
-          ${wKoszyku ? `<span class="flaga mini w-eksporcie">📋 W EKSPORCIE</span>` : ""}
+            ? `<span class="flaga mini konkurent"><svg class="ico xs"><use href="#i-alert"/></svg>Konkurent</span>`
+            : `<span class="flaga mini partner"><svg class="ico xs"><use href="#i-check"/></svg>Nie konkurent</span>`}
+          ${wKoszyku ? `<span class="flaga mini w-eksporcie"><svg class="ico xs"><use href="#i-table"/></svg>W eksporcie</span>` : ""}
         </div>
         <span class="firma-row-meta">${esc(hostname(f.url))} · ${esc(f.branza)}</span>
       </div>
       <div class="firma-row-akcje">
-        <button class="otworz" type="button">Otwórz →</button>
-        <button class="usun" type="button" data-usun="${t.id}" title="Usuń z listy">×</button>
+        <button class="otworz" type="button">Otwórz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        <button class="usun" type="button" data-usun="${t.id}" title="Usuń z listy"><svg class="ico xs"><use href="#i-x"/></svg></button>
       </div>
     </div>`;
   }).join("");
@@ -170,7 +170,7 @@ function panelHTML(id, f) {
     ${kartaHTML(f)}
     <div class="card">
       <div class="akcje">
-        <button class="akcja mail" type="button">✉️ Generuj maile</button>
+        <button class="akcja mail" type="button"><svg class="ico sm"><use href="#i-mail"/></svg>Generuj maile</button>
         <label class="akcja check">
           <input type="checkbox" class="do-eksportu" ${wKoszyku ? "checked" : ""}> Dodaj do eksportu
         </label>
@@ -182,18 +182,18 @@ function panelHTML(id, f) {
 
 function kartaHTML(f) {
   const badge = f.konkurent
-    ? `<div class="flaga konkurent">⚠ KONKURENT</div>`
-    : `<div class="flaga partner">✓ NIE KONKURENT</div>`;
+    ? `<div class="flaga konkurent"><svg class="ico xs"><use href="#i-alert"/></svg>Konkurent</div>`
+    : `<div class="flaga partner"><svg class="ico xs"><use href="#i-check"/></svg>Nie konkurent</div>`;
   return `<div class="card firma">
     <div class="firma-head">
       <div>
         <h2 class="firma-nazwa">${esc(f.nazwa)}</h2>
-        <a class="firma-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)} ↗</a>
+        <a class="firma-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)}<svg class="ico xs"><use href="#i-external"/></svg></a>
       </div>
       ${badge}
     </div>
     <p class="firma-opis">${esc(f.opis)}</p>
-    <p class="uzasadnienie"><span class="mono-inline">FLAGA:</span> ${esc(f.konkurent_uzasadnienie)}</p>
+    <p class="uzasadnienie"><span class="etyk">Flaga</span> ${esc(f.konkurent_uzasadnienie)}</p>
 
     <div class="pola">
       ${pole("Branża", f.branza)}
@@ -312,14 +312,14 @@ function renderPodobne() {
 
   if (!wpis) {
     wybor.innerHTML = `<div class="card">
-      <div class="mono"><span class="sq"></span> 1. WYBIERZ FIRMĘ WZORCOWĄ</div>
+      <div class="mono"><span class="sq"></span> 1. Wybierz firmę wzorcową</div>
       <div class="similar-list">${tabs.map((t) => `
         <div class="sim-row wybierz-wzor" data-id="${t.id}">
           <div class="sim-info">
             <span class="sim-name">${esc(t.firma.nazwa)}</span>
             <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
           </div>
-          <button class="researchuj" type="button">Wybierz →</button>
+          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
         </div>`).join("")}</div>
     </div>`;
     tagiBox.innerHTML = "";
@@ -327,7 +327,7 @@ function renderPodobne() {
   }
 
   wybor.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> FIRMA WZORCOWA</div>
+    <div class="mono"><span class="sq"></span> Firma wzorcowa</div>
     <div class="wzor-head">
       <div>
         <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
@@ -339,13 +339,13 @@ function renderPodobne() {
 
   const uslugi = wpis.firma.uslugi || [];
   tagiBox.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> 2. ZAZNACZ USŁUGI DEFINIUJĄCE PODOBIEŃSTWO</div>
+    <div class="mono"><span class="sq"></span> 2. Zaznacz usługi definiujące podobieństwo</div>
     <p class="hint">Im mniej i konkretniej, tym trafniejsze wyniki. Polecam 2-4 tagi.</p>
     <div class="tagi wybieralne">${uslugi.map((u) =>
       `<button class="tag ${podobneTagi.has(u) ? "zaznaczony" : ""}" data-tag="${escAttr(u)}" type="button">${esc(u)}</button>`
     ).join("")}</div>
-    <button class="akcja szukaj-wg-tagow" type="button" style="margin-top:18px" ${podobneTagi.size ? "" : "disabled"}>
-      🔍 Szukaj podobnych${podobneTagi.size ? ` (${podobneTagi.size})` : ""}
+    <button class="akcja glowna szukaj-wg-tagow" type="button" style="margin-top:18px" ${podobneTagi.size ? "" : "disabled"}>
+      <svg class="ico sm"><use href="#i-search"/></svg>Szukaj podobnych${podobneTagi.size ? ` (${podobneTagi.size})` : ""}
     </button>
   </div>`;
 }
@@ -363,7 +363,7 @@ async function szukajWgTagow(przycisk) {
       body: JSON.stringify({ firma: wpis.firma, tagi: [...podobneTagi] }),
     });
     const data = await res.json();
-    box.innerHTML = data.ok ? listaFirmHTML(data, "PODOBNE FIRMY") : errorHTML(data.error);
+    box.innerHTML = data.ok ? listaFirmHTML(data, "Podobne firmy") : errorHTML(data.error);
   } catch (err) {
     box.innerHTML = errorHTML(err.message);
   } finally {
@@ -390,10 +390,10 @@ function wierszHTML(f) {
   return `<div class="sim-row" data-url="${escAttr(f.url)}">
     <div class="sim-info">
       <span class="sim-name">${esc(f.nazwa)}</span>
-      <a class="sim-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)} ↗</a>
-      ${f.niepewna ? `<span class="niepewna">⚠ nie udało się zweryfikować strony (blokada bota?)</span>` : ""}
+      <a class="sim-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)}<svg class="ico xs"><use href="#i-external"/></svg></a>
+      ${f.niepewna ? `<span class="niepewna"><svg class="ico xs"><use href="#i-alert"/></svg>nie udało się zweryfikować strony (blokada bota?)</span>` : ""}
     </div>
-    <button class="researchuj" type="button">Researchuj →</button>
+    <button class="researchuj" type="button">Researchuj<svg class="ico xs"><use href="#i-arrow"/></svg></button>
   </div>`;
 }
 
@@ -406,10 +406,10 @@ async function researchujZListy(przycisk) {
     if (!data.ok) {
       przycisk.disabled = false;
       przycisk.textContent = "Spróbuj ponownie";
-      row.insertAdjacentHTML("beforeend", `<p class="sim-err">⚠️ ${esc(data.error)}</p>`);
+      row.insertAdjacentHTML("beforeend", `<p class="sim-err">${esc(data.error)}</p>`);
     } else {
       otworzFirme(data.firma);
-      przycisk.textContent = "✓ Otwarto kartę";
+      przycisk.innerHTML = '<svg class="ico xs"><use href="#i-check"/></svg>Otwarto kartę';
     }
   } catch (err) {
     przycisk.disabled = false;
@@ -433,10 +433,10 @@ async function generujMaile(przycisk) {
     const data = await res.json();
     box.innerHTML = data.ok
       ? `<div class="card">
-           <div class="mono"><span class="sq"></span> PROPOZYCJE MAILA</div>
+           <div class="mono"><span class="sq"></span> Propozycje maila</div>
            ${data.maile.map((m) => `<div class="mail-draft">
-             <div class="mail-head"><span class="mono-inline">STYL: ${esc(m.styl).toUpperCase()}</span>
-               <button class="kopiuj" type="button">Kopiuj</button></div>
+             <div class="mail-head"><span class="mail-styl">${esc(m.styl)}</span>
+               <button class="kopiuj" type="button"><svg class="ico xs"><use href="#i-copy"/></svg>Kopiuj</button></div>
              <pre class="mail-tresc">${esc(m.tresc)}</pre>
            </div>`).join("")}
          </div>`
@@ -445,15 +445,15 @@ async function generujMaile(przycisk) {
     box.innerHTML = errorHTML(err.message);
   } finally {
     przycisk.disabled = false;
-    przycisk.textContent = "✉️ Generuj maile";
+    przycisk.innerHTML = '<svg class="ico sm"><use href="#i-mail"/></svg>Generuj maile';
   }
 }
 
 function kopiuj(przycisk) {
   const tresc = przycisk.closest(".mail-draft").querySelector(".mail-tresc").textContent;
   navigator.clipboard.writeText(tresc).then(() => {
-    przycisk.textContent = "✓ Skopiowano";
-    setTimeout(() => (przycisk.textContent = "Kopiuj"), 1500);
+    przycisk.innerHTML = '<svg class="ico xs"><use href="#i-check"/></svg>Skopiowano';
+    setTimeout(() => (przycisk.innerHTML = '<svg class="ico xs"><use href="#i-copy"/></svg>Kopiuj'), 1500);
   });
 }
 
@@ -472,12 +472,12 @@ function renderEksport() {
     }).join("")}</tr>`).join("");
 
   box.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> DO EKSPORTU (${koszyk.length})</div>
+    <div class="mono"><span class="sq"></span> Do eksportu (${koszyk.length})</div>
     <p class="hint">Dokładnie te kolumny i wartości trafią do pliku CSV.</p>
     <div class="tabela-scroll"><table class="tabela">
       <thead><tr>${naglowki}</tr></thead><tbody>${wiersze}</tbody>
     </table></div>
-    <button class="akcja pobierz-csv" type="button" style="margin-top:18px">Pobierz CSV ↓</button>
+    <button class="akcja glowna pobierz-csv" type="button" style="margin-top:18px"><svg class="ico sm"><use href="#i-download"/></svg>Pobierz CSV</button>
   </div>`;
 }
 
@@ -512,7 +512,7 @@ function loadingHTML(tekst) {
   return `<div class="card loading"><div class="spinner"></div><p>${esc(tekst)}</p></div>`;
 }
 function errorHTML(msg) {
-  return `<div class="card error"><div class="mono"><span class="sq"></span> BŁĄD</div><p>${esc(msg)}</p></div>`;
+  return `<div class="card error"><div class="mono"><span class="sq"></span> Błąd</div><p>${esc(msg)}</p></div>`;
 }
 function hostname(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }

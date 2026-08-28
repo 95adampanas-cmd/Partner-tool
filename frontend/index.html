@@ -4,121 +4,137 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Partner Tool — Last Agency</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- ── SIDEBAR ── -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="logo">Last<em>Agency</em></div>
-      <div class="mono"><span class="sq"></span> PARTNER TOOL</div>
+
+<!-- ── Zestaw ikon (SVG, stroke 1.6, 24×24) ── -->
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 9h2M13 9h2M9 13h2M13 13h2M9 17h6"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5.5 5.5L20 7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4M12 17.5v.5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H6M11 6l-6 6 6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13M7 12l5 5 5-5"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="m20 4-9 9"/><path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13l2.5 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5l2.5-8Z"/></symbol>
+</svg>
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">Last<em>Agency</em></div>
+    <div class="mono brand-sub"><i class="sq"></i>Partner Tool</div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-grupa mono">Pozyskiwanie</div>
+    <button class="nav-item aktywny" data-sekcja="research">
+      <svg class="ico"><use href="#i-link"/></svg><span>Research po URL</span>
+    </button>
+    <button class="nav-item" data-sekcja="szukaj">
+      <svg class="ico"><use href="#i-target"/></svg><span>Szukaj po branży</span>
+    </button>
+    <button class="nav-item" data-sekcja="podobne">
+      <svg class="ico"><use href="#i-layers"/></svg><span>Szukaj podobnych</span>
+    </button>
+
+    <div class="nav-grupa mono">Praca</div>
+    <button class="nav-item" data-sekcja="firmy">
+      <svg class="ico"><use href="#i-building"/></svg><span>Firmy</span>
+      <em class="badge" id="badge-firmy" hidden>0</em>
+    </button>
+    <button class="nav-item" data-sekcja="eksport">
+      <svg class="ico"><use href="#i-table"/></svg><span>Eksport</span>
+      <em class="badge" id="badge-eksport" hidden>0</em>
+    </button>
+  </nav>
+
+  <div class="sidebar-stopka mono">© 2026 Last Agency</div>
+</aside>
+
+<!-- ── GŁÓWNY OBSZAR ── -->
+<main class="main">
+
+  <section class="sekcja aktywna" data-sekcja="research">
+    <header class="sekcja-head">
+      <h1>Research po URL</h1>
+      <p>Wklej adres firmy — zbierzemy usługi, zespół, realizacje, dane spółki i osobę decyzyjną.
+        Oznaczymy, czy to konkurent. <b>Ocenę robisz Ty.</b></p>
+    </header>
+    <form id="form" class="pasek">
+      <input id="url" type="text" placeholder="https://firma.pl" autocomplete="off" spellcheck="false" required>
+      <button id="btn" type="submit">Researchuj <svg class="ico sm"><use href="#i-arrow"/></svg></button>
+    </form>
+    <div id="research-wynik" class="wynik"></div>
+  </section>
+
+  <section class="sekcja" data-sekcja="szukaj">
+    <header class="sekcja-head">
+      <h1>Szukaj po branży</h1>
+      <p>Nie masz firmy na start? Rozpisujemy branżę na kilka fraz naraz, żeby wyjść poza
+        pierwszą dziesiątkę Google — i odsiewamy katalogi oraz martwe strony.</p>
+    </header>
+    <form id="form-kryteria" class="pasek">
+      <input id="branza" type="text" placeholder="agencja brandingowa" autocomplete="off" required>
+      <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
+      <button id="btn-kryteria" type="submit">Szukaj firm <svg class="ico sm"><use href="#i-arrow"/></svg></button>
+    </form>
+    <div class="presety">
+      <div class="mono">Szybki wybór</div>
+      <div class="tagi wybieralne" id="presety-branz"></div>
     </div>
+    <div id="szukaj-wynik" class="wynik"></div>
+  </section>
 
-    <nav class="nav">
-      <div class="nav-grupa mono">POZYSKIWANIE</div>
-      <button class="nav-item aktywny" data-sekcja="research">
-        <span class="ikona">🔎</span> Research po URL
-      </button>
-      <button class="nav-item" data-sekcja="szukaj">
-        <span class="ikona">📍</span> Szukaj po branży
-      </button>
-      <button class="nav-item" data-sekcja="podobne">
-        <span class="ikona">🔍</span> Szukaj podobnych
-      </button>
+  <section class="sekcja" data-sekcja="podobne">
+    <header class="sekcja-head">
+      <h1>Szukaj podobnych</h1>
+      <p>Wybierz zbadaną firmę i zaznacz usługi, które mają definiować podobieństwo.
+        <b>To Ty decydujesz, co znaczy „podobna".</b></p>
+    </header>
+    <div id="podobne-wybor"></div>
+    <div id="podobne-tagi"></div>
+    <div id="podobne-wynik" class="wynik"></div>
+  </section>
 
-      <div class="nav-grupa mono">PRACA</div>
-      <button class="nav-item" data-sekcja="firmy">
-        <span class="ikona">🏢</span> Firmy
-        <span class="badge" id="badge-firmy" hidden>0</span>
-      </button>
-      <button class="nav-item" data-sekcja="eksport">
-        <span class="ikona">📋</span> Eksport
-        <span class="badge" id="badge-eksport" hidden>0</span>
-      </button>
-    </nav>
+  <section class="sekcja" data-sekcja="firmy">
+    <header class="sekcja-head" id="firmy-head">
+      <h1>Firmy</h1>
+      <p>Zbadane firmy. Kliknij, żeby otworzyć pełną kartę — dane, maile, eksport.</p>
+    </header>
+    <div id="firmy-lista"></div>
+    <div id="firmy-pusto" class="pusto">
+      <svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Nic tu jeszcze nie ma.<br><span>Zacznij od <b>Research po URL</b> albo <b>Szukaj po branży</b>.</span></p>
+    </div>
+    <div id="firmy-detal" hidden>
+      <button class="wroc" type="button"><svg class="ico sm"><use href="#i-back"/></svg> Wszystkie firmy</button>
+      <div id="panels"></div>
+    </div>
+  </section>
 
-    <div class="sidebar-stopka mono"><span class="sq"></span> © 2026 LAST AGENCY</div>
-  </aside>
+  <section class="sekcja" data-sekcja="eksport">
+    <header class="sekcja-head">
+      <h1>Eksport</h1>
+      <p>Firmy zaznaczone do eksportu. Sprawdź mapowanie kolumn przed importem do Pipedrive.</p>
+    </header>
+    <div id="eksport-box"></div>
+  </section>
 
-  <!-- ── GŁÓWNY OBSZAR ── -->
-  <main class="main">
+</main>
 
-    <!-- SEKCJA: Research po URL -->
-    <section class="sekcja aktywna" data-sekcja="research">
-      <header class="sekcja-head">
-        <h1>Research po URL</h1>
-        <p>Wklej adres firmy — zbierzemy usługi, zespół, realizacje, kontakt i osobę decyzyjną.
-          Oznaczymy też, czy to konkurent. <strong>Ocenę robisz Ty.</strong></p>
-      </header>
-      <form id="form" class="pasek">
-        <input id="url" type="text" placeholder="https://firma.pl" autocomplete="off" spellcheck="false" required>
-        <button id="btn" type="submit">Researchuj <span class="arrow">→</span></button>
-      </form>
-      <div id="research-wynik" class="wynik"></div>
-    </section>
-
-    <!-- SEKCJA: Szukaj po branży -->
-    <section class="sekcja" data-sekcja="szukaj">
-      <header class="sekcja-head">
-        <h1>Szukaj po branży</h1>
-        <p>Nie masz firmy na start? Podaj typ firmy i miasto — znajdziemy kandydatów,
-          odsiejemy katalogi i martwe strony.</p>
-      </header>
-      <form id="form-kryteria" class="pasek">
-        <input id="branza" type="text" placeholder="agencja brandingowa" autocomplete="off" required>
-        <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
-        <button id="btn-kryteria" type="submit">Szukaj firm <span class="arrow">→</span></button>
-      </form>
-      <div class="presety">
-        <span class="mono">SZYBKI WYBÓR:</span>
-        <div class="tagi wybieralne" id="presety-branz"></div>
-      </div>
-      <div id="szukaj-wynik" class="wynik"></div>
-    </section>
-
-    <!-- SEKCJA: Szukaj podobnych -->
-    <section class="sekcja" data-sekcja="podobne">
-      <header class="sekcja-head">
-        <h1>Szukaj podobnych</h1>
-        <p>Wybierz zbadaną firmę, zaznacz usługi, które mają definiować podobieństwo —
-          i znajdź firmy o takim profilu. <strong>To Ty decydujesz, co znaczy „podobna".</strong></p>
-      </header>
-      <div id="podobne-wybor"></div>
-      <div id="podobne-tagi"></div>
-      <div id="podobne-wynik" class="wynik"></div>
-    </section>
-
-    <!-- SEKCJA: Firmy (zbadane) -->
-    <section class="sekcja" data-sekcja="firmy">
-      <header class="sekcja-head" id="firmy-head">
-        <h1>Firmy</h1>
-        <p>Zbadane firmy. Kliknij firmę, żeby zobaczyć pełną kartę — dane, podobne firmy i maile.</p>
-      </header>
-
-      <!-- widok listy -->
-      <div id="firmy-lista"></div>
-      <div id="firmy-pusto" class="pusto">
-        Nic tu jeszcze nie ma. Zacznij od <b>Research po URL</b> albo <b>Szukaj po branży</b>.
-      </div>
-
-      <!-- widok szczegółów -->
-      <div id="firmy-detal" hidden>
-        <button class="wroc" type="button">← Wszystkie firmy</button>
-        <div id="panels"></div>
-      </div>
-    </section>
-
-    <!-- SEKCJA: Eksport -->
-    <section class="sekcja" data-sekcja="eksport">
-      <header class="sekcja-head">
-        <h1>Eksport</h1>
-        <p>Firmy zaznaczone do eksportu. Sprawdź mapowanie kolumn, zanim zaimportujesz do Pipedrive.</p>
-      </header>
-      <div id="eksport-box"></div>
-    </section>
-
-  </main>
-
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
