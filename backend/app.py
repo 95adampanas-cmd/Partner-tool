@@ -57,6 +57,10 @@ class Firma(BaseModel):
     case_studies: list[str]      # nazwy klientów / realizacji
     telefon: str                 # ogólny kontakt firmowy
     email: str                   # ogólny kontakt firmowy
+    nazwa_prawna: str            # pełna nazwa spółki (np. "Grupa X sp. z o.o.")
+    nip: str
+    adres: str                   # ulica + kod pocztowy
+    miasto: str
     persona_imie: str            # osoba decyzyjna: imię i nazwisko
     persona_stanowisko: str      # jej rola (CEO, właściciel, dyrektor...)
     persona_email: str           # jej bezpośredni mail, jeśli podany przy osobie
@@ -70,11 +74,14 @@ class Firma(BaseModel):
 #  SCRAPER — zwykła funkcja, wielostronicowy
 #  Homepage nie wystarcza: zespół, realizacje i kontakt są na podstronach.
 # ══════════════════════════════════════════════════════════════════════
-SLOWA_PODSTRON = (
-    "o-nas", "o_nas", "about", "zespol", "zespół", "team",
-    "realizacje", "portfolio", "case", "projekty", "wdrozenia", "wdrożenia",
-    "kontakt", "contact",
-    "oferta", "uslugi", "usługi", "services",
+# Kolejność MA ZNACZENIE — bierzemy po jednej podstronie z każdej grupy, od najważniejszej.
+# Wcześniej braliśmy pierwsze 4 pasujące linki i na stronach z rozbudowanym menu
+# wszystkie 4 sloty zjadała /oferta/*, przez co /kontakt nigdy nie był odwiedzany.
+GRUPY_PODSTRON = (
+    ("kontakt", "contact"),                                    # kontakt, adres, NIP
+    ("o-nas", "o_nas", "about", "zespol", "zespół", "team"),    # zespół, osoba decyzyjna
+    ("realizacje", "portfolio", "case", "projekty", "wdrozenia", "wdrożenia"),  # case studies
+    ("oferta", "uslugi", "usługi", "services"),                 # usługi
 )
 
 # wpisy blogowe/newsy zjadają limit znaków, a rzadko mają dane o firmie
@@ -94,27 +101,36 @@ def pobierz(url: str, timeout: int = 15) -> str:
 
 
 def tekst_ze_strony(html: str) -> str:
+    # UWAGA: NIE wycinamy <footer> — to tam zwykle są dane firmowe: adres, NIP, telefon, mail.
     soup = BeautifulSoup(html, "html.parser")
-    for tag in soup(["script", "style", "nav", "footer"]):
+    for tag in soup(["script", "style", "nav"]):
         tag.decompose()
     return " ".join(soup.get_text(separator=" ").split())
 
 
 def znajdz_podstrony(html: str, base_url: str) -> list[str]:
-    """Z menu/linków wybiera podstrony, gdzie realnie są dane (o nas, realizacje, kontakt)."""
+    """Wybiera po JEDNEJ podstronie z każdej grupy (kontakt → o nas → realizacje → oferta),
+    żeby jeden typ podstron nie zjadł wszystkich slotów."""
     soup = BeautifulSoup(html, "html.parser")
     domena = urlparse(base_url).netloc
-    znalezione, widziane = [], set()
+
+    linki, widziane = [], set()
     for a in soup.find_all("a", href=True):
         pelny = urljoin(base_url, a["href"]).split("#")[0].split("?")[0].rstrip("/")
         if urlparse(pelny).netloc != domena or pelny in widziane:
             continue
         if any(p in pelny.lower() for p in POMIJAJ):
             continue
-        if any(s in pelny.lower() for s in SLOWA_PODSTRON):
-            widziane.add(pelny)
-            znalezione.append(pelny)
-    return znalezione[:MAX_PODSTRON]
+        widziane.add(pelny)
+        linki.append(pelny)
+
+    wybrane = []
+    for grupa in GRUPY_PODSTRON:
+        trafienie = next((l for l in linki
+                          if any(s in l.lower() for s in grupa) and l not in wybrane), None)
+        if trafienie:
+            wybrane.append(trafienie)
+    return wybrane[:MAX_PODSTRON]
 
 
 def scrape_firme(url: str) -> tuple[str, list[str]]:
@@ -291,6 +307,10 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[li
 KOLUMNY = [
     ("Organization", "nazwa"),
     ("Website", "url"),
+    ("Nazwa prawna", "nazwa_prawna"),
+    ("NIP", "nip"),
+    ("Address", "adres"),
+    ("City", "miasto"),
     ("Branza", "branza"),
     ("Uslugi", "uslugi"),
     ("Wielkosc zespolu", "wielkosc_zespolu"),
@@ -349,6 +369,12 @@ CO WYCIĄGNĄĆ:
 - case_studies: nazwy klientów lub realizacji wymienione na stronie
 - telefon / email: OGÓLNY kontakt firmowy, TYLKO jeśli faktycznie jest w tekście
 - opis: 2-3 zdania, czym firma się zajmuje
+
+DANE SPÓŁKI (zwykle w stopce lub na podstronie "kontakt"):
+- nazwa_prawna: pełna nazwa prawna, np. "Grupa Maciaszczyk spółka jawna", "X sp. z o.o."
+- nip: numer NIP (same cyfry, mogą być ze spacjami/myślnikami jak na stronie)
+- adres: ulica + kod pocztowy, np. "ul. Łazienna 4, 61-857"
+- miasto
 
 OSOBA DECYZYJNA (persona_*) — to ma być KONKRETNY CZŁOWIEK do kontaktu, nie opis profilu firmy:
 - persona_imie: imię i nazwisko osoby decyzyjnej wymienionej na stronie

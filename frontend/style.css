@@ -192,8 +192,9 @@ body {
   padding: 18px 0;
   border-top: 1px solid var(--border);
 }
-.pola.osoba { border-top: 1px dashed var(--border); }
+.pola.osoba, .pola.dane-spolki { border-top: 1px dashed var(--border); }
 .pola.osoba .pole-etykieta { color: var(--orange); }
+.pola.dane-spolki .pole-etykieta { color: var(--zielony); }
 .pole { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pole-etykieta {
   font-family: var(--mono);

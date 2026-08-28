@@ -193,6 +193,13 @@ function kartaHTML(f) {
       ${pole("Telefon (firma)", f.telefon)}
       ${pole("Email (firma)", f.email)}
     </div>
+
+    <div class="pola dane-spolki">
+      ${pole("Nazwa prawna", f.nazwa_prawna)}
+      ${pole("NIP", f.nip)}
+      ${pole("Adres", f.adres)}
+      ${pole("Miasto", f.miasto)}
+    </div>
     <div class="pola osoba">
       ${pole("Osoba decyzyjna", f.persona_imie)}
       ${pole("Stanowisko", f.persona_stanowisko)}
