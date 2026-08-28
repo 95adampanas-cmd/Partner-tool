@@ -81,6 +81,13 @@ za Cloudflare. To łamało zasadę z PRD (ryzyko „Blokada scrapera": *oznacza�
 nie pomijać*). Dodatkowo regex na zestawienia („50 agencji") łapał firmy z cyfrą w nazwie
 („360agencja.pl", „Grupa 3 Agencja") — zakotwiczony na początku tytułu.
 
+## 2026-08-28 — NIE odzyskujemy firm z wizytówek w katalogach
+**Decyzja:** Wyniki będące wizytówką w katalogu (`infoisinfo.pl/karta/...`, `useme.com/roles/...`)
+odrzucamy i **nie próbujemy** wyciągać z nich prawdziwej domeny firmy.
+**Powód:** Decyzja Adama. Koszt (parsowanie HTML każdego katalogu z osobna, kruche i różne dla
+każdego serwisu) nie równoważy zysku — w audycie to ~4 firmy na 60 wyników (~7%). Wracamy do tematu
+tylko jeśli w praktyce okaże się, że brakuje leadów.
+
 ---
 
 ## Do rozstrzygnięcia (otwarte)
