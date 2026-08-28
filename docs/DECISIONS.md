@@ -58,6 +58,29 @@ pkt.pl, aleo, zleca, Trustpilot…), portale i fora, strony przeglądowe (`/tag/
 marketingowa Polska": przed filtrem 10 wyników, z czego 4 to katalogi i listicle; po filtrze
 **8 realnych firm, same strony główne**.
 
+## 2026-08-28 — Głęboki link ucinamy do strony głównej (zamiast odrzucać firmę)
+**Decyzja:** Wynik wyszukiwania **normalizujemy do strony głównej** domeny. Odrzucamy w całości
+tylko domeny, które nie są firmami (katalogi, portale, social, media, obce TLD, pliki).
+**Powód:** Audyt filtra (pytanie Adama „czy nie odrzucamy sporej ilości firm"). Okazało się, że
+tak — Tavily często zwraca głęboki link (`/tag/`, `/baza-wiedzy/`, `/artykul/`) na domenie
+**realnej firmy**, a my wyrzucaliśmy ją przez ścieżkę. Traciliśmy m.in. **Convertis (z listy seed)**,
+Webtom, JustIdea, Cyrek Digital.
+**Pomiar na 75 wynikach z 5 zapytań:** przed 55 przechodzi (73%) → po **63 (84%)**,
+w tym **51 głębokich linków uciętych** do strony głównej. Odrzucane pozostałe 12 to faktycznie
+katalogi (infoisinfo, biznesfinder, clutch, sortlist), profile (LinkedIn, Instagram, useme) i media.
+**Skutek uboczny:** tytuł z artykułu nie opisuje firmy → w takim wypadku jako nazwę pokazujemy domenę.
+**Znana strata (świadoma):** firmy widoczne wyłącznie jako wizytówka w katalogu (Southpeople,
+Via Design, DeGie Design) — mamy tylko URL katalogu, nie ich stronę.
+
+## 2026-08-28 — Strona niedostępna ≠ firma martwa
+**Decyzja:** Kontrola żywotności ma trzy stany: `zywa`, `martwa`, `niepewna`. Odrzucamy **tylko
+potwierdzone trupy** (parking domeny, „under construction", pusta strona). Blokada bota
+(Cloudflare) lub timeout → firma **zostaje z adnotacją** „nie udało się zweryfikować".
+**Powód:** Pierwsza wersja traktowała każdą nieosiągalną stronę jako martwą — wypadały firmy
+za Cloudflare. To łamało zasadę z PRD (ryzyko „Blokada scrapera": *oznaczać jako niedostępną,
+nie pomijać*). Dodatkowo regex na zestawienia („50 agencji") łapał firmy z cyfrą w nazwie
+(„360agencja.pl", „Grupa 3 Agencja") — zakotwiczony na początku tytułu.
+
 ---
 
 ## Do rozstrzygnięcia (otwarte)

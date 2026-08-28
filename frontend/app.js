@@ -284,6 +284,7 @@ function wierszHTML(f) {
     <div class="sim-info">
       <span class="sim-name">${esc(f.nazwa)}</span>
       <a class="sim-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)} ↗</a>
+      ${f.niepewna ? `<span class="niepewna">⚠ nie udało się zweryfikować strony (blokada bota?)</span>` : ""}
     </div>
     <button class="researchuj" type="button">Researchuj →</button>
   </div>`;

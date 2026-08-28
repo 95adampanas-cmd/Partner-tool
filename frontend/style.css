@@ -344,6 +344,7 @@ h1 {
 .ocen-btn:hover { background: var(--orange-dim); }
 .ocen-btn:disabled { opacity: .6; cursor: default; }
 .sim-err { color: var(--muted); font-size: 14px; margin: 6px 0 0; width: 100%; }
+.niepewna { color: #e6b43c; font-size: 12px; margin-top: 3px; }
 
 /* ── Karta firmy ── */
 .firma-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

@@ -165,25 +165,53 @@ MARKERY_MARTWEJ = (
 )
 
 
-def czy_martwa_strona(url: str) -> bool:
-    """Odwiedza stronę i sprawdza, czy to żywa firma (nie parking domeny / budowa)."""
+def sprawdz_zywotnosc(url: str) -> str:
+    """'zywa' | 'martwa' | 'niepewna'.
+
+    PRD: firmę niedostępną OZNACZAMY, nie pomijamy. Blokada bota (Cloudflare) czy timeout
+    to NIE dowód, że firma nie istnieje — takie zostawiamy z adnotacją.
+    Odrzucamy tylko potwierdzone trupy: parking domeny, "under construction", pustka.
+    """
     html = pobierz(url, timeout=6)
     if not html:
-        return True
+        return "niepewna"
     tekst = tekst_ze_strony(html)[:2500].lower()
-    if len(tekst) < 200:          # praktycznie pusta strona
-        return True
-    return any(m in tekst for m in MARKERY_MARTWEJ)
+    if len(tekst) < 200 or any(m in tekst for m in MARKERY_MARTWEJ):
+        return "martwa"
+    return "zywa"
 
 
-def czy_smiec(url: str) -> bool:
+# Domeny, które NIE są firmami — katalogi, portale, social, media. Odrzucamy w całości.
+DOMENY_ODPADAJACE = (
+    "clutch.co", "sortlist", "themanifest", "goodfirms", "designrush", "techbehemoths",
+    "topcssgallery", "infoisinfo", "biznesfinder", "panoramafirm", "pkt.pl", "aleo.com",
+    "firmy.net", "zumi.pl", "targeo", "oferteo", "ceneo", "opineo", "useme",
+    "rocketreach", "emailformats", "signalhire", "lusha", "apollo.io", "zleca.pl",
+    "trustpilot", "marketingibiznes", "egospodarka", "wikipedia", "facebook", "linkedin",
+    "instagram", "youtube", "wordpress.org", "domenomania",
+    # media/blogi/fora — po ucięciu do domeny i tak nie byłyby firmą
+    "blog", "news", "portal", "magazyn", "forum",
+)
+
+
+def normalizuj_url(url: str) -> str | None:
+    """Zwraca adres STRONY GŁÓWNEJ firmy albo None, jeśli to nie firma.
+
+    Tavily często zwraca głęboki link (artykuł, /tag/, /baza-wiedzy/) na domenie realnej firmy.
+    Kiedyś takie wyniki odrzucaliśmy — traciliśmy prawdziwych kandydatów (np. Convertis).
+    Teraz ucinamy do strony głównej; scraper i tak sam znajdzie podstrony przy researchu.
+    """
     u = url.lower()
-    if any(k in u for k in KATALOGI):
-        return True
+    domena = urlparse(u).netloc.replace("www.", "")
+    if not domena:
+        return None
+    if any(d in domena for d in DOMENY_ODPADAJACE):
+        return None
+    if domena.endswith(OBCE_TLD):
+        return None
     if u.split("?")[0].endswith(ROZSZERZENIA):
-        return True
-    domena = urlparse(u).netloc
-    return domena.endswith(OBCE_TLD)
+        return None
+    return f"https://{domena}"
 
 # Tytuły artykułów, poradników i wydarzeń — to nie są firmy, tylko treści o branży.
 FRAZY_NIE_FIRMA = (
@@ -193,8 +221,9 @@ FRAZY_NIE_FIRMA = (
     "najlepsze w kategorii", "najwieksze agencje", "największe agencje", "warto zna",
 )
 
-# Zestawienia typu "50 agencji digital", "10 Najlepszych Agencji" — to artykuły, nie firmy.
-LISTICLE = re.compile(r"\b\d{1,3}\s*(najlepsz|agencj|firm|softwarehous|software\s*hous)", re.IGNORECASE)
+# Zestawienia: "50 agencji digital", "Top 5 Najlepszych...". Kotwiczymy na POCZĄTKU tytułu,
+# inaczej wpadały firmy typu "360agencja.pl" albo "Grupa 3 Agencja Reklamowa".
+LISTICLE = re.compile(r"^\s*(top\s*)?\d{1,3}\s+(najlepsz|agencj|firm|software)", re.IGNORECASE)
 
 
 def tavily_search(zapytanie: str, max_results: int = 15) -> list:
@@ -227,24 +256,22 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[li
     Zwraca (firmy, ile_odsianych_konkurentow)."""
     firmy, widziane, odsiani = [], set(), 0
     for r in wyniki:
-        url = r.get("url", "")
-        tytul = r.get("title") or ""
-        dom = urlparse(url).netloc.replace("www.", "").lower()
-        if not dom or dom in widziane:
+        strona = normalizuj_url(r.get("url", ""))
+        if not strona:
             continue
-        if wlasna_domena and wlasna_domena in dom:
-            continue
-        if czy_smiec(url):
-            continue
-        if any(f in tytul.lower() for f in FRAZY_NIE_FIRMA):
-            continue
-        if LISTICLE.search(tytul) or LISTICLE.search(url.replace("-", " ")):
+        dom = urlparse(strona).netloc
+        if dom in widziane or (wlasna_domena and wlasna_domena in dom):
             continue
         widziane.add(dom)
-        if czy_konkurent_w_wyniku(tytul, url):
+
+        tytul = (r.get("title") or "").strip()
+        if czy_konkurent_w_wyniku(tytul, strona):
             odsiani += 1
             continue
-        firmy.append({"nazwa": tytul[:60] or dom, "url": url})
+        # tytuł artykułu/zestawienia nie opisuje firmy — lepiej pokazać domenę
+        if not tytul or any(f in tytul.lower() for f in FRAZY_NIE_FIRMA) or LISTICLE.search(tytul):
+            tytul = dom
+        firmy.append({"nazwa": tytul[:60], "url": strona})
     return firmy[:limit], odsiani
 
 
@@ -441,15 +468,22 @@ async def api_similar(request):
 
         # Kontrola żywotności — równolegle, żeby nie czekać po kolei na 14 stron.
         with ThreadPoolExecutor(max_workers=10) as pool:
-            martwe = list(pool.map(lambda f: czy_martwa_strona(f["url"]), firmy))
-        zywe = [f for f, m in zip(firmy, martwe) if not m][:10]
+            stany = list(pool.map(lambda f: sprawdz_zywotnosc(f["url"]), firmy))
+
+        zostaja = []
+        for f, stan in zip(firmy, stany):
+            if stan == "martwa":
+                continue
+            if stan == "niepewna":
+                f["niepewna"] = True  # front pokaże adnotację, user decyduje
+            zostaja.append(f)
 
         return JSONResponse({
             "ok": True,
-            "firmy": zywe,
+            "firmy": zostaja[:10],
             "zapytanie": zapytanie,
             "odsiani_konkurenci": odsiani,
-            "odsiane_martwe": sum(martwe),
+            "odsiane_martwe": stany.count("martwa"),
         })
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
