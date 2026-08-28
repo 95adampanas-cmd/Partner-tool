@@ -16,6 +16,7 @@ Uruchomienie (z folderu backend/):
 """
 
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin
 import csv
 import io
@@ -141,13 +142,38 @@ KATALOGI = (
     "wordpress.org", "domenomania", "forum.", "/forum",
     "trustpilot", "zleca.pl", "/wykonawcy/", "/categories/", "marketingibiznes",
     # strony przeglądowe, nie firmy
-    "/tag/", "/tematy/", "/karta/", "/kategoria/", "/szukaj", "/search",
+    "/tag/", "/tematy/", "/karta/", "/kategoria/", "/category/", "/szukaj", "/search",
+    "/newsy", "/aktualnosci",
     "/ranking", "najlepsze-", "top-10", "top10", "firm-i-agencji", "/blog/", "/artykul",
 )
 
 # Pliki i obce domeny — nigdy nie są stroną polskiej firmy partnerskiej.
 ROZSZERZENIA = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".pdf", ".zip")
-OBCE_TLD = (".es", ".de", ".fr", ".it", ".ru", ".ua", ".cz", ".sk", ".hu", ".nl", ".se")
+OBCE_TLD = (
+    ".es", ".de", ".fr", ".it", ".ru", ".ua", ".cz", ".sk", ".hu", ".nl", ".se",
+    ".ie", ".uk", ".dk", ".no", ".fi", ".pt", ".gr", ".ro", ".bg", ".at", ".ch",
+    ".be", ".lt", ".lv", ".ee",
+)
+
+# Domeny wystawione na sprzedaż i strony w budowie. Tavily zwraca ich STARE tytuły
+# z czasów, gdy firma istniała — poznać je można tylko po treści strony.
+MARKERY_MARTWEJ = (
+    "buy this domain", "domain for sale", "expired domain", "this domain is for sale",
+    "domena na sprzedaz", "domena na sprzedaż", "domena jest na sprzedaż",
+    "under construction", "strona w budowie", "coming soon", "site not found",
+    "afternic", "sedo.com", "parked domain", "buy-it-now",
+)
+
+
+def czy_martwa_strona(url: str) -> bool:
+    """Odwiedza stronę i sprawdza, czy to żywa firma (nie parking domeny / budowa)."""
+    html = pobierz(url, timeout=6)
+    if not html:
+        return True
+    tekst = tekst_ze_strony(html)[:2500].lower()
+    if len(tekst) < 200:          # praktycznie pusta strona
+        return True
+    return any(m in tekst for m in MARKERY_MARTWEJ)
 
 
 def czy_smiec(url: str) -> bool:
@@ -411,9 +437,19 @@ async def api_similar(request):
         zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])
 
         wlasna = urlparse(firma.get("url", "")).netloc.replace("www.", "").lower()
-        firmy, odsiani = filtruj_firmy(tavily_search(zapytanie), wlasna)
+        firmy, odsiani = filtruj_firmy(tavily_search(zapytanie), wlasna, limit=14)
+
+        # Kontrola żywotności — równolegle, żeby nie czekać po kolei na 14 stron.
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            martwe = list(pool.map(lambda f: czy_martwa_strona(f["url"]), firmy))
+        zywe = [f for f, m in zip(firmy, martwe) if not m][:10]
+
         return JSONResponse({
-            "ok": True, "firmy": firmy, "zapytanie": zapytanie, "odsiani_konkurenci": odsiani,
+            "ok": True,
+            "firmy": zywe,
+            "zapytanie": zapytanie,
+            "odsiani_konkurenci": odsiani,
+            "odsiane_martwe": sum(martwe),
         })
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
