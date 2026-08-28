@@ -71,14 +71,21 @@
 
     <!-- SEKCJA: Firmy (zbadane) -->
     <section class="sekcja" data-sekcja="firmy">
-      <header class="sekcja-head">
+      <header class="sekcja-head" id="firmy-head">
         <h1>Firmy</h1>
-        <p>Zbadane firmy. Każda ma własną kartę — dane, podobne firmy i generowanie maili.</p>
+        <p>Zbadane firmy. Kliknij firmę, żeby zobaczyć pełną kartę — dane, podobne firmy i maile.</p>
       </header>
-      <div id="tabbar" class="tabbar"></div>
-      <div id="panels"></div>
+
+      <!-- widok listy -->
+      <div id="firmy-lista"></div>
       <div id="firmy-pusto" class="pusto">
         Nic tu jeszcze nie ma. Zacznij od <b>Research po URL</b> albo <b>Szukaj po branży</b>.
+      </div>
+
+      <!-- widok szczegółów -->
+      <div id="firmy-detal" hidden>
+        <button class="wroc" type="button">← Wszystkie firmy</button>
+        <div id="panels"></div>
       </div>
     </section>
 

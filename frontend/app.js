@@ -16,6 +16,7 @@ function pokazSekcje(nazwa) {
   document.querySelectorAll(".nav-item").forEach((b) =>
     b.classList.toggle("aktywny", b.dataset.sekcja === nazwa));
   if (nazwa === "eksport") renderEksport();
+  if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
   window.scrollTo(0, 0);
 }
 document.querySelectorAll(".nav-item").forEach((b) =>
@@ -86,43 +87,71 @@ formKryteria.addEventListener("submit", async (e) => {
   }
 });
 
-// ══ SEKCJA: Firmy (zakładki) ══
+// ══ SEKCJA: Firmy — lista, a po kliknięciu szczegóły ══
 function otworzFirme(firma) {
-  const istnieje = tabs.find((t) => t.firma.url === firma.url);
-  if (istnieje) { pokazSekcje("firmy"); return setActive(istnieje.id); }
-
-  const id = "tab" + ++tabSeq;
-  tabs.push({ id, nazwa: hostname(firma.url), firma });
-  document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, firma));
-  document.getElementById("firmy-pusto").hidden = true;
+  let wpis = tabs.find((t) => t.firma.url === firma.url);
+  if (!wpis) {
+    const id = "tab" + ++tabSeq;
+    wpis = { id, nazwa: hostname(firma.url), firma };
+    tabs.push(wpis);
+    document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, firma));
+    odswiezBadge("badge-firmy", tabs.length);
+  }
   pokazSekcje("firmy");
-  setActive(id);
-  odswiezBadge("badge-firmy", tabs.length);
+  pokazDetal(wpis.id);
 }
 
-function setActive(id) {
+// widok listy
+function pokazListe() {
+  activeId = null;
+  document.getElementById("firmy-detal").hidden = true;
+  document.getElementById("firmy-lista").hidden = false;
+  document.getElementById("firmy-pusto").hidden = tabs.length > 0;
+  document.getElementById("firmy-head").hidden = false;
+  renderListeFirm();
+}
+
+// widok szczegółów jednej firmy
+function pokazDetal(id) {
   activeId = id;
+  document.getElementById("firmy-lista").hidden = true;
+  document.getElementById("firmy-pusto").hidden = true;
+  document.getElementById("firmy-head").hidden = true;
+  document.getElementById("firmy-detal").hidden = false;
   document.querySelectorAll("#panels .panel").forEach((p) => {
     p.style.display = p.dataset.id === id ? "block" : "none";
   });
-  renderTabBar();
+  window.scrollTo(0, 0);
 }
 
-function closeTab(id) {
+function renderListeFirm() {
+  document.getElementById("firmy-lista").innerHTML = tabs.map((t) => {
+    const f = t.firma;
+    const wKoszyku = koszyk.some((k) => k.url === f.url);
+    return `<div class="firma-row" data-id="${t.id}">
+      <div class="firma-row-info">
+        <div class="firma-row-top">
+          <span class="firma-row-nazwa">${esc(f.nazwa)}</span>
+          ${f.konkurent
+            ? `<span class="flaga mini konkurent">⚠ KONKURENT</span>`
+            : `<span class="flaga mini partner">✓ NIE KONKURENT</span>`}
+          ${wKoszyku ? `<span class="flaga mini w-eksporcie">📋 W EKSPORCIE</span>` : ""}
+        </div>
+        <span class="firma-row-meta">${esc(hostname(f.url))} · ${esc(f.branza)}</span>
+      </div>
+      <div class="firma-row-akcje">
+        <button class="otworz" type="button">Otwórz →</button>
+        <button class="usun" type="button" data-usun="${t.id}" title="Usuń z listy">×</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function usunFirme(id) {
   tabs = tabs.filter((t) => t.id !== id);
   document.querySelector(`#panels .panel[data-id="${id}"]`)?.remove();
   odswiezBadge("badge-firmy", tabs.length);
-  document.getElementById("firmy-pusto").hidden = tabs.length > 0;
-  if (activeId === id && tabs.length) return setActive(tabs[tabs.length - 1].id);
-  renderTabBar();
-}
-
-function renderTabBar() {
-  document.getElementById("tabbar").innerHTML = tabs.map((t) =>
-    `<div class="tab ${t.id === activeId ? "aktywny" : ""}" data-id="${t.id}">
-       <span>${esc(t.nazwa)}</span>
-       <span class="tab-close" data-close="${t.id}" title="Zamknij">×</span>
-     </div>`).join("");
+  pokazListe();
 }
 
 function panelHTML(id, f) {
@@ -201,10 +230,11 @@ function lista(etykieta, elementy) {
 
 // ══ Kliknięcia (delegacja na całym dokumencie) ══
 document.addEventListener("click", (e) => {
-  const close = e.target.closest(".tab-close");
-  if (close) return closeTab(close.dataset.close);
-  const tab = e.target.closest(".tab");
-  if (tab) return setActive(tab.dataset.id);
+  const usun = e.target.closest("[data-usun]");
+  if (usun) { e.stopPropagation(); return usunFirme(usun.dataset.usun); }
+  const wiersz = e.target.closest(".firma-row");
+  if (wiersz) return pokazDetal(wiersz.dataset.id);
+  if (e.target.classList.contains("wroc")) return pokazListe();
 
   if (e.target.classList.contains("szukaj-podobne")) return szukajPodobnych(e.target);
   if (e.target.classList.contains("mail")) return generujMaile(e.target);
@@ -223,6 +253,7 @@ document.addEventListener("change", (e) => {
   }
   odswiezBadge("badge-eksport", koszyk.length);
   renderEksport();
+  renderListeFirm(); // odśwież znacznik „w eksporcie" na liście
 });
 
 function firmaZPanelu(panel) {

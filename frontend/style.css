@@ -222,23 +222,44 @@ body {
 .zrodlo a { color: var(--muted); word-break: break-all; }
 .zrodlo a:hover { color: var(--orange); }
 
-/* ══ ZAKŁADKI FIRM ══ */
-.tabbar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
-.tabbar:empty { display: none; }
-.tab {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 14px;
+/* ══ LISTA ZBADANYCH FIRM (master) ══ */
+.firma-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  cursor: pointer; white-space: nowrap;
-  font-size: 13.5px; color: var(--muted);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
 }
-.tab:hover { color: var(--text); }
-.tab.aktywny { color: var(--orange); background: var(--card-2); border-color: var(--orange); }
-.tab-close { color: var(--muted); font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 4px; }
-.tab-close:hover { color: #fff; background: var(--orange); }
+.firma-row:hover { border-color: var(--orange); background: var(--card-2); }
+.firma-row-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.firma-row-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.firma-row-nazwa { font-size: 17px; font-weight: 600; }
+.firma-row-meta { color: var(--muted); font-size: 13px; }
+.firma-row-akcje { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.otworz {
+  border: 1px solid var(--border); background: transparent; color: #dcdad6;
+  font-size: 13.5px; padding: 8px 15px; border-radius: 999px; cursor: pointer;
+}
+.firma-row:hover .otworz { border-color: var(--orange); color: var(--orange); }
+.usun {
+  border: none; background: transparent; color: var(--muted);
+  font-size: 18px; line-height: 1; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+}
+.usun:hover { background: var(--orange); color: #fff; }
+
+.flaga.mini { font-size: 9.5px; padding: 4px 9px; }
+.flaga.w-eksporcie { background: var(--card-2); color: var(--muted); border: 1px solid var(--border); }
+
+/* Powrót do listy */
+.wroc {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  font-family: var(--sans); font-size: 14px;
+  padding: 9px 16px; border-radius: 999px; cursor: pointer; margin-bottom: 18px;
+}
+.wroc:hover { border-color: var(--orange); color: var(--orange); }
 
 /* ══ AKCJE ══ */
 .akcje { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
