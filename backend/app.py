@@ -400,9 +400,12 @@ ZASADY (twarde):
 - Opisz TYP FIRMY, nie listę jej usług. Dobrze: "agencja brandingowa Polska".
   Źle: "agencja kreatywna branding design naming logo identyfikacja wizualna strony".
 - NIGDY nie dodawaj miasta ani regionu, jeśli nie dostałeś go wprost w danych.
-- NIGDY nie używaj słów: SEO, SEM, pozycjonowanie, Google Ads, marketing.
-  Szukamy PARTNERÓW, nie agencji marketingowych.
+- Nie DODAWAJ od siebie słów: SEO, SEM, pozycjonowanie, Google Ads, marketing —
+  szukamy partnerów, nie agencji marketingowych. WYJĄTEK: jeśli użytkownik wskazał
+  taką usługę wprost, uszanuj jego wybór i zbuduj zapytanie wokół niej.
 - NIGDY fraz typu "ranking", "top 10", "najlepsze firmy".
+- Jeśli dostajesz USŁUGI WSKAZANE PRZEZ UŻYTKOWNIKA — to one mają być rdzeniem zapytania.
+  Możesz je przeformułować na naturalną frazę wyszukiwarki, ale nie zmieniaj tematu.
 
 Zwróć TYLKO samo zapytanie, bez cudzysłowów i komentarza.""",
     model=MODEL_TANI,
@@ -538,12 +541,18 @@ async def api_similar(request):
             })
         body = await request.json()
         firma = body.get("firma") or {}
+        tagi = body.get("tagi") or []
 
-        # Deterministycznie: wywalamy usługi konkurencyjne (inaczej szukamy agencji SEO)
-        # i ograniczamy listę — długie zapytanie = śmieciowe wyniki.
-        uslugi = [u for u in firma.get("uslugi", [])
-                  if not any(z in u.lower() for z in USLUGI_KONKURENCYJNE)][:5]
-        opis = f"Branża: {firma.get('branza', '')}. Główne usługi: {', '.join(uslugi)}."
+        # Zapytanie zawsze układa LLM — user daje mu tylko wskazówki (zaznaczone usługi).
+        if tagi:
+            opis = (f"Branża: {firma.get('branza', '')}.\n"
+                    f"USŁUGI WSKAZANE PRZEZ UŻYTKOWNIKA (zbuduj zapytanie WOKÓŁ NICH, "
+                    f"uszanuj ten wybór): {', '.join(tagi)}.")
+        else:
+            # Bez wskazówek: wywalamy usługi konkurencyjne, inaczej sami prosimy o agencje SEO.
+            uslugi = [u for u in firma.get("uslugi", [])
+                      if not any(z in u.lower() for z in USLUGI_KONKURENCYJNE)][:5]
+            opis = f"Branża: {firma.get('branza', '')}. Główne usługi: {', '.join(uslugi)}."
 
         r = await Runner.run(agent_zapytanie, opis)
         zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])

@@ -16,6 +16,7 @@ function pokazSekcje(nazwa) {
   document.querySelectorAll(".nav-item").forEach((b) =>
     b.classList.toggle("aktywny", b.dataset.sekcja === nazwa));
   if (nazwa === "eksport") renderEksport();
+  if (nazwa === "podobne") renderPodobne();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
   window.scrollTo(0, 0);
 }
@@ -160,14 +161,12 @@ function panelHTML(id, f) {
     ${kartaHTML(f)}
     <div class="card">
       <div class="akcje">
-        <button class="akcja szukaj-podobne" type="button">🔍 Szukaj podobnych</button>
         <button class="akcja mail" type="button">✉️ Generuj maile</button>
         <label class="akcja check">
           <input type="checkbox" class="do-eksportu" ${wKoszyku ? "checked" : ""}> Dodaj do eksportu
         </label>
       </div>
     </div>
-    <div class="similar-box"></div>
     <div class="mail-box"></div>
   </div>`;
 }
@@ -236,7 +235,20 @@ document.addEventListener("click", (e) => {
   if (wiersz) return pokazDetal(wiersz.dataset.id);
   if (e.target.classList.contains("wroc")) return pokazListe();
 
-  if (e.target.classList.contains("szukaj-podobne")) return szukajPodobnych(e.target);
+  const wzor = e.target.closest(".wybierz-wzor");
+  if (wzor) { podobneWybrana = wzor.dataset.id; podobneTagi.clear(); return renderPodobne(); }
+  if (e.target.classList.contains("zmien-wzor")) {
+    podobneWybrana = null; podobneTagi.clear();
+    document.getElementById("podobne-wynik").innerHTML = "";
+    return renderPodobne();
+  }
+  const tag = e.target.closest("[data-tag]");
+  if (tag) {
+    const t = tag.dataset.tag;
+    podobneTagi.has(t) ? podobneTagi.delete(t) : podobneTagi.add(t);
+    return renderPodobne();
+  }
+  if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
   if (e.target.classList.contains("mail")) return generujMaile(e.target);
   if (e.target.classList.contains("researchuj")) return researchujZListy(e.target);
   if (e.target.classList.contains("kopiuj")) return kopiuj(e.target);
@@ -260,10 +272,66 @@ function firmaZPanelu(panel) {
   return tabs.find((t) => t.id === panel.dataset.id)?.firma || {};
 }
 
-// ══ Szukaj podobnych (z karty firmy) ══
-async function szukajPodobnych(przycisk) {
-  const panel = przycisk.closest(".panel");
-  const box = panel.querySelector(".similar-box");
+// ══ SEKCJA: Szukaj podobnych (wybór firmy → wybór tagów → szukanie) ══
+let podobneWybrana = null;   // id wybranej firmy
+let podobneTagi = new Set(); // zaznaczone usługi
+
+function renderPodobne() {
+  const wybor = document.getElementById("podobne-wybor");
+  const tagiBox = document.getElementById("podobne-tagi");
+
+  if (!tabs.length) {
+    wybor.innerHTML = `<div class="pusto">Najpierw zbadaj jakąś firmę
+      (<b>Research po URL</b> albo <b>Szukaj po branży</b>) — podobnych szukamy na jej podstawie.</div>`;
+    tagiBox.innerHTML = "";
+    return;
+  }
+
+  const wpis = tabs.find((t) => t.id === podobneWybrana);
+
+  if (!wpis) {
+    wybor.innerHTML = `<div class="card">
+      <div class="mono"><span class="sq"></span> 1. WYBIERZ FIRMĘ WZORCOWĄ</div>
+      <div class="similar-list">${tabs.map((t) => `
+        <div class="sim-row wybierz-wzor" data-id="${t.id}">
+          <div class="sim-info">
+            <span class="sim-name">${esc(t.firma.nazwa)}</span>
+            <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
+          </div>
+          <button class="researchuj" type="button">Wybierz →</button>
+        </div>`).join("")}</div>
+    </div>`;
+    tagiBox.innerHTML = "";
+    return;
+  }
+
+  wybor.innerHTML = `<div class="card">
+    <div class="mono"><span class="sq"></span> FIRMA WZORCOWA</div>
+    <div class="wzor-head">
+      <div>
+        <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
+        <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
+      </div>
+      <button class="wroc zmien-wzor" type="button" style="margin:0">Zmień firmę</button>
+    </div>
+  </div>`;
+
+  const uslugi = wpis.firma.uslugi || [];
+  tagiBox.innerHTML = `<div class="card">
+    <div class="mono"><span class="sq"></span> 2. ZAZNACZ USŁUGI DEFINIUJĄCE PODOBIEŃSTWO</div>
+    <p class="hint">Im mniej i konkretniej, tym trafniejsze wyniki. Polecam 2-4 tagi.</p>
+    <div class="tagi wybieralne">${uslugi.map((u) =>
+      `<button class="tag ${podobneTagi.has(u) ? "zaznaczony" : ""}" data-tag="${escAttr(u)}" type="button">${esc(u)}</button>`
+    ).join("")}</div>
+    <button class="akcja szukaj-wg-tagow" type="button" style="margin-top:18px" ${podobneTagi.size ? "" : "disabled"}>
+      🔍 Szukaj podobnych${podobneTagi.size ? ` (${podobneTagi.size})` : ""}
+    </button>
+  </div>`;
+}
+
+async function szukajWgTagow(przycisk) {
+  const wpis = tabs.find((t) => t.id === podobneWybrana);
+  const box = document.getElementById("podobne-wynik");
   przycisk.disabled = true;
   przycisk.textContent = "Szukam… (~10 s)";
   box.innerHTML = "";
@@ -271,7 +339,7 @@ async function szukajPodobnych(przycisk) {
     const res = await fetch("/api/similar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: firmaZPanelu(panel) }),
+      body: JSON.stringify({ firma: wpis.firma, tagi: [...podobneTagi] }),
     });
     const data = await res.json();
     box.innerHTML = data.ok ? listaFirmHTML(data, "PODOBNE FIRMY") : errorHTML(data.error);
@@ -279,7 +347,7 @@ async function szukajPodobnych(przycisk) {
     box.innerHTML = errorHTML(err.message);
   } finally {
     przycisk.disabled = false;
-    przycisk.textContent = "🔍 Szukaj podobnych";
+    renderPodobne();
   }
 }
 

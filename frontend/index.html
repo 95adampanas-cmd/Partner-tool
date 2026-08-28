@@ -22,6 +22,9 @@
       <button class="nav-item" data-sekcja="szukaj">
         <span class="ikona">📍</span> Szukaj po branży
       </button>
+      <button class="nav-item" data-sekcja="podobne">
+        <span class="ikona">🔍</span> Szukaj podobnych
+      </button>
 
       <div class="nav-grupa mono">PRACA</div>
       <button class="nav-item" data-sekcja="firmy">
@@ -67,6 +70,18 @@
         <button id="btn-kryteria" type="submit">Szukaj firm <span class="arrow">→</span></button>
       </form>
       <div id="szukaj-wynik" class="wynik"></div>
+    </section>
+
+    <!-- SEKCJA: Szukaj podobnych -->
+    <section class="sekcja" data-sekcja="podobne">
+      <header class="sekcja-head">
+        <h1>Szukaj podobnych</h1>
+        <p>Wybierz zbadaną firmę, zaznacz usługi, które mają definiować podobieństwo —
+          i znajdź firmy o takim profilu. <strong>To Ty decydujesz, co znaczy „podobna".</strong></p>
+      </header>
+      <div id="podobne-wybor"></div>
+      <div id="podobne-tagi"></div>
+      <div id="podobne-wynik" class="wynik"></div>
     </section>
 
     <!-- SEKCJA: Firmy (zbadane) -->

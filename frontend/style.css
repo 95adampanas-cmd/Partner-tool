@@ -253,6 +253,23 @@ body {
 .flaga.mini { font-size: 9.5px; padding: 4px 9px; }
 .flaga.w-eksporcie { background: var(--card-2); color: var(--muted); border: 1px solid var(--border); }
 
+/* Wybór firmy wzorcowej + zaznaczanie tagów */
+.wzor-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.tagi.wybieralne .tag {
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.tagi.wybieralne .tag:hover { border-color: var(--orange); color: var(--text); }
+.tagi.wybieralne .tag.zaznaczony {
+  background: rgba(240,78,42,.16);
+  border-color: var(--orange);
+  color: var(--orange);
+  font-weight: 600;
+}
+.sim-row.wybierz-wzor { cursor: pointer; }
+.sim-row.wybierz-wzor:hover { border-color: var(--orange); }
+
 /* Powrót do listy */
 .wroc {
   background: transparent; border: 1px solid var(--border); color: var(--muted);

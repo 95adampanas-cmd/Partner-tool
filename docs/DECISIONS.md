@@ -88,6 +88,25 @@ odrzucamy i **nie próbujemy** wyciągać z nich prawdziwej domeny firmy.
 każdego serwisu) nie równoważy zysku — w audycie to ~4 firmy na 60 wyników (~7%). Wracamy do tematu
 tylko jeśli w praktyce okaże się, że brakuje leadów.
 
+## 2026-08-28 — „Szukaj podobnych" sterowane tagami użytkownika
+**Decyzja:** „Szukaj podobnych" to **osobna sekcja**, nie przycisk na karcie firmy. Flow:
+wybierasz zbadaną firmę wzorcową → **zaznaczasz jej usługi**, które mają definiować podobieństwo →
+LLM buduje zapytanie **wokół tych tagów**. Zapytanie nadal układa LLM (naturalna fraza), ale
+tematem sterują wskazówki użytkownika.
+**Powód:** Decyzja Adama — „to Ty decydujesz, co znaczy podobna". Wcześniej model sam wybierał,
+które z 25 usług są istotne, i trafiał losowo. Teraz dla brantt: tagi `branding + strategia marki`
+→ „agencja kreatywna branding strategia marki Polska"; tagi `strony www + WordPress + React`
+→ „agencja kreatywna strony internetowe WordPress React Polska" — dwa różne, trafne zestawy firm.
+**Wyjątek w promptcie:** zakaz słów SEO/SEM/marketing obowiązuje tylko, gdy model dodaje je OD SIEBIE.
+Jeśli user świadomie zaznaczy np. „Google Ads", wybór jest uszanowany.
+
+## 2026-08-28 — UI: aplikacja z sidebarem, sekcja Firmy jako lista → szczegóły
+**Decyzja:** Zamiast landing page — układ aplikacji: sidebar z sekcjami (Research po URL,
+Szukaj po branży, Szukaj podobnych, Firmy, Eksport). Sekcja „Firmy" to **lista** zbadanych firm;
+klik otwiera pełną kartę.
+**Powód:** Decyzja Adama (wzór: dashboard Tavily). Każda funkcja ma swoje miejsce zamiast wisieć
+w jednym scrollu. Rozdzielenie: Research/Szukaj = ekrany wejścia, Firmy = workspace, Eksport = wyjście.
+
 ---
 
 ## Do rozstrzygnięcia (otwarte)
