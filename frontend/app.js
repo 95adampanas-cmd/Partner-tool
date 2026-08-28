@@ -329,10 +329,10 @@ async function generujMaile(przycisk) {
     } else {
       box.innerHTML = `<div class="card maile">
         <div class="mono"><span class="sq"></span> PROPOZYCJE MAILA</div>
-        ${data.maile.map((m, i) => `<div class="mail-draft">
-          <div class="mail-head"><span class="mono-inline">WERSJA ${i + 1}</span>
+        ${data.maile.map((m) => `<div class="mail-draft">
+          <div class="mail-head"><span class="mono-inline">STYL: ${esc(m.styl).toUpperCase()}</span>
             <button class="kopiuj" type="button">Kopiuj</button></div>
-          <pre class="mail-tresc">${esc(m)}</pre>
+          <pre class="mail-tresc">${esc(m.tresc)}</pre>
         </div>`).join("")}
       </div>`;
     }

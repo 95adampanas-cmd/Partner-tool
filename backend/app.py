@@ -18,6 +18,7 @@ Uruchomienie (z folderu backend/):
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin
+import asyncio
 import csv
 import io
 import os
@@ -395,27 +396,47 @@ Zwróć TYLKO samo zapytanie, bez cudzysłowów i komentarza.""",
 )
 
 
-class DraftyMaili(BaseModel):
-    maile: list[str]
+MAIL_SYSTEM = """Jesteś partnership managerem w Last Agency — agencji SEO/GEO/SEM.
+Piszesz krótkiego, spersonalizowanego maila z propozycją współpracy partnerskiej.
 
+KONTEKST:
+- Klienci Last Agency pytają o usługi, których MY NIE świadczymy — takie, jakie ma odbiorca.
+- Chcemy kierować takich klientów do zaufanych partnerów.
+- Jednocześnie klienci odbiorcy mogą potrzebować SEO/GEO/SEM, które pokrywa Last Agency.
+- Cel maila: umówić krótką rozmowę o potencjale partnerskim.
+- To propozycja partnerstwa MIĘDZY RÓWNYMI STRONAMI, nie oferta sprzedażowa.
 
-agent_mail = Agent(
-    name="mail",
-    instructions="""Piszesz maile otwierające do potencjalnych partnerów Last Agency
-(agencja SEO/SEM/GEO/AI Search) — model referral i white-label.
+Mail oprzyj na danych firmy z researchu — nawiąż KONKRETNIE do tego, czym się zajmuje
+(nazwij ich usługi), żeby mail nie był generyczny. Nie zmyślaj: jeśli czegoś nie ma
+w danych, nie wspominaj o tym.
 
-Dostajesz: (1) dane firmy z researchu, (2) bazę wiedzy mailingu z przykładami.
-Napisz DOKŁADNIE 3 różne propozycje maila, dopasowane do branży i usług tej firmy.
+Trzymaj się struktury, zasad i przykładów z bazy wiedzy mailingu, którą dostajesz.
+Szczególnie sekcji „Czego NIE robić".
 
-ZASADY:
-- trzymaj styl i ton z bazy wiedzy mailingu
-- odwołuj się do KONKRETÓW z researchu (usługi, realizacje, branża) — nie ogólniki
-- nie zmyślaj faktów o firmie; jeśli czegoś nie ma w danych, nie wspominaj o tym
-- każdy mail krótki, gotowy do wysłania, z tematem w pierwszej linii
-- 3 propozycje mają się realnie różnić podejściem (nie 3 warianty tego samego zdania)""",
-    output_type=DraftyMaili,
-    model=MODEL,
-)
+Zwróć SAM MAIL (temat w pierwszej linii + treść), bez komentarzy i wyjaśnień."""
+
+# Style muszą się REALNIE różnić — inaczej dostajemy 3 warianty tego samego maila.
+# Dlatego każdy ma narzuconą inną długość, inne otwarcie i inne CTA.
+STYLE_MAILI = [
+    ("rzeczowy",
+     "Rzeczowo i konkretnie, jak zabiegany decydent. MAKSYMALNIE 4 zdania w całym mailu. "
+     "Zero ozdobników. Otwarcie: od razu po co piszesz. CTA: konkretna propozycja terminu "
+     "(np. 'wtorek albo środa, 15 minut?'). Zwracaj się per 'Dzień dobry'."),
+    ("partnerski",
+     "Ciepło i partnersko, ton nieformalny, na 'Cześć'. Otwarcie: od wspólnego mianownika — "
+     "obsługujemy podobnych klientów, tylko z dwóch różnych stron. Możesz użyć jednego pytania "
+     "retorycznego. CTA: luźne zaproszenie do rozmowy, bez narzucania terminu."),
+    ("ekspercki",
+     "Ekspercko — pokazujesz, że rozumiesz ICH model biznesowy. Otwarcie: konkretny insight "
+     "branżowy (np. co dzieje się z ich klientem PO zakończeniu ich projektu i czego wtedy "
+     "potrzebuje). Nazwij mechanizm współpracy (referral / white-label). CTA: propozycja "
+     "rozmowy o modelu współpracy."),
+]
+
+agenci_mail = [
+    Agent(name=f"mail-{nazwa}", instructions=f"{MAIL_SYSTEM}\n\nSTYL: {opis}", model=MODEL)
+    for nazwa, opis in STYLE_MAILI
+]
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -500,11 +521,16 @@ async def api_email(request):
         body = await request.json()
         firma = body.get("firma") or {}
         kontekst = (
-            f"DANE FIRMY:\n{firma}\n\n"
-            f"BAZA WIEDZY MAILINGU (styl i przykłady):\n{baza_maili()}"
+            f"DANE FIRMY Z RESEARCHU:\n{firma}\n\n"
+            f"BAZA WIEDZY MAILINGU (struktura, zasady, przykłady):\n{baza_maili()}"
         )
-        r = await Runner.run(agent_mail, kontekst)
-        return JSONResponse({"ok": True, "maile": r.final_output.maile})
+        # 3 style równolegle — czas jak przy jednym mailu
+        wyniki = await asyncio.gather(*[Runner.run(a, kontekst) for a in agenci_mail])
+        maile = [
+            {"styl": nazwa, "tresc": w.final_output}
+            for (nazwa, _), w in zip(STYLE_MAILI, wyniki)
+        ]
+        return JSONResponse({"ok": True, "maile": maile})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
