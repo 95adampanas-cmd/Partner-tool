@@ -82,6 +82,58 @@ ICEA korzysta z **Senuto + Ahrefs**, my z **DataForSEO**:
 - **Trendy historyczne** (wykresy „od 2022") zależą od tego, jak głęboko sięga historia w DataForSEO
   — do sprawdzenia przy pierwszym realnym wywołaniu.
 
+---
+
+## Rozpoznanie API — wyniki (2026-08-29, wydane $0.23 z $1)
+
+Wszystkie odpowiedzi zapisane w `backend/fixtures/` — dalsze prace idą **offline, bez kosztu**.
+
+### Co działa i ile kosztuje
+
+| Endpoint | Koszt | Werdykt |
+|---|---|---|
+| `appendix/user_data` | **$0** | saldo i limity — używać do kontroli budżetu |
+| `*/llm_responses/models` | **$0** | lista modeli per dostawca |
+| `llm_mentions/search/live` (platform: google) | **$0.11** / 10 wierszy | ✅ AI Overview po polsku — sekcja 2 |
+| `perplexity/llm_responses/live` (sonar) | **$0.006** | ✅✅ **najlepszy stosunek jakości do ceny** |
+| `chat_gpt/llm_responses/live` (gpt-5.6-sol) | **$0.109** | ✅ działa, ale **18× drożej** niż Perplexity |
+
+### 🔴 Ograniczenie: `chat_gpt` w llm_mentions tylko dla USA/angielskiego
+Endpoint `llm_mentions` z `platform: chat_gpt` **nie obsługuje polskiego rynku**.
+Dlatego sekcję „wzmianki w chatbotach" budujemy inaczej: **wysyłamy własne prompty**
+przez `llm_responses/live` i sprawdzamy, czy marka pada w odpowiedzi. To zresztą dokładnie
+mechanizm, którego używa narzędzie ze screena od specjalisty.
+
+### Dlaczego Perplexity `sonar` jako silnik domyślny
+Test na tym samym polskim promptcie (sklepy z Raspberry Pi/Arduino):
+- **Perplexity**: 9 marek konkurencyjnych, precyzyjne URL-e, cytowania numerowane — **$0.006**
+- **ChatGPT (gpt-5.6-sol)**: 3 marki, ładniejszy opis — **$0.109** (12 941 tokenów wejścia przez web search)
+
+Perplexity daje **bogatszą listę marek** (czyli lepszą kolumnę „Marki") za ułamek ceny.
+
+### Model kosztowy audytu (szacunek)
+
+| Element | Wywołania | Koszt |
+|---|---|---|
+| Prompty — Perplexity | 5 × $0.006 | $0.03 |
+| Prompt — ChatGPT (bo 86,4% rynku PL, wypada pokazać) | 1 × $0.11 | $0.11 |
+| AI Overview | 1 × $0.11 | $0.11 |
+| SEO (Labs) — do zmierzenia | ~2 wywołania | ~$0.20 |
+| **Razem** | | **~$0.45/audyt** |
+
+Przy 20 audytach/mies. ≈ **$9 ≈ 35 zł** — mieści się w progu 500 zł z dużym zapasem.
+**Optymalizacja:** rezygnacja z ChatGPT na rzecz samego Perplexity zbija koszt do ~$0.34.
+
+### Kształt danych (potwierdzony na żywo)
+
+`llm_responses` → `result[0].items[].sections[]`:
+- `text` — treść odpowiedzi AI
+- `annotations[].url` — cytowane źródła
+- `model_name`, `input_tokens`, `output_tokens`, `money_spent`
+
+`llm_mentions` → `result[0].items[]`:
+- `question` (prompt) · `answer` · `sources[]` · `brand_entities[]` · `ai_search_volume` · `monthly_searches`
+
 ## Kolejność budowy
 
 1. **Rozpoznanie API** (~$0.23) — po jednym wywołaniu na endpoint, odpowiedzi zapisujemy
