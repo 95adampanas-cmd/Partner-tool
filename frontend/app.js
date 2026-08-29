@@ -660,9 +660,9 @@ function raportHTML(r) {
         <b>${r.seo.wzrosty}</b> pozycji wzrosło, <b>${r.seo.spadki}</b> spadło,
         pojawiło się <b>${r.seo.nowe}</b> nowych fraz, a <b>${r.seo.utracone}</b> utracono.
         Ruch generuje <b>${r.seo.podstron_widocznych}</b> podstron.</p>
-      ${!r.seo.dane_wiarygodne ? `<p class="ostrzezenie">Uwaga: przy tak małej liczbie fraz
-        porównanie z konkurencją jest niemiarodajne — pokrywanie się słów kluczowych bywa
-        przypadkowe. To sama w sobie ważna informacja: <b>widoczność organiczna jest znikoma</b>.</p>` : ""}
+      ${!r.seo.dane_wiarygodne ? `<p class="ostrzezenie"><b>Widoczność organiczna jest znikoma.</b>
+        Przy tak małej liczbie fraz poniższe zestawienie konkurencji traktujcie jako orientacyjne —
+        pokazuje, kto zajmuje te same zapytania, ale przy większej liczbie fraz obraz może się zmienić.</p>` : ""}
       ${r.seo.konkurenci.length ? `
       <table class="tabela-dok">
         <thead><tr><th>Konkurent w wynikach</th><th class="pr">Wspólne frazy</th>
@@ -673,9 +673,9 @@ function raportHTML(r) {
       </table>` : ""}
       ${r.seo.top_podstrony.length ? `
       <table class="tabela-dok">
-        <thead><tr><th>Podstrony generujące ruch</th><th class="pr">Fraz</th><th class="pr">Ruch</th></tr></thead>
-        <tbody>${r.seo.top_podstrony.map((s) => `<tr><td>${esc(s.adres)}</td>
-          <td class="pr">${s.fraz}</td><td class="pr">${s.ruch}</td></tr>`).join("")}</tbody>
+        <thead><tr><th>Podstrony generujące ruch</th><th class="pr waska">Fraz</th><th class="pr waska">Ruch/mies.</th></tr></thead>
+        <tbody>${r.seo.top_podstrony.map((s) => `<tr><td class="url">${esc(s.adres)}</td>
+          <td class="pr waska">${s.fraz}</td><td class="pr waska">${s.ruch.toLocaleString("pl-PL")}</td></tr>`).join("")}</tbody>
       </table>` : ""}
     </section>` : ""}
 
@@ -767,13 +767,27 @@ function promptHTML(w, marka) {
 function pogrub(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); }
 
 function formatujOdpowiedz(tekst, marka) {
-  let t = pogrub((tekst || "").slice(0, 800));
+  let t = pogrub(przytnij(tekst || "", 800));
   if (marka) {
     // podświetlamy nazwę marki — od razu widać, w którym miejscu odpowiedzi padła
     const bezpieczna = marka.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     t = t.replace(new RegExp("(" + bezpieczna + ")", "gi"), "<mark>$1</mark>");
   }
-  return t + ((tekst || "").length > 800 ? "…" : "");
+  return t;
+}
+
+// Ucinanie w połowie słowa („rozważyć inne firmy z Ka…") wygląda niechlujnie
+// w dokumencie dla klienta. Tniemy na końcu zdania albo akapitu.
+function przytnij(tekst, limit) {
+  if (tekst.length <= limit) return tekst;
+  const kawalek = tekst.slice(0, limit);
+  const koniec = Math.max(
+    kawalek.lastIndexOf(". "), kawalek.lastIndexOf(".\n"),
+    kawalek.lastIndexOf("!"), kawalek.lastIndexOf("?"), kawalek.lastIndexOf("\n\n")
+  );
+  if (koniec > limit * 0.45) return kawalek.slice(0, koniec + 1) + " […]";
+  const spacja = kawalek.lastIndexOf(" ");   // awaryjnie: przynajmniej całe słowo
+  return kawalek.slice(0, spacja > 0 ? spacja : limit) + " […]";
 }
 
 // ══ SEKCJA: Eksport ══

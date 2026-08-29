@@ -475,6 +475,29 @@ class Prompty(BaseModel):
     pytania: list[str]
 
 
+class MarkiWOdpowiedziach(BaseModel):
+    marki_per_odpowiedz: list[list[str]]
+
+
+# Wyciąganie marek po **pogrubieniu** nie działa: model pogrubia też zwykłe frazy
+# („Certyfikacja PrestaShop", „Doświadczenie"), a prawdziwe nazwy firm bywają
+# w zwykłym tekście. Rozpoznanie nazwy własnej wymaga rozumienia języka — czyli LLM.
+agent_marki = Agent(
+    name="marki",
+    instructions="""Dostajesz ponumerowane odpowiedzi AI. Dla KAŻDEJ wypisz nazwy FIRM,
+które w niej wystąpiły jako polecani/wymieniani dostawcy usług.
+
+ZASADY:
+- TYLKO nazwy własne firm (np. „Waynet", „Convertis", „Astrabit").
+- NIE wypisuj: nazw usług, certyfikatów, platform (PrestaShop, Shopify, WordPress),
+  miast, ogólnych fraz („Doświadczenie", „Certyfikacja", „Expert").
+- Jeśli w odpowiedzi nie ma żadnej firmy — pusta lista dla tej pozycji.
+- Zachowaj kolejność: lista wyników musi mieć tyle pozycji, ile dostałeś odpowiedzi.""",
+    output_type=MarkiWOdpowiedziach,
+    model=MODEL,
+)
+
+
 agent_prompty = Agent(
     name="prompty-audyt",
     instructions=audyt.PROMPT_GENERATORA.format(ile="{ile}").replace("{ile}", "5"),
@@ -701,6 +724,18 @@ async def api_audyt(request):
             )
             koszt += odp.get("cost", 0)
             wiersze.append(audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie))
+
+        # 2b) Marki konkurencyjne — jedno wywołanie na wszystkie odpowiedzi naraz (tanio)
+        if wiersze:
+            zlepek = "\n\n".join(
+                f"[ODPOWIEDŹ {i}]\n{w['odpowiedz'][:1500]}" for i, w in enumerate(wiersze, 1)
+            )
+            try:
+                rm = await Runner.run(agent_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
+                for w, marki in zip(wiersze, rm.final_output.marki_per_odpowiedz):
+                    w["marki"] = [m for m in marki if nazwa.lower() not in m.lower()]
+            except Exception:
+                pass  # zostaje wersja z parsera — lepsze to niż brak
 
         # 3) AI Overview (opcjonalnie — najdroższy pojedynczy element)
         aio = None

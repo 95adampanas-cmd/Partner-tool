@@ -447,7 +447,9 @@ button { font-family: var(--sans); }
   color: var(--muted); text-align: left; padding: 0 14px 10px 0; border-bottom: 1px solid var(--border);
 }
 .tabela-dok td { padding: 11px 14px 11px 0; color: #c8c6c2; border-bottom: 1px solid var(--border-soft); }
-.tabela-dok .pr { text-align: right; padding-right: 0; }
+.tabela-dok .pr { text-align: right; padding-right: 0; padding-left: 22px; white-space: nowrap; }
+.tabela-dok .waska { width: 88px; }
+.tabela-dok .url { word-break: break-all; font-size: 12.5px; }
 .tabela-dok .w-nr { width: 34px; color: var(--faint); font-family: var(--mono); font-size: 11px; }
 
 /* udziały rynku — płasko, bez gradientu */
