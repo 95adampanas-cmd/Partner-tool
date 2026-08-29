@@ -78,6 +78,40 @@ Nie wolno tego uogólniać w rozmowie z partnerem.
 i TOP3 z Senuto/Ahrefs i z naszego narzędzia. Jeśli proporcja stała → można podać
 przelicznik. Jeśli nie → ta sekcja potrzebuje innego źródła danych.
 
+### ⬜ POTRZEBNE: dostęp do API Senuto lub Ahrefs (warstwa fraz)
+
+**Czego dokładnie potrzebujemy:** API zwracające listę fraz, na które domena jest widoczna,
+wraz z pozycją i wolumenem — czyli odpowiednik `ranked_keywords`, ale z pełniejszej bazy.
+Nie potrzebujemy od nich ruchu ani konkurencji — te warstwy z DataForSEO są zweryfikowane.
+
+**Dlaczego to jest potrzebne — trzy powody:**
+
+1. **Ryzyko dla wiarygodności całego dokumentu.** Partner pokaże raport swojemu SEO-owcowi,
+   ten sprawdzi w Senuto i zobaczy 655 fraz w TOP3 zamiast naszych 42. Podpis źródła
+   (wdrożony) łagodzi to, ale nie usuwa — przy tak dużej rozbieżności najłatwiejszy wniosek
+   to „ten raport jest do kosza", a razem z nim leci część GEO, która jest naszą przewagą.
+
+2. **Rekomendacje bez długiego ogona są słabsze.** Najciekawsze wnioski SEO biorą się
+   z fraz na pozycjach 11–30 („jesteście tuż za progiem, tu jest najtańszy wzrost").
+   Mamy ich 320 z 748; przy bazie Senuto byłoby ich wielokrotnie więcej. Analiza
+   handlowe/informacyjne też zyskuje na większej próbce.
+
+3. **To jedyna warstwa, która nie przeszła walidacji.** Ruch: ✅ zgodny z Ahrefs (mediana
+   ~10% na 9 domenach). Konkurenci: ✅ 5 z 6 zgodnych z listą ICEA. Frazy z pozycjami: ✅
+   realne. **Liczba fraz: ⚠️ nieporównywalna.** Nie ma sensu wymieniać całego dostawcy —
+   potrzebna jest jedna brakująca warstwa.
+
+**Do sprawdzenia przez Adama (nie zgaduję cen):**
+- Czy Last Agency ma już subskrypcję Senuto lub Ahrefs na potrzeby klientów? Jeśli tak,
+  API bywa dodatkiem do istniejącego planu, a nie osobnym kosztem.
+- Jaki jest koszt API i limity zapytań — musi zmieścić się w budżecie z PRD (~500 zł/mies.
+  na całe narzędzie, razem z OpenAI, Tavily i DataForSEO).
+- Ahrefs rozlicza API jednostkowo i bywa drogi przy większym wolumenie; Senuto jest polski
+  i ma lepsze pokrycie polskich fraz — ale **obie ceny trzeba zweryfikować u źródła**.
+
+**Jeśli budżet nie pozwoli:** zostaje stan obecny — podpis źródła + prowadzenie raportu
+ruchem i porównaniem z konkurencją zamiast liczbą fraz. To działa, tylko jest słabsze.
+
 **Obejście na teraz (wdrożone, commit b0ee953):** pod sekcją SEO jest podpis źródła
 z datą aktualizacji bazy — konwencja z audytu ICEA („Dane z narzędzia Senuto").
 Liczby zostają widoczne, ale opisane, więc SEO-wiec partnera czyta „inne narzędzie",
