@@ -146,7 +146,33 @@ PORTALE = (
 PROG_WIARYGODNOSCI = 30
 
 
-def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str) -> dict:
+def _frazy(odp: dict, limit: int = 12) -> list[dict]:
+    """Konkretne frazy z pozycjami. „21 fraz" nic nie mówi — dopiero lista pokazuje,
+    NA CO firma jest widoczna (i czy to zapytania handlowe, czy definicyjne)."""
+    # Fraza definicyjna („co to jest SKU") przynosi ruch, ale nie klienta.
+    # Rozróżnienie robimy deterministycznie — to jeden z mocniejszych wniosków raportu.
+    INFORMACYJNE = ("co to", "czym jest", "jak ", "znaczenie", "definicja", "przyklad",
+                    "przykład", "dlaczego", "kiedy ", "ile ", "czy ")
+    lista = []
+    for it in ((odp.get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or []:
+        kd = it.get("keyword_data") or {}
+        serp = (it.get("ranked_serp_element") or {}).get("serp_item") or {}
+        fraza = kd.get("keyword", "")
+        lista.append({
+            "typ": "informacyjna" if any(i in f" {fraza.lower()} " for i in INFORMACYJNE)
+                   else "handlowa",
+            "fraza": fraza,
+            "pozycja": serp.get("rank_absolute") or serp.get("rank_group"),
+            "wolumen": (kd.get("keyword_info") or {}).get("search_volume") or 0,
+            "ruch": round(serp.get("etv") or 0),
+            "url": serp.get("relative_url") or serp.get("url") or "",
+        })
+    lista.sort(key=lambda f: (f["pozycja"] or 999, -f["wolumen"]))
+    return lista[:limit]
+
+
+def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,
+                 frazy: dict | None = None) -> dict:
     """Sekcja 'Raport Zero' — widoczność w klasycznym Google (odpowiednik danych Senuto/Ahrefs)."""
     poz = (((rank.get("tasks") or [{}])[0].get("result") or [{}])[0]
            .get("items", [{}])[0].get("metrics", {}).get("organic", {}))
@@ -192,6 +218,7 @@ def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str) -> dic
         "nowe": poz.get("is_new") or 0,
         "utracone": poz.get("is_lost") or 0,
         "konkurenci": lista[:8],
+        "frazy": _frazy(frazy) if frazy else [],
         "podstron_widocznych": wynik_stron.get("total_count") or 0,
         "top_podstrony": top_strony,
     }
@@ -241,8 +268,8 @@ def zapytaj_llm(prompt: str, silnik=SILNIK_DOMYSLNY, nazwa_fixture=None) -> dict
     )
 
 
-def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, float]:
-    """Trzy wywołania Labs = cała sekcja 'Raport Zero'. Razem ok. $0.04."""
+def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, dict, float]:
+    """Cztery wywołania Labs = cała sekcja 'Raport Zero'. Razem ok. $0.05."""
     baza = {"target": domena, "location_code": LOKALIZACJA_PL, "language_name": JEZYK_PL}
     rank = dfs.wywolaj("dataforseo_labs/google/domain_rank_overview/live",
                        [baza], f"{nazwa_fixture}_rank" if nazwa_fixture else None)
@@ -250,8 +277,12 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, fl
                        [{**baza, "limit": 15}], f"{nazwa_fixture}_konk" if nazwa_fixture else None)
     strony = dfs.wywolaj("dataforseo_labs/google/relevant_pages/live",
                          [{**baza, "limit": 10}], f"{nazwa_fixture}_strony" if nazwa_fixture else None)
-    koszt = sum(o.get("cost", 0) for o in (rank, konk, strony))
-    return rank, konk, strony, koszt
+    frazy = dfs.wywolaj("dataforseo_labs/google/ranked_keywords/live",
+                        [{**baza, "limit": 15,
+                          "order_by": ["ranked_serp_element.serp_item.etv,desc"]}],
+                        f"{nazwa_fixture}_frazy" if nazwa_fixture else None)
+    koszt = sum(o.get("cost", 0) for o in (rank, konk, strony, frazy))
+    return rank, konk, strony, frazy, koszt
 
 
 def wzmianki_ai_overview(domena: str, limit: int = 10, nazwa_fixture=None) -> dict:

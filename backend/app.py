@@ -749,11 +749,11 @@ async def api_audyt(request):
         # 4) Klasyczne SEO — „Raport Zero" (3 wywołania Labs, razem ~$0.04)
         seo = None
         if bool(body.get("seo", True)):
-            rank, konk, strony, k = await asyncio.to_thread(
+            rank, konk, strony, frazy, k = await asyncio.to_thread(
                 audyt.dane_seo, domena, f"audyt_seo_{domena}"
             )
             koszt += k
-            seo = audyt.analizuj_seo(rank, konk, strony, domena)
+            seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy)
 
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
         raport["saldo_po"] = dfs.saldo()

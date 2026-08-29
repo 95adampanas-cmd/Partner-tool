@@ -671,6 +671,22 @@ function raportHTML(r) {
           <td class="pr">${k.wspolne_frazy}</td><td class="pr">${k.ruch.toLocaleString("pl-PL")}</td>
           <td class="pr">${k.srednia_pozycja}</td></tr>`).join("")}</tbody>
       </table>` : ""}
+      ${r.seo.frazy && r.seo.frazy.length ? `
+      <table class="tabela-dok">
+        <thead><tr><th>Fraza, na którą firma jest widoczna</th><th class="pr waska">Pozycja</th>
+          <th class="pr waska">Wyszukiwań</th><th class="pr">Typ</th></tr></thead>
+        <tbody>${r.seo.frazy.map((f) => `<tr>
+          <td>${esc(f.fraza)}</td>
+          <td class="pr waska">${f.pozycja ? "#" + f.pozycja : "—"}</td>
+          <td class="pr waska">${(f.wolumen || 0).toLocaleString("pl-PL")}</td>
+          <td class="pr"><span class="typ ${f.typ}">${f.typ === "handlowa" ? "handlowa" : "informacyjna"}</span></td>
+        </tr>`).join("")}</tbody>
+      </table>
+      ${r.seo.frazy.filter((f) => f.typ === "informacyjna").length >= r.seo.frazy.length / 3
+        ? `<p class="ostrzezenie">Znaczna część ruchu pochodzi z zapytań <b>informacyjnych</b>
+            („co to jest…"), a nie zakupowych. Taki ruch buduje zasięg, ale rzadko kończy się
+            zapytaniem ofertowym — to obszar o największym potencjale poprawy.</p>` : ""}` : ""}
+
       ${r.seo.top_podstrony.length ? `
       <table class="tabela-dok">
         <thead><tr><th>Podstrony generujące ruch</th><th class="pr waska">Fraz</th><th class="pr waska">Ruch/mies.</th></tr></thead>
