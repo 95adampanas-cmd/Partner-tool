@@ -115,12 +115,22 @@ def znajdz_podstrony(html: str, base_url: str) -> list[str]:
     """Wybiera po JEDNEJ podstronie z każdej grupy (kontakt → o nas → realizacje → oferta),
     żeby jeden typ podstron nie zjadł wszystkich slotów."""
     soup = BeautifulSoup(html, "html.parser")
-    domena = urlparse(base_url).netloc
+    # Porównanie hostów MUSI ignorować wielkość liter. Część stron ma linki absolutne
+    # zapisane jako "https://WWW.Firma.pl/kontakt" — przy porównaniu wrażliwym na
+    # wielkość liter taka podstrona wypadała jako „obca domena" i nigdy jej nie
+    # odwiedzaliśmy. Traciliśmy przez to NIP, adres i osobę decyzyjną, bez śladu w logach.
+    # Dodatkowo ucinamy "www." — strony potrafią mieszać linki z www i bez niego
+    # w obrębie tej samej witryny. Przy dosłownym porównaniu połowa podstron wypadała
+    # jako „obca domena". Prawdziwe subdomeny (blog., sklep.) nadal są odrzucane.
+    def host(u: str) -> str:
+        return urlparse(u).netloc.lower().removeprefix("www.")
+
+    domena = host(base_url)
 
     linki, widziane = [], set()
     for a in soup.find_all("a", href=True):
         pelny = urljoin(base_url, a["href"]).split("#")[0].split("?")[0].rstrip("/")
-        if urlparse(pelny).netloc != domena or pelny in widziane:
+        if host(pelny) != domena or pelny in widziane:
             continue
         if any(p in pelny.lower() for p in POMIJAJ):
             continue
