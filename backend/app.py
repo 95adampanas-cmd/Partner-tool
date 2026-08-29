@@ -35,6 +35,9 @@ from bs4 import BeautifulSoup
 from tavily import TavilyClient
 from agents import Agent, Runner
 
+import audyt
+import dfs
+
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
@@ -468,6 +471,18 @@ Przykład dla "agencja brandingowa" + "Kraków":
 )
 
 
+class Prompty(BaseModel):
+    pytania: list[str]
+
+
+agent_prompty = Agent(
+    name="prompty-audyt",
+    instructions=audyt.PROMPT_GENERATORA.format(ile="{ile}").replace("{ile}", "5"),
+    output_type=Prompty,
+    model=MODEL,
+)
+
+
 MAIL_SYSTEM = """Jesteś partnership managerem w Last Agency — agencji SEO/GEO/SEM.
 Piszesz krótkiego, spersonalizowanego maila z propozycją współpracy partnerskiej.
 
@@ -656,6 +671,53 @@ async def api_email(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+async def api_audyt(request):
+    """Funkcja 5 — mikroaudyt SEO/GEO. PŁATNE (DataForSEO), więc liczymy koszt i zwracamy go."""
+    try:
+        if not (os.environ.get("DATAFORSEO_LOGIN") and os.environ.get("DATAFORSEO_PASSWORD")):
+            return JSONResponse({"ok": False, "error":
+                                 "Brak danych DataForSEO w .env (DATAFORSEO_LOGIN / _PASSWORD)."})
+        body = await request.json()
+        firma = body.get("firma") or {}
+        ile = int(body.get("ile_promptow") or 5)
+        z_aio = bool(body.get("ai_overview", True))
+
+        nazwa = firma.get("nazwa") or ""
+        domena = urlparse(firma.get("url", "")).netloc.replace("www.", "")
+
+        # 1) Prompty generuje NASZ model (tanio, mamy kontrolę) — nie DataForSEO
+        opis = (f"Firma: {nazwa}\nBranża: {firma.get('branza','')}\n"
+                f"Usługi: {', '.join(firma.get('uslugi', [])[:10])}\n"
+                f"Miasto: {firma.get('miasto','')}\nOpis: {firma.get('opis','')}")
+        r = await Runner.run(agent_prompty, f"Wygeneruj {ile} pytań.\n\n{opis}")
+        pytania = (r.final_output.pytania or [])[:ile]
+
+        # 2) Każde pytanie do Perplexity (18x taniej niż ChatGPT przy lepszej liście marek)
+        koszt = 0.0
+        wiersze = []
+        for i, pytanie in enumerate(pytania, 1):
+            odp = await asyncio.to_thread(
+                audyt.zapytaj_llm, pytanie, audyt.SILNIK_DOMYSLNY, f"audyt_{domena}_{i}"
+            )
+            koszt += odp.get("cost", 0)
+            wiersze.append(audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie))
+
+        # 3) AI Overview (opcjonalnie — najdroższy pojedynczy element)
+        aio = None
+        if z_aio:
+            odp_aio = await asyncio.to_thread(
+                audyt.wzmianki_ai_overview, domena, 10, f"audyt_aio_{domena}"
+            )
+            koszt += odp_aio.get("cost", 0)
+            aio = audyt.analizuj_ai_overview(odp_aio, domena)
+
+        raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt)
+        raport["saldo_po"] = dfs.saldo()
+        return JSONResponse({"ok": True, "raport": raport})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
 async def api_columns(request):
     """Kolumny eksportu — front renderuje podgląd DOKŁADNIE tak, jak zapisze CSV."""
     return JSONResponse({"kolumny": [{"naglowek": n, "klucz": k} for n, k in KOLUMNY]})
@@ -686,6 +748,7 @@ app = Starlette(routes=[
     Route("/api/szukaj", api_szukaj, methods=["POST"]),
     Route("/api/email", api_email, methods=["POST"]),
     Route("/api/columns", api_columns, methods=["GET"]),
+    Route("/api/audyt", api_audyt, methods=["POST"]),
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),
 ])

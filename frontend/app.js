@@ -17,6 +17,7 @@ function pokazSekcje(nazwa) {
     b.classList.toggle("aktywny", b.dataset.sekcja === nazwa));
   if (nazwa === "eksport") renderEksport();
   if (nazwa === "podobne") renderPodobne();
+  if (nazwa === "audyt") renderAudyt();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
   window.scrollTo(0, 0);
 }
@@ -330,6 +331,14 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
+
+  const wa = e.target.closest(".wybierz-audyt");
+  if (wa) { audytWybrana = wa.dataset.id; document.getElementById("audyt-raport").innerHTML = ""; return renderAudyt(); }
+  if (e.target.classList.contains("zmien-audyt")) {
+    audytWybrana = null; document.getElementById("audyt-raport").innerHTML = ""; return renderAudyt();
+  }
+  if (e.target.classList.contains("generuj-audyt")) return generujAudyt(e.target);
+  if (e.target.classList.contains("drukuj")) return window.print();
   if (e.target.classList.contains("mail")) return generujMaile(e.target);
   if (e.target.classList.contains("researchuj")) return researchujZListy(e.target);
   if (e.target.classList.contains("kopiuj")) return kopiuj(e.target);
@@ -337,6 +346,8 @@ document.addEventListener("click", (e) => {
 });
 
 document.addEventListener("change", (e) => {
+  if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
+  if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
   if (e.target.checked) {
@@ -516,6 +527,188 @@ function kopiuj(przycisk) {
     przycisk.innerHTML = '<svg class="ico xs"><use href="#i-check"/></svg>Skopiowano';
     setTimeout(() => (przycisk.innerHTML = '<svg class="ico xs"><use href="#i-copy"/></svg>Kopiuj'), 1500);
   });
+}
+
+// ══ SEKCJA: Mikroaudyt SEO/GEO ══
+// Jedyna PŁATNA funkcja (DataForSEO) — pokazujemy koszt zanim user kliknie.
+let audytWybrana = null;
+let audytIle = 5;
+let audytAIO = true;
+
+const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
+const KOSZT_AIO = 0.11;       // llm_mentions, zmierzone
+
+function renderAudyt() {
+  const wybor = document.getElementById("audyt-wybor");
+  if (!tabs.length) {
+    wybor.innerHTML = `<div class="pusto"><svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Najpierw zbadaj firmę.<br><span>Audyt robimy dla firmy z sekcji <b>Firmy</b>.</span></p></div>`;
+    return;
+  }
+  const wpis = tabs.find((t) => t.id === audytWybrana);
+
+  if (!wpis) {
+    wybor.innerHTML = `<div class="card">
+      <div class="mono"><i class="sq"></i>Wybierz firmę do audytu</div>
+      <div class="similar-list">${tabs.map((t) => `
+        <div class="sim-row wybierz-audyt" data-id="${t.id}">
+          <div class="sim-info"><span class="sim-name">${esc(t.firma.nazwa)}</span>
+            <span class="firma-row-meta">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</span></div>
+          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>`).join("")}</div></div>`;
+    return;
+  }
+
+  const koszt = (audytIle * KOSZT_PROMPT + (audytAIO ? KOSZT_AIO : 0)).toFixed(3);
+  wybor.innerHTML = `<div class="card">
+    <div class="wzor-head">
+      <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
+        <span class="firma-row-meta">${esc(hostname(wpis.firma.url))}</span></div>
+      <button class="wroc zmien-audyt" type="button" style="margin:0">Zmień firmę</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="mono"><i class="sq"></i>Zakres audytu</div>
+    <div class="akcje" style="margin-bottom:14px">
+      <label class="akcja check"><input type="checkbox" id="audyt-aio" ${audytAIO ? "checked" : ""}>
+        Widoczność w AI Overviews <span class="cena">+$${KOSZT_AIO}</span></label>
+      <label class="akcja check" style="gap:12px">Liczba pytań
+        <input type="range" id="audyt-ile" min="3" max="10" value="${audytIle}" style="width:110px">
+        <b>${audytIle}</b></label>
+    </div>
+    <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>
+      · pytania generuje nasz model, odpowiedzi zbiera Perplexity (18× taniej niż ChatGPT).</p>
+    <button class="akcja glowna generuj-audyt" type="button" style="margin-top:16px">
+      <svg class="ico sm"><use href="#i-chart"/></svg>Wygeneruj audyt</button>
+  </div>`;
+}
+
+async function generujAudyt(przycisk) {
+  const wpis = tabs.find((t) => t.id === audytWybrana);
+  const box = document.getElementById("audyt-raport");
+  przycisk.disabled = true;
+  przycisk.textContent = "Zbieram dane… (~60-90 s)";
+  box.innerHTML = loadingHTML("Generuję pytania, pytam modele AI i sprawdzam widoczność…");
+  try {
+    const res = await fetch("/api/audyt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, ai_overview: audytAIO }),
+    });
+    const data = await res.json();
+    box.innerHTML = data.ok ? raportHTML(data.raport) : errorHTML(data.error);
+  } catch (err) {
+    box.innerHTML = errorHTML(err.message);
+  } finally {
+    przycisk.disabled = false;
+    renderAudyt();
+  }
+}
+
+// ── Render raportu (układ do druku / PDF) ──
+function raportHTML(r) {
+  const p = r.podsumowanie;
+  const st = r.tresc_stala;
+
+  const udzialy = st.rynek_chatbotow.udzialy.map(([nazwa, proc]) => `
+    <div class="slupek">
+      <span class="slupek-nazwa">${esc(nazwa)}</span>
+      <div class="slupek-tor"><div class="slupek-wypeln" style="width:${proc}%"></div></div>
+      <span class="slupek-proc">${proc}%</span>
+    </div>`).join("");
+
+  const prompty = r.prompty.map((w) => `
+    <div class="prompt-wiersz">
+      <div class="prompt-glowa">
+        <div class="prompt-pytanie">${esc(w.prompt)}</div>
+        <div class="prompt-flagi">
+          ${w.wspomniana ? `<span class="flaga mini partner"><svg class="ico xs"><use href="#i-check"/></svg>Wspomniana</span>` : `<span class="flaga mini brak-wzmianki">Brak wzmianki</span>`}
+          ${w.cytowana ? `<span class="flaga mini cytowana"><svg class="ico xs"><use href="#i-link"/></svg>Cytowana</span>` : ""}
+        </div>
+      </div>
+      <div class="prompt-odpowiedz">${formatujOdpowiedz(w.odpowiedz, r.firma.nazwa)}</div>
+      <div class="prompt-stopka">
+        <span class="mono">${esc(w.model)}</span>
+        ${w.marki.length ? `<span>Inne marki w odpowiedzi: <b>${w.marki.slice(0,8).map(esc).join(", ")}</b></span>` : ""}
+        <span>${w.zrodla.length} źródeł</span>
+      </div>
+    </div>`).join("");
+
+  const aio = r.ai_overview ? `
+    <section class="r-sekcja">
+      <h2><span class="r-numer">2</span> Widoczność w AI Overviews</h2>
+      ${st.ai_overview.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
+      <div class="kafle">
+        ${kafel(r.ai_overview.liczba_wzmianek ?? "—", "fraz z AI Overview", "search")}
+        ${kafel(r.ai_overview.srednia_pozycja ?? "—", "średnia pozycja w AIO", "chart")}
+      </div>
+      <div class="tabela-scroll"><table class="tabela">
+        <thead><tr><th>Zapytanie</th><th>Wyszukiwań/mies.</th><th>Pozycja</th></tr></thead>
+        <tbody>${r.ai_overview.wzmianki.slice(0, 8).map((w) => `
+          <tr><td>${esc(w.prompt)}</td><td>${w.wolumen || "—"}</td>
+              <td>${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
+      </table></div>
+    </section>` : "";
+
+  return `<div class="raport" id="raport">
+    <div class="r-naglowek">
+      <div>
+        <div class="mono"><i class="sq"></i>Analiza GEO — SEO &amp; AI Search</div>
+        <h1 class="r-tytul">${esc(r.firma.nazwa)}</h1>
+        <span class="firma-row-meta">${esc(r.firma.domena)} · ${esc(r.firma.branza)}</span>
+      </div>
+      <div class="logo">Last<em>Agency</em></div>
+    </div>
+
+    <div class="kafle">
+      ${kafel(p.wspomniana + "/" + p.promptow, "pytań ze wzmianką", "check")}
+      ${kafel(p.udzial_wspomnien + "%", "widoczność w AI", "chart")}
+      ${kafel(p.cytowana, "cytowań strony", "link")}
+    </div>
+
+    <section class="r-sekcja">
+      <h2><span class="r-numer">1</span> Jak AI odpowiada na pytania klientów</h2>
+      <p>Zadaliśmy modelom AI pytania, które realny klient wpisałby szukając takich usług —
+        <b>bez podawania nazwy firmy</b>. Poniżej widać, czy model wskazał ją samodzielnie
+        i jakie marki wymienił obok.</p>
+      ${prompty}
+    </section>
+
+    ${aio}
+
+    <section class="r-sekcja">
+      <h2><span class="r-numer">${r.ai_overview ? 3 : 2}</span> ${esc(st.rynek_chatbotow.naglowek)}</h2>
+      ${st.rynek_chatbotow.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
+      <div class="slupki">${udzialy}</div>
+      <p class="hint">${esc(st.rynek_chatbotow.zrodlo)}</p>
+      <div class="r-case"><b>${esc(st.case_botland.naglowek)}</b><p>${pogrub(st.case_botland.tekst)}</p></div>
+    </section>
+
+    ${p.konkurenci.length ? `<section class="r-sekcja">
+      <h2><span class="r-numer">${r.ai_overview ? 4 : 3}</span> Kto pojawia się zamiast Państwa</h2>
+      <p>Marki, które modele AI wymieniały w odpowiedziach na te same pytania:</p>
+      <div class="similar-list">${p.konkurenci.map((k) => `
+        <div class="sim-row"><span class="sim-name">${esc(k.marka)}</span>
+          <span class="firma-row-meta">${k.wystapien}× w odpowiedziach</span></div>`).join("")}</div>
+    </section>` : ""}
+
+    <div class="r-stopka">
+      <span class="mono">Raport wygenerowany przez Partner Tool · Last Agency</span>
+      <button class="akcja drukuj" type="button"><svg class="ico sm"><use href="#i-print"/></svg>Drukuj / zapisz PDF</button>
+    </div>
+    <p class="hint">Koszt danych: $${r.koszt_api} · pozostałe saldo: $${r.saldo_po}</p>
+  </div>`;
+}
+
+function pogrub(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); }
+
+function formatujOdpowiedz(tekst, marka) {
+  let t = pogrub((tekst || "").slice(0, 900));
+  if (marka) {  // podświetlamy markę w odpowiedzi — od razu widać, gdzie padła
+    t = t.replace(new RegExp(`(${marka.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
+                  '<mark>$1</mark>');
+  }
+  return t + ((tekst || "").length > 900 ? "…" : "");
 }
 
 // ══ SEKCJA: Eksport ══

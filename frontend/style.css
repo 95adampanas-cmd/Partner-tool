@@ -364,3 +364,55 @@ button { font-family: var(--sans); }
   .pasek #miasto { border-left: none; border-top: 1px solid var(--border); padding: 10px 0 0; flex: 1; }
   .pasek button { justify-content: center; }
 }
+
+/* ══ RAPORT MIKROAUDYTU ══ */
+.cena { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.cena-suma { color: var(--orange); font-family: var(--mono); }
+.akcja.check input[type=range] { accent-color: var(--orange); }
+
+.raport { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--r); padding: 34px 36px; }
+.r-naglowek { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 2px solid var(--orange); margin-bottom: 26px; }
+.r-tytul { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; margin: 10px 0 4px; }
+.r-sekcja { margin-top: 34px; }
+.r-sekcja h2 { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 14px; }
+.r-numer { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: var(--orange); color: #fff; border-radius: 7px; font-family: var(--mono); font-size: 12px; }
+.r-sekcja p { color: #cfcdc9; margin: 0 0 12px; }
+.r-case { background: var(--surface-2); border-left: 3px solid var(--orange); border-radius: 0 10px 10px 0; padding: 15px 18px; margin-top: 18px; }
+.r-case p { margin: 6px 0 0; }
+.r-stopka { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 34px; padding-top: 20px; border-top: 1px solid var(--border-soft); }
+
+/* pojedynczy prompt */
+.prompt-wiersz { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; }
+.prompt-glowa { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.prompt-pytanie { font-weight: 550; font-size: 15px; }
+.prompt-flagi { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+.flaga.cytowana { background: rgba(240,78,42,.1); color: var(--orange); border: 1px solid rgba(240,78,42,.3); }
+.flaga.brak-wzmianki { background: transparent; color: var(--faint); border: 1px solid var(--border); }
+.prompt-odpowiedz { color: #b8b6b2; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; border-left: 2px solid var(--border); padding-left: 14px; }
+.prompt-odpowiedz mark { background: rgba(240,78,42,.22); color: var(--orange); font-weight: 600; padding: 0 3px; border-radius: 3px; }
+.prompt-stopka { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--faint); }
+
+/* wykres udziałów rynku */
+.slupki { display: flex; flex-direction: column; gap: 7px; margin: 16px 0 8px; }
+.slupek { display: grid; grid-template-columns: 130px 1fr 48px; align-items: center; gap: 12px; }
+.slupek-nazwa { font-size: 13px; color: #cfcdc9; }
+.slupek-tor { background: var(--surface-2); border-radius: 999px; height: 9px; overflow: hidden; }
+.slupek-wypeln { background: linear-gradient(90deg, var(--orange-dim), var(--orange)); height: 100%; border-radius: 999px; }
+.slupek-proc { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
+
+/* ══ DRUK / PDF ══ */
+@media print {
+  .sidebar, .sekcja-head, #audyt-wybor, .r-stopka button, .drukuj { display: none !important; }
+  body { background: #fff; color: #111; font-size: 11pt; }
+  .main { margin: 0; padding: 0; max-width: none; }
+  .sekcja { max-width: none; }
+  .raport { background: #fff; border: none; border-radius: 0; padding: 0; }
+  .r-tytul, .r-sekcja h2, .prompt-pytanie, .slupek-nazwa { color: #111; }
+  .r-sekcja p, .prompt-odpowiedz, .kafel span { color: #333; }
+  .card, .kafel, .prompt-wiersz, .r-case, .sim-row { background: #fafafa; border-color: #ddd; break-inside: avoid; }
+  .r-sekcja { break-inside: avoid-page; }
+  .tabela td { color: #222; }
+  .tabela th { background: #f0f0f0; }
+  .logo, .r-numer, .mono-inline { color: #111; }
+  a { color: #111; text-decoration: none; }
+}
