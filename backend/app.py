@@ -559,8 +559,17 @@ async def api_research(request):
         url = (body.get("url") or "").strip()
         if not url:
             return JSONResponse({"ok": False, "error": "Brak URL"})
-        if not url.startswith("http"):
+        # .lower() w warunku jest konieczne: adres wklejony jako "HTTPS://..." nie zaczyna
+        # się od "http" i dostawał drugi przedrostek ("https://HTTPS://...").
+        if not url.lower().startswith("http"):
             url = "https://" + url
+        # Nazwa hosta na małe litery. Adres wpisany ręcznie zachowywał wielkość liter
+        # (autouzupełnianie przeglądarki lubi zaczynać od wielkiej), a adresy z wyszukiwarki
+        # przechodzą przez normalizuj_url() i są małymi — ta sama firma potrafiła więc trafić
+        # do aplikacji dwa razy, a DataForSEO zwracał dla niej 0 wyników (dopasowuje domenę
+        # wrażliwie na wielkość liter). Ścieżki NIE ruszamy — bywa wrażliwa na wielkość liter.
+        _u = urlparse(url)
+        url = _u._replace(scheme=_u.scheme.lower(), netloc=_u.netloc.lower()).geturl()
 
         tekst, odwiedzone = scrape_firme(url)
         if not tekst:
