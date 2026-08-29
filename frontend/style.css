@@ -457,6 +457,10 @@ button { font-family: var(--sans); }
 .typ.luka { background: rgba(240,78,42,.13); color: var(--orange); border: 1px solid rgba(240,78,42,.4); }
 .luka-blok { margin: 26px 0 8px; }
 .luka-blok p { font-size: 15px; }
+.zrodlo-danych { font-family: var(--mono); font-size: 10.5px; line-height: 1.65;
+  color: #86868f; margin: 18px 0 26px; padding-top: 10px; border-top: 1px solid #e6e4e0; }
+.zrodlo-danych b { color: #55555c; font-weight: 500; }
+
 .metodyka { font-size: 13px; color: #6a6a72; line-height: 1.6; margin-top: 14px;
             padding-top: 12px; border-top: 1px solid #e6e4e0; }
 .tabela-dok .url { word-break: break-all; font-size: 12.5px; }

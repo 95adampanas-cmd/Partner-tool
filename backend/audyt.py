@@ -153,6 +153,19 @@ PORTALE = (
 PROG_WIARYGODNOSCI = 30
 
 
+def data_bazy() -> str:
+    """Data ostatniej aktualizacji bazy Google w DataForSEO Labs. Endpoint jest darmowy.
+    Podpisujemy nią sekcję SEO — tak jak ICEA podpisuje wykresy „Dane z narzędzia Senuto".
+    Różne narzędzia SEO podają różne liczby dla tej samej domeny; jawne źródło zdejmuje
+    z raportu zarzut błędu i pokazuje, że wiemy, czym mierzymy."""
+    try:
+        s = dfs.pobierz("dataforseo_labs/status", "labs_status")
+        r = ((s.get("tasks") or [{}])[0].get("result") or [{}])[0]
+        return (r.get("google") or {}).get("date_update") or ""
+    except Exception:
+        return ""
+
+
 def _frazy(odp: dict, limit: int = 12) -> list[dict]:
     """Konkretne frazy z pozycjami. „21 fraz" nic nie mówi — dopiero lista pokazuje,
     NA CO firma jest widoczna (i czy to zapytania handlowe, czy definicyjne)."""
@@ -274,6 +287,8 @@ def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,
     return {
         "dane_wiarygodne": fraz >= PROG_WIARYGODNOSCI,
         "ruch_nasz_calkowity": realny.get(domena),
+        "zrodlo": "DataForSEO Labs · baza Google PL",
+        "data_bazy": data_bazy(),
         "top3": top3,
         "top10": top10,
         "fraz_lacznie": poz.get("count") or 0,

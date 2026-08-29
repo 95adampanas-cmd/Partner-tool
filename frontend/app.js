@@ -730,6 +730,11 @@ function raportHTML(r) {
             („co to jest…"), a nie zakupowych. Taki ruch buduje zasięg, ale rzadko kończy się
             zapytaniem ofertowym — to obszar o największym potencjale poprawy.</p>` : ""}` : ""}
 
+      ${r.seo.zrodlo ? `<p class="zrodlo-danych">Dane: <b>${esc(r.seo.zrodlo)}</b>${
+        r.seo.data_bazy ? ` · aktualizacja bazy ${esc(r.seo.data_bazy)}` : ""}. Narzędzia SEO
+        korzystają z różnych baz fraz, więc liczby bezwzględne mogą się między nimi różnić;
+        szacunki ruchu są porównywalne.</p>` : ""}
+
       ${r.seo.top_podstrony.length ? `
       <table class="tabela-dok">
         <thead><tr><th>Podstrony generujące ruch</th><th class="pr waska">Fraz</th><th class="pr waska">Ruch/mies.</th></tr></thead>
