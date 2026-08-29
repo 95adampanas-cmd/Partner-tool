@@ -191,6 +191,13 @@ def _frazy(odp: dict, limit: int = 12) -> list[dict]:
     return lista[:limit]
 
 
+def pula_fraz(odp: dict, limit: int = 40) -> list[dict]:
+    """Szersza lista fraz na potrzeby analizy luki. W raporcie pokazujemy 12 najwyżej
+    rankujących, ale do badania AI Overview potrzebny jest przekrój — wśród 12 czołowych
+    fraz e-commerce bywa zero zapytań informacyjnych, a to właśnie one mają AIO."""
+    return _frazy(odp, limit)
+
+
 def analiza_luki(frazy: list[dict], domena: str, cytowane_aio: set[str],
                  limit: int = 8, nazwa_fixture: str = "") -> list[dict]:
     """Zestawia klasyczne SEO z AI Overview — najmocniejszy wniosek raportu.
@@ -361,10 +368,13 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, di
     # na frazach wspolnych z badana domena (zweryfikowane: count == intersections w kazdym
     # wierszu, np. youtube.com "677 fraz"). Do porownania skali potrzebny jest osobny
     # endpoint. Zwalidowane wzgledem Ahrefs na 9 domenach - mediana odchylenia ok. 10%.
+    # Badana domena jest PIERWSZYM wierszem competitors_domain, więc trzeba ją odfiltrować —
+    # inaczej trafia do listy dwa razy i zjada slot ósmemu konkurentowi (pokazywał „—").
     konkurenci_dom = [
         i.get("domain") for i in
         (((konk.get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or [])
-        if i.get("domain") and not any(p in i["domain"] for p in PORTALE)
+        if i.get("domain") and i["domain"] != domena
+        and not any(p in i["domain"] for p in PORTALE)
     ][:8]
     ruch_konk = dfs.wywolaj(
         "dataforseo_labs/google/bulk_traffic_estimation/live",
@@ -373,7 +383,10 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, di
         f"{nazwa_fixture}_ruch" if nazwa_fixture else None,
     )
     frazy = dfs.wywolaj("dataforseo_labs/google/ranked_keywords/live",
-                        [{**baza, "limit": 15,
+                        # 100, nie 15: z 15 najwyzej rankujacych fraz nie da sie zlozyc
+                        # przekroju handlowe/informacyjne (patrz pula_fraz). Koszt rosnie
+                        # o ok. $0.01, a analiza luki przestaje byc obciazona doborem proby.
+                        [{**baza, "limit": 100,
                           "order_by": ["ranked_serp_element.serp_item.etv,desc"]}],
                         f"{nazwa_fixture}_frazy" if nazwa_fixture else None)
     koszt = sum(o.get("cost", 0) for o in (rank, konk, strony, frazy, ruch_konk))
