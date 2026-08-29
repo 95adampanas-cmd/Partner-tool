@@ -137,7 +137,13 @@ PORTALE = (
     "youtube.", "facebook.", "linkedin.", "instagram.", "tiktok.", "wikipedia.",
     "pracuj.pl", "olx.", "allegro.", "gowork.", "nofluffjobs", "justjoin", "bulldogjob",
     "google.", "twitter.", "x.com", "pinterest.", "booksy.", "oferteo", "panoramafirm",
-    "aleo.com", "gratka.", "otodom.", "morele.", "ceneo.",
+    "aleo.com", "gratka.", "otodom.",
+    # Marketplace'y, sieci handlowe i porownywarki cen dziela frazy z KAZDYM sklepem.
+    # Weryfikacja na elektromaniacy.pl: mielismy mediaexpert, amazon i skapiec w TOP4
+    # "konkurentow", podczas gdy audyt ICEA (Ahrefs) wskazywal same sklepy branzowe.
+    "morele.", "ceneo.", "amazon.", "mediaexpert.", "skapiec.", "empik.", "x-kom.",
+    "euro.com.pl", "mediamarkt.", "nokaut.", "okazje.info", "domodi.", "erli.",
+    "temu.", "aliexpress.", "ebay.", "shopee.",
     "indeed.", "jooble.", "freelancer.", "useme.", "fiverr.", "upwork.", "glassdoor.",
     "wykop.", "reddit.", "medium.com", "quora.",
 )
@@ -203,8 +209,15 @@ def analiza_luki(frazy: list[dict], domena: str, cytowane_aio: set[str],
         except Exception:
             return None
 
-    # tylko frazy handlowe — na definicjach („co to jest sku") luka nie ma wartości sprzedażowej
-    wybrane = [f for f in frazy if f["typ"] == "handlowa"][:limit] or frazy[:limit]
+    # NIE zawężamy do fraz handlowych. Weryfikacja na elektromaniacy.pl pokazała, że to
+    # zafałszowywało wynik: na zapytaniach zakupowych Google prawie nie pokazuje AI Overview
+    # (wyświetla karuzele produktowe — popular_products, compare_sites), więc badając same
+    # frazy handlowe znajdowaliśmy 0 luk. AI Overview dominuje na zapytaniach poradnikowych.
+    # Bierzemy więc przekrój obu typów, proporcjonalnie do tego, co firma faktycznie ma.
+    handlowe = [f for f in frazy if f["typ"] == "handlowa"]
+    info = [f for f in frazy if f["typ"] == "informacyjna"]
+    polowa = max(1, limit // 2)
+    wybrane = (handlowe[:limit - min(len(info), polowa)] + info[:polowa])[:limit] or frazy[:limit]
     with ThreadPoolExecutor(max_workers=6) as pool:
         wyniki = [w for w in pool.map(sprawdz, wybrane) if w]
     # najpierw realne luki: AIO jest, nas nie ma, a mamy dobrą pozycję
