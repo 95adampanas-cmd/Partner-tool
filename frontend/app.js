@@ -406,7 +406,7 @@ function renderPodobne() {
         <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
         <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
       </div>
-      <button class="wroc zmien-wzor" type="button" style="margin:0">Zmień firmę</button>
+      <button class="btn-lekki zmien-wzor" type="button">Zmień firmę</button>
     </div>
   </div>`;
 
@@ -568,7 +568,7 @@ function renderAudyt() {
     <div class="wzor-head">
       <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
         <span class="firma-row-meta">${esc(hostname(wpis.firma.url))}</span></div>
-      <button class="wroc zmien-audyt" type="button" style="margin:0">Zmień firmę</button>
+      <button class="btn-lekki zmien-audyt" type="button">Zmień firmę</button>
     </div>
   </div>
   <div class="card">
