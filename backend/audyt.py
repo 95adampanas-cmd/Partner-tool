@@ -8,6 +8,7 @@ próbkę z fixtures/ zamiast wołać API. Cały rozwój parserów i szablonu rob
 do API sięgamy dopiero przy realnym audycie.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import re
 
 import dfs
@@ -169,6 +170,46 @@ def _frazy(odp: dict, limit: int = 12) -> list[dict]:
         })
     lista.sort(key=lambda f: (f["pozycja"] or 999, -f["wolumen"]))
     return lista[:limit]
+
+
+def analiza_luki(frazy: list[dict], domena: str, cytowane_aio: set[str],
+                 limit: int = 8, nazwa_fixture: str = "") -> list[dict]:
+    """Zestawia klasyczne SEO z AI Overview — najmocniejszy wniosek raportu.
+
+    Dla każdej frazy sprawdzamy w żywym SERP-ie: czy Google pokazuje AI Overview
+    i na której pozycji jest firma. Jeśli AIO jest, a firmy nie ma wśród cytowanych
+    (dane z llm_mentions) — to LUKA: pozycja w Google jest, ale kliknięcie przejmuje AI.
+    Koszt: $0.002 za frazę.
+    """
+    def sprawdz(f):
+        try:
+            odp = dfs.wywolaj(
+                "serp/google/organic/live/advanced",
+                [{"keyword": f["fraza"], "location_code": LOKALIZACJA_PL,
+                  "language_name": JEZYK_PL, "device": "desktop"}],
+                f"{nazwa_fixture}_serp_{f['fraza'][:20]}" if nazwa_fixture else None,
+            )
+            items = ((odp.get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or []
+            ma_aio = any(i.get("type") == "ai_overview" for i in items)
+            pozycja = next(
+                (i.get("rank_group") for i in items
+                 if i.get("type") == "organic" and domena in (i.get("domain") or "")),
+                None,
+            )
+            return {"fraza": f["fraza"], "wolumen": f["wolumen"], "typ": f["typ"],
+                    "pozycja": pozycja, "ma_aio": ma_aio,
+                    "cytowany_w_aio": f["fraza"].lower() in cytowane_aio,
+                    "koszt": odp.get("cost", 0)}
+        except Exception:
+            return None
+
+    # tylko frazy handlowe — na definicjach („co to jest sku") luka nie ma wartości sprzedażowej
+    wybrane = [f for f in frazy if f["typ"] == "handlowa"][:limit] or frazy[:limit]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        wyniki = [w for w in pool.map(sprawdz, wybrane) if w]
+    # najpierw realne luki: AIO jest, nas nie ma, a mamy dobrą pozycję
+    wyniki.sort(key=lambda w: (not (w["ma_aio"] and not w["cytowany_w_aio"]), w["pozycja"] or 999))
+    return wyniki
 
 
 def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,

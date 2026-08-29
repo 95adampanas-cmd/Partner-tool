@@ -671,6 +671,31 @@ function raportHTML(r) {
           <td class="pr">${k.wspolne_frazy}</td><td class="pr">${k.ruch.toLocaleString("pl-PL")}</td>
           <td class="pr">${k.srednia_pozycja}</td></tr>`).join("")}</tbody>
       </table>` : ""}
+      ${r.seo.luka && r.seo.luka.length ? (() => {
+        const luki = r.seo.luka.filter((w) => w.ma_aio && !w.cytowany_w_aio);
+        const stracone = luki.reduce((s, w) => s + (w.wolumen || 0), 0);
+        return `<div class="wyimek luka-blok">
+          <div class="mono"><i class="sq"></i>Luka między Google a AI</div>
+          <p>Na <b>${luki.length}</b> z ${r.seo.luka.length} sprawdzonych fraz handlowych Google
+            pokazuje odpowiedź AI, w której <b>Państwa strona nie jest cytowana</b> — mimo pozycji
+            w wynikach organicznych. To łącznie <b>${stracone.toLocaleString("pl-PL")}</b> wyszukiwań
+            miesięcznie, przy których użytkownik dostaje gotową odpowiedź i może nie kliknąć w żaden wynik.</p>
+        </div>
+        <table class="tabela-dok">
+          <thead><tr><th>Fraza handlowa</th><th class="pr waska">Pozycja</th>
+            <th class="pr waska">Wyszukiwań</th><th class="pr">AI Overview</th></tr></thead>
+          <tbody>${r.seo.luka.map((w) => `<tr>
+            <td>${esc(w.fraza)}</td>
+            <td class="pr waska">${w.pozycja ? "#" + w.pozycja : "poza TOP100"}</td>
+            <td class="pr waska">${(w.wolumen || 0).toLocaleString("pl-PL")}</td>
+            <td class="pr">${
+              !w.ma_aio ? `<span class="typ">brak AIO</span>`
+              : w.cytowany_w_aio ? `<span class="typ handlowa">cytowani</span>`
+              : `<span class="typ luka">nie cytują Was</span>`}</td>
+          </tr>`).join("")}</tbody>
+        </table>`;
+      })() : ""}
+
       ${r.seo.frazy && r.seo.frazy.length ? `
       <table class="tabela-dok">
         <thead><tr><th>Fraza, na którą firma jest widoczna</th><th class="pr waska">Pozycja</th>

@@ -755,6 +755,16 @@ async def api_audyt(request):
             koszt += k
             seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy)
 
+            # 4b) Luka GEO — zestawienie pozycji w Google z obecnoscia w AI Overview.
+            # Wymaga danych z AIO (kto nas cytuje), wiec tylko gdy wlaczone.
+            if seo.get("frazy") and aio:
+                cytowane = {w["prompt"].lower() for w in (aio.get("wzmianki") or [])}
+                luka = await asyncio.to_thread(
+                    audyt.analiza_luki, seo["frazy"], domena, cytowane, 8, f"audyt_luka_{domena}"
+                )
+                koszt += sum(w.get("koszt", 0) for w in luka)
+                seo["luka"] = luka
+
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
         raport["saldo_po"] = dfs.saldo()
         return JSONResponse({"ok": True, "raport": raport})
