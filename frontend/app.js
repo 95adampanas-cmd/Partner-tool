@@ -605,110 +605,135 @@ async function generujAudyt(przycisk) {
   }
 }
 
-// ── Render raportu (układ do druku / PDF) ──
+// ── Render raportu — układ DOKUMENTU, nie dashboardu ──
 function raportHTML(r) {
   const p = r.podsumowanie;
   const st = r.tresc_stala;
-
-  const udzialy = st.rynek_chatbotow.udzialy.map(([nazwa, proc]) => `
-    <div class="slupek">
-      <span class="slupek-nazwa">${esc(nazwa)}</span>
-      <div class="slupek-tor"><div class="slupek-wypeln" style="width:${proc}%"></div></div>
-      <span class="slupek-proc">${proc}%</span>
-    </div>`).join("");
-
-  const prompty = r.prompty.map((w) => `
-    <div class="prompt-wiersz">
-      <div class="prompt-glowa">
-        <div class="prompt-pytanie">${esc(w.prompt)}</div>
-        <div class="prompt-flagi">
-          ${w.wspomniana ? `<span class="flaga mini partner"><svg class="ico xs"><use href="#i-check"/></svg>Wspomniana</span>` : `<span class="flaga mini brak-wzmianki">Brak wzmianki</span>`}
-          ${w.cytowana ? `<span class="flaga mini cytowana"><svg class="ico xs"><use href="#i-link"/></svg>Cytowana</span>` : ""}
-        </div>
-      </div>
-      <div class="prompt-odpowiedz">${formatujOdpowiedz(w.odpowiedz, r.firma.nazwa)}</div>
-      <div class="prompt-stopka">
-        <span class="mono">${esc(w.model)}</span>
-        ${w.marki.length ? `<span>Inne marki w odpowiedzi: <b>${w.marki.slice(0,8).map(esc).join(", ")}</b></span>` : ""}
-        <span>${w.zrodla.length} źródeł</span>
-      </div>
-    </div>`).join("");
-
-  const aio = r.ai_overview ? `
-    <section class="r-sekcja">
-      <h2><span class="r-numer">2</span> Widoczność w AI Overviews</h2>
-      ${st.ai_overview.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
-      <div class="kafle">
-        ${kafel(r.ai_overview.liczba_wzmianek ?? "—", "fraz z AI Overview", "search")}
-        ${kafel(r.ai_overview.srednia_pozycja ?? "—", "średnia pozycja w AIO", "chart")}
-      </div>
-      <div class="tabela-scroll"><table class="tabela">
-        <thead><tr><th>Zapytanie</th><th>Wyszukiwań/mies.</th><th>Pozycja</th></tr></thead>
-        <tbody>${r.ai_overview.wzmianki.slice(0, 8).map((w) => `
-          <tr><td>${esc(w.prompt)}</td><td>${w.wolumen || "—"}</td>
-              <td>${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
-      </table></div>
-    </section>` : "";
+  const dzis = new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" });
+  let nr = 0;
 
   return `<div class="raport" id="raport">
-    <div class="r-naglowek">
-      <div>
-        <div class="mono"><i class="sq"></i>Analiza GEO — SEO &amp; AI Search</div>
-        <h1 class="r-tytul">${esc(r.firma.nazwa)}</h1>
-        <span class="firma-row-meta">${esc(r.firma.domena)} · ${esc(r.firma.branza)}</span>
+
+    <!-- STRONA TYTUŁOWA -->
+    <section class="okladka">
+      <div class="okladka-gora"><div class="logo">Last<em>Agency</em></div></div>
+      <div class="okladka-srodek">
+        <div class="mono"><i class="sq biala"></i>Analiza GEO</div>
+        <h1>Widoczność w AI Search<br><span>${esc(r.firma.nazwa)}</span></h1>
+        <p class="okladka-meta">${esc(r.firma.domena)} · ${esc(dzis)}</p>
       </div>
-      <div class="logo">Last<em>Agency</em></div>
-    </div>
-
-    <div class="kafle">
-      ${kafel(p.wspomniana + "/" + p.promptow, "pytań ze wzmianką", "check")}
-      ${kafel(p.udzial_wspomnien + "%", "widoczność w AI", "chart")}
-      ${kafel(p.cytowana, "cytowań strony", "link")}
-    </div>
-
-    <section class="r-sekcja">
-      <h2><span class="r-numer">1</span> Jak AI odpowiada na pytania klientów</h2>
-      <p>Zadaliśmy modelom AI pytania, które realny klient wpisałby szukając takich usług —
-        <b>bez podawania nazwy firmy</b>. Poniżej widać, czy model wskazał ją samodzielnie
-        i jakie marki wymienił obok.</p>
-      ${prompty}
+      <div class="okladka-dol mono">© 2026 Last Agency · lastagency.pl</div>
     </section>
 
-    ${aio}
+    <!-- KLUCZOWE LICZBY -->
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Kluczowe liczby")}
+      <div class="liczby">
+        ${liczba(p.udzial_wspomnien + "%", "pytań, w których AI wymienia markę")}
+        ${liczba(p.wspomniana + " / " + p.promptow, "zapytań ze wzmianką")}
+        ${liczba(p.cytowana, "bezpośrednich cytowań strony")}
+        ${r.ai_overview ? liczba(p.wzmianki_aio ?? "—", "fraz z AI Overview") : ""}
+      </div>
+      <p class="wiodacy">Sprawdziliśmy, jak modele AI odpowiadają na pytania, które zadaje realny
+        klient szukający takich usług. <b>W żadnym z pytań nie padła nazwa firmy</b> — mierzymy,
+        czy sztuczna inteligencja wskaże ją samodzielnie.</p>
+    </section>
 
-    <section class="r-sekcja">
-      <h2><span class="r-numer">${r.ai_overview ? 3 : 2}</span> ${esc(st.rynek_chatbotow.naglowek)}</h2>
+    <!-- PYTANIA I ODPOWIEDZI -->
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Jak AI odpowiada na pytania klientów")}
+      ${r.prompty.map((w) => promptHTML(w, r.firma.nazwa)).join("")}
+    </section>
+
+    ${r.ai_overview ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Widoczność w AI Overviews")}
+      ${st.ai_overview.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
+      <div class="liczby">
+        ${liczba(r.ai_overview.liczba_wzmianek ?? "—", "fraz z AI Overview")}
+        ${liczba(r.ai_overview.srednia_pozycja ?? "—", "średnia pozycja cytowania")}
+      </div>
+      <table class="tabela-dok">
+        <thead><tr><th>Zapytanie</th><th class="pr">Wyszukiwań/mies.</th><th class="pr">Pozycja</th></tr></thead>
+        <tbody>${r.ai_overview.wzmianki.slice(0, 10).map((w) => `
+          <tr><td>${esc(w.prompt)}</td><td class="pr">${w.wolumen ? w.wolumen.toLocaleString("pl-PL") : "—"}</td>
+              <td class="pr">${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
+      </table>
+    </section>` : ""}
+
+    <!-- RYNEK CHATBOTÓW -->
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, st.rynek_chatbotow.naglowek)}
       ${st.rynek_chatbotow.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
-      <div class="slupki">${udzialy}</div>
-      <p class="hint">${esc(st.rynek_chatbotow.zrodlo)}</p>
-      <div class="r-case"><b>${esc(st.case_botland.naglowek)}</b><p>${pogrub(st.case_botland.tekst)}</p></div>
+      <div class="slupki">${st.rynek_chatbotow.udzialy.map(([n, v]) => `
+        <div class="slupek"><span class="slupek-nazwa">${esc(n)}</span>
+          <div class="slupek-tor"><div class="slupek-wypeln" style="width:${v}%"></div></div>
+          <span class="slupek-proc">${v}%</span></div>`).join("")}</div>
+      <p class="zrodlo-danych">${esc(st.rynek_chatbotow.zrodlo)}</p>
+      <div class="wyimek">
+        <div class="mono"><i class="sq"></i>${esc(st.case_botland.naglowek)}</div>
+        <p>${pogrub(st.case_botland.tekst)}</p>
+      </div>
     </section>
 
-    ${p.konkurenci.length ? `<section class="r-sekcja">
-      <h2><span class="r-numer">${r.ai_overview ? 4 : 3}</span> Kto pojawia się zamiast Państwa</h2>
-      <p>Marki, które modele AI wymieniały w odpowiedziach na te same pytania:</p>
-      <div class="similar-list">${p.konkurenci.map((k) => `
-        <div class="sim-row"><span class="sim-name">${esc(k.marka)}</span>
-          <span class="firma-row-meta">${k.wystapien}× w odpowiedziach</span></div>`).join("")}</div>
+    ${p.konkurenci.length ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Kto pojawia się zamiast Państwa")}
+      <p>Marki, które modele AI wymieniały w odpowiedziach na te same pytania. Im wyżej,
+        tym częściej AI poleca je zamiast Państwa firmy.</p>
+      <table class="tabela-dok">
+        <thead><tr><th class="w-nr">#</th><th>Marka</th><th class="pr">Wystąpień</th></tr></thead>
+        <tbody>${p.konkurenci.map((k, i) => `
+          <tr><td class="w-nr">${i + 1}</td><td><b>${esc(k.marka)}</b></td>
+              <td class="pr">${k.wystapien}</td></tr>`).join("")}</tbody>
+      </table>
     </section>` : ""}
 
     <div class="r-stopka">
-      <span class="mono">Raport wygenerowany przez Partner Tool · Last Agency</span>
-      <button class="akcja drukuj" type="button"><svg class="ico sm"><use href="#i-print"/></svg>Drukuj / zapisz PDF</button>
+      <span class="mono">Partner Tool · Last Agency · ${esc(dzis)}</span>
+      <span class="hint">koszt danych $${r.koszt_api} · saldo $${r.saldo_po}</span>
+      <button class="akcja glowna drukuj" type="button">
+        <svg class="ico sm"><use href="#i-print"/></svg>Drukuj / zapisz PDF</button>
     </div>
-    <p class="hint">Koszt danych: $${r.koszt_api} · pozostałe saldo: $${r.saldo_po}</p>
   </div>`;
+}
+
+function naglowekSekcji(nr, tytul) {
+  return `<h2 class="r-h2"><span class="r-nr">${String(nr).padStart(2, "0")}</span>${esc(tytul)}</h2>`;
+}
+
+function liczba(wartosc, opis) {
+  return `<div class="liczba"><b>${wartosc}</b><span>${esc(opis)}</span></div>`;
+}
+
+function promptHTML(w, marka) {
+  const status = w.wspomniana
+    ? `<span class="status jest">Marka wymieniona</span>`
+    : `<span class="status brak">Marka nieobecna</span>`;
+  return `<article class="pytanie">
+    <div class="pytanie-glowa">
+      <h3>${esc(w.prompt)}</h3>
+      ${status}${w.cytowana ? `<span class="status cyt">Strona cytowana</span>` : ""}
+    </div>
+    <blockquote>${formatujOdpowiedz(w.odpowiedz, marka)}</blockquote>
+    <div class="pytanie-meta">
+      <span>${esc(w.model)}</span>
+      ${w.marki.length ? `<span>Obok wymienione: ${w.marki.slice(0, 6).map(esc).join(" · ")}</span>` : ""}
+      <span>${w.zrodla.length} źródeł</span>
+    </div>
+  </article>`;
 }
 
 function pogrub(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); }
 
 function formatujOdpowiedz(tekst, marka) {
-  let t = pogrub((tekst || "").slice(0, 900));
-  if (marka) {  // podświetlamy markę w odpowiedzi — od razu widać, gdzie padła
-    t = t.replace(new RegExp(`(${marka.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
-                  '<mark>$1</mark>');
+  let t = pogrub((tekst || "").slice(0, 800));
+  if (marka) {
+    // podświetlamy nazwę marki — od razu widać, w którym miejscu odpowiedzi padła
+    const bezpieczna = marka.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    t = t.replace(new RegExp("(" + bezpieczna + ")", "gi"), "<mark>$1</mark>");
   }
-  return t + ((tekst || "").length > 900 ? "…" : "");
+  return t + ((tekst || "").length > 800 ? "…" : "");
 }
 
 // ══ SEKCJA: Eksport ══
