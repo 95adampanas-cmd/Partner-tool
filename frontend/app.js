@@ -753,16 +753,22 @@ function raportHTML(r) {
     <section class="r-strona">
       ${naglowekSekcji(++nr, "Widoczność w AI Overviews")}
       ${st.ai_overview.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
+      ${r.ai_overview.wzmianki && r.ai_overview.wzmianki.length ? `
       <div class="liczby">
         ${liczba(r.ai_overview.liczba_wzmianek ?? "—", "fraz z AI Overview")}
         ${liczba(r.ai_overview.srednia_pozycja ?? "—", "średnia pozycja cytowania")}
       </div>
       <table class="tabela-dok">
-        <thead><tr><th>Zapytanie</th><th class="pr">Wyszukiwań/mies.</th><th class="pr">Pozycja</th></tr></thead>
+        <thead><tr><th>Zapytanie</th><th class="pr waska">Wyszukiwań/mies.</th><th class="pr waska">Pozycja</th></tr></thead>
         <tbody>${r.ai_overview.wzmianki.slice(0, 10).map((w) => `
-          <tr><td>${esc(w.prompt)}</td><td class="pr">${w.wolumen ? w.wolumen.toLocaleString("pl-PL") : "—"}</td>
-              <td class="pr">${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
-      </table>
+          <tr><td>${esc(w.prompt)}</td>
+              <td class="pr waska">${w.wolumen ? w.wolumen.toLocaleString("pl-PL") : "—"}</td>
+              <td class="pr waska">${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
+      </table>`
+      : `<p class="ostrzezenie"><b>Nie znaleźliśmy ani jednej frazy</b>, przy której strona
+          byłaby cytowana w AI Overviews. Przy zapytaniach, na które Google generuje odpowiedź
+          AI, źródłem są dziś inne serwisy — a to właśnie ta odpowiedź trafia do użytkownika
+          nad wynikami wyszukiwania.</p>`}
     </section>` : ""}
 
     <!-- RYNEK CHATBOTÓW -->

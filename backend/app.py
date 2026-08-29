@@ -706,7 +706,10 @@ async def api_audyt(request):
         z_aio = bool(body.get("ai_overview", True))
 
         nazwa = firma.get("nazwa") or ""
-        domena = urlparse(firma.get("url", "")).netloc.replace("www.", "")
+        # .lower() JEST KONIECZNE. DataForSEO dopasowuje domenę wrażliwie na wielkość liter:
+        # zapytanie o "Elektromaniacy.pl" zwróciło status 20000 Ok, policzyło $0.10
+        # i oddało total_count=0 — cicha, płatna porażka. Domena musi być znormalizowana.
+        domena = urlparse(firma.get("url", "")).netloc.replace("www.", "").strip().lower()
 
         # 1) Prompty generuje NASZ model (tanio, mamy kontrolę) — nie DataForSEO
         opis = (f"Firma: {nazwa}\nBranża: {firma.get('branza','')}\n"
