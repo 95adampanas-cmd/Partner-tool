@@ -226,7 +226,7 @@ def analiza_luki(frazy: list[dict], domena: str, cytowane_aio: set[str],
 
 
 def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,
-                 frazy: dict | None = None) -> dict:
+                 frazy: dict | None = None, ruch_konk: dict | None = None) -> dict:
     """Sekcja 'Raport Zero' — widoczność w klasycznym Google (odpowiednik danych Senuto/Ahrefs)."""
     poz = (((rank.get("tasks") or [{}])[0].get("result") or [{}])[0]
            .get("items", [{}])[0].get("metrics", {}).get("organic", {}))
@@ -260,9 +260,20 @@ def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,
             "ruch": round(m.get("etv") or 0),
         })
 
+    # Realny ruch całkowity — dokładany do listy konkurentów. Bez tego jedyną liczbą
+    # w tabeli był ruch liczony na frazach wspólnych, co zaniża konkurentów kilkukrotnie.
+    realny = {}
+    if ruch_konk:
+        for it in (((ruch_konk.get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or []):
+            m = (it.get("metrics") or {}).get("organic") or {}
+            realny[it.get("target") or ""] = round(m.get("etv") or 0)
+    for k in lista:
+        k["ruch_calkowity"] = realny.get(k["domena"])
+
     fraz = poz.get("count") or 0
     return {
         "dane_wiarygodne": fraz >= PROG_WIARYGODNOSCI,
+        "ruch_nasz_calkowity": realny.get(domena),
         "top3": top3,
         "top10": top10,
         "fraz_lacznie": poz.get("count") or 0,
@@ -322,8 +333,8 @@ def zapytaj_llm(prompt: str, silnik=SILNIK_DOMYSLNY, nazwa_fixture=None) -> dict
     )
 
 
-def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, dict, float]:
-    """Cztery wywołania Labs = cała sekcja 'Raport Zero'. Razem ok. $0.05."""
+def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, dict, dict, float]:
+    """Pięć wywołań Labs = cała sekcja 'Raport Zero'. Razem ok. $0.06."""
     baza = {"target": domena, "location_code": LOKALIZACJA_PL, "language_name": JEZYK_PL}
     rank = dfs.wywolaj("dataforseo_labs/google/domain_rank_overview/live",
                        [baza], f"{nazwa_fixture}_rank" if nazwa_fixture else None)
@@ -331,12 +342,27 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, di
                        [{**baza, "limit": 15}], f"{nazwa_fixture}_konk" if nazwa_fixture else None)
     strony = dfs.wywolaj("dataforseo_labs/google/relevant_pages/live",
                          [{**baza, "limit": 10}], f"{nazwa_fixture}_strony" if nazwa_fixture else None)
+    # Realny ruch konkurentow. UWAGA: metryki z competitors_domain sa liczone WYLACZNIE
+    # na frazach wspolnych z badana domena (zweryfikowane: count == intersections w kazdym
+    # wierszu, np. youtube.com "677 fraz"). Do porownania skali potrzebny jest osobny
+    # endpoint. Zwalidowane wzgledem Ahrefs na 9 domenach - mediana odchylenia ok. 10%.
+    konkurenci_dom = [
+        i.get("domain") for i in
+        (((konk.get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or [])
+        if i.get("domain") and not any(p in i["domain"] for p in PORTALE)
+    ][:8]
+    ruch_konk = dfs.wywolaj(
+        "dataforseo_labs/google/bulk_traffic_estimation/live",
+        [{"targets": [domena] + konkurenci_dom, "location_code": LOKALIZACJA_PL,
+          "language_name": JEZYK_PL}],
+        f"{nazwa_fixture}_ruch" if nazwa_fixture else None,
+    )
     frazy = dfs.wywolaj("dataforseo_labs/google/ranked_keywords/live",
                         [{**baza, "limit": 15,
                           "order_by": ["ranked_serp_element.serp_item.etv,desc"]}],
                         f"{nazwa_fixture}_frazy" if nazwa_fixture else None)
-    koszt = sum(o.get("cost", 0) for o in (rank, konk, strony, frazy))
-    return rank, konk, strony, frazy, koszt
+    koszt = sum(o.get("cost", 0) for o in (rank, konk, strony, frazy, ruch_konk))
+    return rank, konk, strony, frazy, ruch_konk, koszt
 
 
 def wzmianki_ai_overview(domena: str, limit: int = 10, nazwa_fixture=None) -> dict:

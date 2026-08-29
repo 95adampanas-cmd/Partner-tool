@@ -670,12 +670,18 @@ function raportHTML(r) {
         pokazuje, kto zajmuje te same zapytania, ale przy większej liczbie fraz obraz może się zmienić.</p>` : ""}
       ${r.seo.konkurenci.length ? `
       <table class="tabela-dok">
-        <thead><tr><th>Konkurent w wynikach</th><th class="pr">Wspólne frazy</th>
-          <th class="pr">Ruch/mies.</th><th class="pr">Śr. pozycja</th></tr></thead>
+        <thead><tr><th>Konkurent w wynikach</th><th class="pr waska">Wspólne frazy</th>
+          <th class="pr waska">Ruch łącznie</th><th class="pr waska">Śr. pozycja</th></tr></thead>
         <tbody>${r.seo.konkurenci.map((k) => `<tr><td>${esc(k.domena)}</td>
-          <td class="pr">${k.wspolne_frazy}</td><td class="pr">${k.ruch.toLocaleString("pl-PL")}</td>
-          <td class="pr">${k.srednia_pozycja}</td></tr>`).join("")}</tbody>
-      </table>` : ""}
+          <td class="pr waska">${k.wspolne_frazy}</td>
+          <td class="pr waska">${k.ruch_calkowity != null
+            ? k.ruch_calkowity.toLocaleString("pl-PL") : "—"}</td>
+          <td class="pr waska">${k.srednia_pozycja}</td></tr>`).join("")}</tbody>
+      </table>
+      ${r.seo.ruch_nasz_calkowity ? `<p class="metodyka">Kolumna „Ruch łącznie" to szacowany
+        <b>całkowity</b> ruch organiczny domeny, nie tylko na frazach wspólnych — dzięki temu widać
+        realną skalę. Dla porównania: badana strona ma
+        <b>${r.seo.ruch_nasz_calkowity.toLocaleString("pl-PL")}</b> sesji miesięcznie.</p>` : ""}` : ""}
       ${r.seo.luka && r.seo.luka.length ? (() => {
         const luki = r.seo.luka.filter((w) => w.ma_aio && !w.cytowany_w_aio);
         const stracone = luki.reduce((s, w) => s + (w.wolumen || 0), 0);

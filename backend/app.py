@@ -749,11 +749,11 @@ async def api_audyt(request):
         # 4) Klasyczne SEO — „Raport Zero" (3 wywołania Labs, razem ~$0.04)
         seo = None
         if bool(body.get("seo", True)):
-            rank, konk, strony, frazy, k = await asyncio.to_thread(
+            rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
                 audyt.dane_seo, domena, f"audyt_seo_{domena}"
             )
             koszt += k
-            seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy)
+            seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy, ruch_konk)
 
             # 4b) Luka GEO — zestawienie pozycji w Google z obecnoscia w AI Overview.
             # Wymaga danych z AIO (kto nas cytuje), wiec tylko gdy wlaczone.
