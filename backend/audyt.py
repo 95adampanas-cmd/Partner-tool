@@ -52,10 +52,14 @@ TRESC_STALA = {
         ],
         "zrodlo": "StatCounter, mar 2025 – mar 2026",
     },
-    "case_botland": {
-        "naglowek": "Skala zjawiska — przykład z rynku",
-        "tekst": "Sklep Botland zwiększył ruch z ChatGPT z **4 500 do 165 000 sesji w ciągu roku**. "
-                 "To pokazuje, jak szybko rośnie ten kanał — i jak kosztowna jest w nim nieobecność.",
+    # Miejsce na case study Last Agency — DO UZUPEŁNIENIA przez PM.
+    # Wcześniej był tu przykład Botland, ale to nie jest klient Last Agency;
+    # powoływanie się na cudzą firmę w raporcie dla partnera jest ryzykowne.
+    # Ustaw "pokaz": True i wpisz własne dane, gdy będzie gotowy case.
+    "case": {
+        "pokaz": False,
+        "naglowek": "",
+        "tekst": "",
     },
 }
 
@@ -78,7 +82,7 @@ def _tekst_i_zrodla(wynik: dict) -> tuple[str, list[str]]:
     return "\n\n".join(tekst), zrodla
 
 
-def _marki_z_tekstu(tekst: str, pomijaj: str = "") -> list[str]:
+def _marki_z_tekstu(tekst: str, pomijaj: str = "", pytanie: str = "") -> list[str]:
     """Nazwy marek z odpowiedzi. Zarówno ChatGPT, jak i Perplexity wyróżniają je **pogrubieniem**,
     więc wyciągamy je deterministycznie — bez kolejnego wywołania LLM."""
     # Pogrubienia bywają też zwykłym tekstem („Najprostszy wybór", „Nettigo lub Kamami"),
@@ -95,6 +99,10 @@ def _marki_z_tekstu(tekst: str, pomijaj: str = "") -> list[str]:
         if any(z in f" {klucz} " for z in ZDANIOWE):
             continue
         if pomijaj and pomijaj.lower() in klucz:
+            continue
+        # Model pogrubia też słowa z samego pytania (miasto, nazwa usługi) — to kontekst,
+        # nie marka. Przykład: „**Wrocławiu**" w odpowiedzi na pytanie o Wrocław.
+        if pytanie and klucz[:6] in pytanie.lower():
             continue
         widziane.add(klucz)
         znalezione.append(nazwa)
@@ -116,9 +124,76 @@ def analizuj_odpowiedz(odp: dict, marka: str, domena: str, prompt: str) -> dict:
         "odpowiedz": tekst,
         "wspomniana": wspomniana,
         "cytowana": cytowana,
-        "marki": _marki_z_tekstu(tekst, pomijaj=marka),
+        "marki": _marki_z_tekstu(tekst, pomijaj=marka, pytanie=prompt),
         "zrodla": zrodla,
         "koszt": wynik.get("money_spent", 0),
+    }
+
+
+# Wielkie portale dzielą frazy z każdą firmą, ale nie są jej konkurentami w biznesie.
+# Bez tego filtra w tabeli konkurencji lądują YouTube, LinkedIn i portale z ogłoszeniami.
+PORTALE = (
+    "youtube.", "facebook.", "linkedin.", "instagram.", "tiktok.", "wikipedia.",
+    "pracuj.pl", "olx.", "allegro.", "gowork.", "nofluffjobs", "justjoin", "bulldogjob",
+    "google.", "twitter.", "x.com", "pinterest.", "booksy.", "oferteo", "panoramafirm",
+    "aleo.com", "gratka.", "otodom.", "morele.", "ceneo.",
+    "indeed.", "jooble.", "freelancer.", "useme.", "fiverr.", "upwork.", "glassdoor.",
+    "wykop.", "reddit.", "medium.com", "quora.",
+)
+
+# Poniżej tylu fraz pokrywanie się słów kluczowych jest przypadkowe — lista „konkurentów"
+# przestaje cokolwiek znaczyć. Wtedy uczciwiej napisać, że danych jest za mało.
+PROG_WIARYGODNOSCI = 30
+
+
+def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str) -> dict:
+    """Sekcja 'Raport Zero' — widoczność w klasycznym Google (odpowiednik danych Senuto/Ahrefs)."""
+    poz = (((rank.get("tasks") or [{}])[0].get("result") or [{}])[0]
+           .get("items", [{}])[0].get("metrics", {}).get("organic", {}))
+
+    top3 = (poz.get("pos_1") or 0) + (poz.get("pos_2_3") or 0)
+    top10 = top3 + (poz.get("pos_4_10") or 0)
+
+    lista = []
+    for it in ((konkurenci.get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or []:
+        dom = (it.get("domain") or "").lower()
+        if not dom or domena.lower() in dom:          # to nie konkurent, to my
+            continue
+        if any(p in dom for p in PORTALE):            # portal, nie firma
+            continue
+        m = (it.get("metrics") or {}).get("organic") or {}
+        lista.append({
+            "domena": dom,
+            "wspolne_frazy": it.get("intersections") or 0,
+            "ruch": round(m.get("etv") or 0),
+            "fraz_lacznie": m.get("count") or 0,
+            "srednia_pozycja": round(it.get("avg_position") or 0, 1),
+        })
+
+    wynik_stron = ((strony.get("tasks") or [{}])[0].get("result") or [{}])[0]
+    top_strony = []
+    for it in (wynik_stron.get("items") or [])[:8]:
+        m = (it.get("metrics") or {}).get("organic") or {}
+        top_strony.append({
+            "adres": it.get("page_address") or "",
+            "fraz": m.get("count") or 0,
+            "ruch": round(m.get("etv") or 0),
+        })
+
+    fraz = poz.get("count") or 0
+    return {
+        "dane_wiarygodne": fraz >= PROG_WIARYGODNOSCI,
+        "top3": top3,
+        "top10": top10,
+        "fraz_lacznie": poz.get("count") or 0,
+        "ruch": round(poz.get("etv") or 0),
+        "wzrosty": poz.get("is_up") or 0,
+        "spadki": poz.get("is_down") or 0,
+        "nowe": poz.get("is_new") or 0,
+        "utracone": poz.get("is_lost") or 0,
+        "konkurenci": lista[:8],
+        "podstron_widocznych": wynik_stron.get("total_count") or 0,
+        "top_podstrony": top_strony,
     }
 
 
@@ -166,6 +241,19 @@ def zapytaj_llm(prompt: str, silnik=SILNIK_DOMYSLNY, nazwa_fixture=None) -> dict
     )
 
 
+def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, float]:
+    """Trzy wywołania Labs = cała sekcja 'Raport Zero'. Razem ok. $0.04."""
+    baza = {"target": domena, "location_code": LOKALIZACJA_PL, "language_name": JEZYK_PL}
+    rank = dfs.wywolaj("dataforseo_labs/google/domain_rank_overview/live",
+                       [baza], f"{nazwa_fixture}_rank" if nazwa_fixture else None)
+    konk = dfs.wywolaj("dataforseo_labs/google/competitors_domain/live",
+                       [{**baza, "limit": 15}], f"{nazwa_fixture}_konk" if nazwa_fixture else None)
+    strony = dfs.wywolaj("dataforseo_labs/google/relevant_pages/live",
+                         [{**baza, "limit": 10}], f"{nazwa_fixture}_strony" if nazwa_fixture else None)
+    koszt = sum(o.get("cost", 0) for o in (rank, konk, strony))
+    return rank, konk, strony, koszt
+
+
 def wzmianki_ai_overview(domena: str, limit: int = 10, nazwa_fixture=None) -> dict:
     return dfs.wywolaj(
         "ai_optimization/llm_mentions/search/live",
@@ -207,7 +295,7 @@ def podsumuj(wiersze: list[dict], ai_overview: dict | None) -> dict:
 
 
 def zbuduj_raport(firma: dict, wiersze: list[dict], ai_overview: dict | None,
-                  koszt: float = 0.0) -> dict:
+                  koszt: float = 0.0, seo: dict | None = None) -> dict:
     """Pełna struktura raportu: treść stała + dane firmy. Front renderuje z tego stronę do druku."""
     return {
         "firma": {
@@ -219,6 +307,7 @@ def zbuduj_raport(firma: dict, wiersze: list[dict], ai_overview: dict | None,
         "podsumowanie": podsumuj(wiersze, ai_overview),
         "prompty": wiersze,
         "ai_overview": ai_overview,
+        "seo": seo,
         "tresc_stala": TRESC_STALA,
         "koszt_api": round(koszt, 4),
     }

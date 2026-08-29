@@ -347,6 +347,7 @@ document.addEventListener("click", (e) => {
 
 document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
+  if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
@@ -537,6 +538,8 @@ let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
 const KOSZT_AIO = 0.11;       // llm_mentions, zmierzone
+const KOSZT_SEO = 0.04;       // 3 wywolania Labs, zmierzone
+let audytSEO = true;
 
 function renderAudyt() {
   const wybor = document.getElementById("audyt-wybor");
@@ -559,7 +562,8 @@ function renderAudyt() {
     return;
   }
 
-  const koszt = (audytIle * KOSZT_PROMPT + (audytAIO ? KOSZT_AIO : 0)).toFixed(3);
+  const koszt = (audytIle * KOSZT_PROMPT + (audytAIO ? KOSZT_AIO : 0)
+                 + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
   wybor.innerHTML = `<div class="card">
     <div class="wzor-head">
       <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
@@ -570,6 +574,8 @@ function renderAudyt() {
   <div class="card">
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
+      <label class="akcja check"><input type="checkbox" id="audyt-seo" ${audytSEO ? "checked" : ""}>
+        Widoczność w Google <span class="cena">+$${KOSZT_SEO}</span></label>
       <label class="akcja check"><input type="checkbox" id="audyt-aio" ${audytAIO ? "checked" : ""}>
         Widoczność w AI Overviews <span class="cena">+$${KOSZT_AIO}</span></label>
       <label class="akcja check" style="gap:12px">Liczba pytań
@@ -593,7 +599,8 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, ai_overview: audytAIO }),
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle,
+                             ai_overview: audytAIO, seo: audytSEO }),
     });
     const data = await res.json();
     box.innerHTML = data.ok ? raportHTML(data.raport) : errorHTML(data.error);
@@ -639,6 +646,39 @@ function raportHTML(r) {
         czy sztuczna inteligencja wskaże ją samodzielnie.</p>
     </section>
 
+    ${r.seo ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Widoczność w Google")}
+      <div class="liczby">
+        ${liczba(r.seo.ruch.toLocaleString("pl-PL"), "szacowany ruch organiczny / mies.")}
+        ${liczba(r.seo.top3, "fraz w TOP 3")}
+        ${liczba(r.seo.top10, "fraz w TOP 10")}
+        ${liczba(r.seo.fraz_lacznie, "fraz widocznych łącznie")}
+      </div>
+      <p>Strona jest widoczna na <b>${r.seo.fraz_lacznie}</b> fraz, z czego
+        <b>${r.seo.top3}</b> w pierwszej trójce. W ostatnim okresie
+        <b>${r.seo.wzrosty}</b> pozycji wzrosło, <b>${r.seo.spadki}</b> spadło,
+        pojawiło się <b>${r.seo.nowe}</b> nowych fraz, a <b>${r.seo.utracone}</b> utracono.
+        Ruch generuje <b>${r.seo.podstron_widocznych}</b> podstron.</p>
+      ${!r.seo.dane_wiarygodne ? `<p class="ostrzezenie">Uwaga: przy tak małej liczbie fraz
+        porównanie z konkurencją jest niemiarodajne — pokrywanie się słów kluczowych bywa
+        przypadkowe. To sama w sobie ważna informacja: <b>widoczność organiczna jest znikoma</b>.</p>` : ""}
+      ${r.seo.konkurenci.length ? `
+      <table class="tabela-dok">
+        <thead><tr><th>Konkurent w wynikach</th><th class="pr">Wspólne frazy</th>
+          <th class="pr">Ruch/mies.</th><th class="pr">Śr. pozycja</th></tr></thead>
+        <tbody>${r.seo.konkurenci.map((k) => `<tr><td>${esc(k.domena)}</td>
+          <td class="pr">${k.wspolne_frazy}</td><td class="pr">${k.ruch.toLocaleString("pl-PL")}</td>
+          <td class="pr">${k.srednia_pozycja}</td></tr>`).join("")}</tbody>
+      </table>` : ""}
+      ${r.seo.top_podstrony.length ? `
+      <table class="tabela-dok">
+        <thead><tr><th>Podstrony generujące ruch</th><th class="pr">Fraz</th><th class="pr">Ruch</th></tr></thead>
+        <tbody>${r.seo.top_podstrony.map((s) => `<tr><td>${esc(s.adres)}</td>
+          <td class="pr">${s.fraz}</td><td class="pr">${s.ruch}</td></tr>`).join("")}</tbody>
+      </table>` : ""}
+    </section>` : ""}
+
     <!-- PYTANIA I ODPOWIEDZI -->
     <section class="r-strona">
       ${naglowekSekcji(++nr, "Jak AI odpowiada na pytania klientów")}
@@ -670,10 +710,10 @@ function raportHTML(r) {
           <div class="slupek-tor"><div class="slupek-wypeln" style="width:${v}%"></div></div>
           <span class="slupek-proc">${v}%</span></div>`).join("")}</div>
       <p class="zrodlo-danych">${esc(st.rynek_chatbotow.zrodlo)}</p>
-      <div class="wyimek">
-        <div class="mono"><i class="sq"></i>${esc(st.case_botland.naglowek)}</div>
-        <p>${pogrub(st.case_botland.tekst)}</p>
-      </div>
+      ${st.case && st.case.pokaz ? `<div class="wyimek">
+        <div class="mono"><i class="sq"></i>${esc(st.case.naglowek)}</div>
+        <p>${pogrub(st.case.tekst)}</p>
+      </div>` : ""}
     </section>
 
     ${p.konkurenci.length ? `
