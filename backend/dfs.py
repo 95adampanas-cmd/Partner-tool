@@ -12,7 +12,9 @@ from pathlib import Path
 import base64
 import json
 import os
+import urllib.error
 import urllib.request
+import time
 
 from dotenv import load_dotenv
 
@@ -32,17 +34,47 @@ def _auth() -> str:
     return "Basic " + base64.b64encode(f"{login}:{haslo}".encode()).decode()
 
 
-def saldo() -> float:
-    """Darmowe — sprawdzenie stanu konta."""
+# API bywa niestabilne: potrafi zerwać połączenie (WinError 10054) albo odesłać
+# status 20000 Ok z pustym `result`. Bez ponawiania jedno takie potknięcie wywala
+# cały audyt — już PO opłaceniu wcześniejszych wywołań. Ponawiamy tylko błędy
+# sieciowe i 5xx; błędnego loginu czy złego zapytania powtarzać nie ma sensu.
+PROBY = 3
+ODSTEPY = (1.5, 4.0)
+
+
+def _zapytaj(req: urllib.request.Request, timeout: int) -> dict:
+    ostatni = None
+    for nr in range(PROBY):
+        try:
+            return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+        except urllib.error.HTTPError as e:
+            if e.code < 500:
+                raise                      # 401, 403, 404 — ponawianie nic nie da
+            ostatni = e
+        except (urllib.error.URLError, ConnectionResetError, TimeoutError, OSError) as e:
+            ostatni = e
+        if nr < PROBY - 1:
+            czekaj = ODSTEPY[min(nr, len(ODSTEPY) - 1)]
+            print(f"  [ponawiam za {czekaj}s — {type(ostatni).__name__}: {ostatni}]")
+            time.sleep(czekaj)
+    raise ostatni
+
+
+def saldo() -> float | None:
+    """Darmowe — sprawdzenie stanu konta. None, gdy API nie odpowiedziało sensownie."""
     req = urllib.request.Request(f"{BAZA}/appendix/user_data", headers={"Authorization": _auth()})
-    d = json.loads(urllib.request.urlopen(req, timeout=30).read())
-    return d["tasks"][0]["result"][0]["money"]["balance"]
+    try:
+        d = _zapytaj(req, 30)
+        return (((d.get("tasks") or [{}])[0].get("result") or [{}])[0]
+                .get("money", {}).get("balance"))
+    except Exception:
+        return None
 
 
 def pobierz(endpoint: str, nazwa_fixture: str | None = None) -> dict:
     """GET — używane przez endpointy informacyjne (listy modeli, lokalizacji). Zwykle darmowe."""
     req = urllib.request.Request(f"{BAZA}/{endpoint}", headers={"Authorization": _auth()})
-    odp = json.loads(urllib.request.urlopen(req, timeout=60).read())
+    odp = _zapytaj(req, 60)
     nazwa = nazwa_fixture or endpoint.replace("/", "_")
     (FIXTURES / f"{nazwa}.json").write_text(
         json.dumps(odp, ensure_ascii=False, indent=1), encoding="utf-8"
@@ -63,7 +95,7 @@ def wywolaj(endpoint: str, dane: list | None = None, nazwa_fixture: str | None =
         data=body,
         headers={"Authorization": _auth(), "Content-Type": "application/json"},
     )
-    odp = json.loads(urllib.request.urlopen(req, timeout=180).read())
+    odp = _zapytaj(req, 180)
 
     nazwa = nazwa_fixture or endpoint.replace("/", "_")
     (FIXTURES / f"{nazwa}.json").write_text(
