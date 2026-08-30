@@ -111,13 +111,45 @@ def _marki_z_tekstu(tekst: str, pomijaj: str = "", pytanie: str = "") -> list[st
     return znalezione
 
 
+def warianty_marki(nazwa: str, domena: str = "") -> list[str]:
+    """Formy, w jakich marka może wystąpić w odpowiedzi modelu.
+
+    Powód: ekstraktor często zapisuje nazwę razem z domeną („Elektromaniacy.pl",
+    „Tebim sp. z o.o."), a model w odpowiedzi pisze samo „Elektromaniacy". Dopasowanie
+    dosłowne dawało wtedy 0 wzmianek przy odpowiedziach, które markę wprost wymieniały —
+    i dodatkowo wrzucało badaną firmę na jej własną listę konkurentów.
+
+    Zwraca warianty od najdłuższego; człony krótsze niż 4 znaki pomijamy, żeby nie
+    dopasowywać przypadkowych słów.
+    """
+    KONCOWKI = (".pl", ".com", ".pro", ".eu", ".net", ".org", ".com.pl", ".shop", ".store")
+    PRAWNE = (" sp. z o.o.", " sp.z o.o.", " spółka z o.o.", " s.a.", " sp. j.",
+              " sp. k.", " s.c.", " sp. z o. o.")
+    kandydaci = set()
+    for zrodlo in (nazwa or "", (domena or "").replace("www.", "")):
+        b = zrodlo.strip().lower()
+        if not b:
+            continue
+        kandydaci.add(b)
+        for p in PRAWNE:
+            if b.endswith(p):
+                b = b[: -len(p)].strip()
+        for k in KONCOWKI:
+            if b.endswith(k):
+                b = b[: -len(k)].strip()
+        kandydaci.add(b)
+    return sorted((k for k in kandydaci if len(k) >= 4), key=len, reverse=True)
+
+
 def analizuj_odpowiedz(odp: dict, marka: str, domena: str, prompt: str) -> dict:
     """Jeden wiersz tabeli 'przykładowe prompty' — wzór: moduł Semrush ze screena."""
     wynik = (odp.get("tasks") or [{}])[0].get("result") or [{}]
     wynik = wynik[0] if wynik else {}
     tekst, zrodla = _tekst_i_zrodla(wynik)
 
-    wspomniana = marka.lower() in tekst.lower()
+    warianty = warianty_marki(marka, domena)
+    t = tekst.lower()
+    wspomniana = any(w in t for w in warianty)
     cytowana = any(domena.lower() in (u or "").lower() for u in zrodla)
 
     return {
@@ -126,7 +158,8 @@ def analizuj_odpowiedz(odp: dict, marka: str, domena: str, prompt: str) -> dict:
         "odpowiedz": tekst,
         "wspomniana": wspomniana,
         "cytowana": cytowana,
-        "marki": _marki_z_tekstu(tekst, pomijaj=marka, pytanie=prompt),
+        "marki": [m for m in _marki_z_tekstu(tekst, pomijaj=marka, pytanie=prompt)
+                  if not any(w in m.lower() for w in warianty)],
         "zrodla": zrodla,
         "koszt": wynik.get("money_spent", 0),
     }

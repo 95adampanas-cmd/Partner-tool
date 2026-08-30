@@ -755,8 +755,12 @@ async def api_audyt(request):
             )
             try:
                 rm = await Runner.run(agent_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
+                war = audyt.warianty_marki(nazwa, domena)
                 for w, marki in zip(wiersze, rm.final_output.marki_per_odpowiedz):
-                    w["marki"] = [m for m in marki if nazwa.lower() not in m.lower()]
+                    # ten sam filtr co w analizuj_odpowiedz — badana firma nie moze
+                    # trafic na wlasna liste konkurentow (nazwa bywa zapisana z domena)
+                    w["marki"] = [m for m in marki
+                                  if not any(x in m.lower() for x in war)]
             except Exception:
                 pass  # zostaje wersja z parsera — lepsze to niż brak
 
