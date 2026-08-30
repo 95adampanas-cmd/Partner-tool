@@ -216,14 +216,20 @@ def analiza_zrodel(wiersze: list[dict], domena: str, limit: int = 12) -> dict:
             if d != domena.replace("www.", "").lower()][:limit]
 
     # Pozycja klienta na tle wszystkich cytowanych źródeł — liczba, nie ocena.
+    # Remisy trzeba odnotować: przy 8 cytowaniach tebim.pro dzielił 1. miejsce z dwoma
+    # innymi serwisami, a raport pisał po prostu „1. miejsce" — to zawyżenie.
     ranking = [n for _, n in licznik.most_common()]
-    miejsce = sum(1 for n in ranking if n > nasze) + 1 if nasze else None
+    miejsce = (sum(1 for n in ranking if n > nasze) + 1) if nasze else None
+    remisujacych = (sum(1 for d, n in licznik.items()
+                        if n == nasze and d != domena.replace("www.", "").lower())
+                    if nasze else 0)
 
     return {
         "zrodel_lacznie": len(wszystkie),
         "domen_unikalnych": len(licznik),
         "nasze_cytowania": nasze,
         "nasze_miejsce": miejsce,
+        "remisujacych": remisujacych,
         "pytan": len(wiersze),
         "top_zrodla": obce,
     }
@@ -275,7 +281,8 @@ def pula_fraz(odp: dict, limit: int = 40) -> list[dict]:
 
 
 def analiza_luki(frazy: list[dict], domena: str, cytowane_aio: set[str],
-                 limit: int = 8, nazwa_fixture: str = "") -> list[dict]:
+                 limit: int = 8, nazwa_fixture: str = "",
+                 lista_aio_pelna: bool = True) -> list[dict]:
     """Zestawia klasyczne SEO z AI Overview — najmocniejszy wniosek raportu.
 
     Dla każdej frazy sprawdzamy w żywym SERP-ie: czy Google pokazuje AI Overview
@@ -298,9 +305,14 @@ def analiza_luki(frazy: list[dict], domena: str, cytowane_aio: set[str],
                  if i.get("type") == "organic" and domena in (i.get("domain") or "")),
                 None,
             )
+            cytowany = f["fraza"].lower() in cytowane_aio
+            # Gdy lista fraz z AI Overview jest ucięta limitem zapytania, brak frazy
+            # na tej liście NIE dowodzi, że strona nie jest w danym AIO cytowana.
+            # Wtedy zamiast twierdzić „nie cytują Was" oznaczamy stan jako nieustalony.
             return {"fraza": f["fraza"], "wolumen": f["wolumen"], "typ": f["typ"],
                     "pozycja": pozycja, "ma_aio": ma_aio,
-                    "cytowany_w_aio": f["fraza"].lower() in cytowane_aio,
+                    "cytowany_w_aio": cytowany,
+                    "nieustalone": bool(ma_aio and not cytowany and not lista_aio_pelna),
                     "koszt": odp.get("cost", 0)}
         except Exception:
             return None
@@ -406,10 +418,15 @@ def analizuj_ai_overview(odp: dict, domena: str) -> dict:
         })
 
     pozycje = [w["pozycja"] for w in wzmianki if w["pozycja"]]
+    total = wynik.get("total_count", 0)
     return {
-        "liczba_wzmianek": wynik.get("total_count", 0),
+        "liczba_wzmianek": total,
         "pobrano": len(items),
+        # Średnią liczymy z pobranych pozycji, a tych bywa mniej niż wszystkich fraz
+        # (zapytanie ma limit). Raport MUSI to zaznaczyć, inaczej podaje średnią z próbki
+        # jako średnią z całości — przy 10 pobranych z 72 to zupełnie inna liczba.
         "srednia_pozycja": round(sum(pozycje) / len(pozycje), 2) if pozycje else None,
+        "probka_niepelna": bool(total and len(items) < total),
         "wzmianki": sorted(wzmianki, key=lambda w: w["wolumen"], reverse=True),
     }
 

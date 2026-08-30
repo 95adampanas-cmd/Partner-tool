@@ -683,7 +683,7 @@ function raportHTML(r) {
         realną skalę. Dla porównania: badana strona ma
         <b>${r.seo.ruch_nasz_calkowity.toLocaleString("pl-PL")}</b> sesji miesięcznie.</p>` : ""}` : ""}
       ${r.seo.luka && r.seo.luka.length ? (() => {
-        const luki = r.seo.luka.filter((w) => w.ma_aio && !w.cytowany_w_aio);
+        const luki = r.seo.luka.filter((w) => w.ma_aio && !w.cytowany_w_aio && !w.nieustalone);
         const stracone = luki.reduce((s, w) => s + (w.wolumen || 0), 0);
         const zAio = r.seo.luka.filter((w) => w.ma_aio).length;
         return `<div class="wyimek luka-blok">
@@ -709,6 +709,7 @@ function raportHTML(r) {
             <td class="pr">${
               !w.ma_aio ? `<span class="typ">brak AIO</span>`
               : w.cytowany_w_aio ? `<span class="typ handlowa">cytowani</span>`
+              : w.nieustalone ? `<span class="typ">nie ustalono</span>`
               : `<span class="typ luka">nie cytują Was</span>`}</td>
           </tr>`).join("")}</tbody>
         </table>`;
@@ -756,7 +757,9 @@ function raportHTML(r) {
       ${r.ai_overview.wzmianki && r.ai_overview.wzmianki.length ? `
       <div class="liczby">
         ${liczba(r.ai_overview.liczba_wzmianek ?? "—", "fraz z AI Overview")}
-        ${liczba(r.ai_overview.srednia_pozycja ?? "—", "średnia pozycja cytowania")}
+        ${liczba(r.ai_overview.srednia_pozycja ?? "—", r.ai_overview.probka_niepelna
+            ? `średnia pozycja z ${r.ai_overview.pobrano} zbadanych fraz`
+            : "średnia pozycja cytowania")}
       </div>
       <table class="tabela-dok">
         <thead><tr><th>Zapytanie</th><th class="pr waska">Wyszukiwań/mies.</th><th class="pr waska">Pozycja</th></tr></thead>
@@ -764,7 +767,11 @@ function raportHTML(r) {
           <tr><td>${esc(w.prompt)}</td>
               <td class="pr waska">${w.wolumen ? w.wolumen.toLocaleString("pl-PL") : "—"}</td>
               <td class="pr waska">${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
-      </table>`
+      </table>
+      ${r.ai_overview.probka_niepelna ? `<p class="metodyka">Tabela pokazuje
+        ${r.ai_overview.pobrano} fraz o największej liczbie wyszukiwań spośród
+        <b>${r.ai_overview.liczba_wzmianek}</b>, na których strona pojawia się
+        w AI Overviews. Średnia pozycja dotyczy tej próbki, nie wszystkich fraz.</p>` : ""}`
       : `<p class="ostrzezenie"><b>Nie znaleźliśmy ani jednej frazy</b>, przy której strona
           byłaby cytowana w AI Overviews. Przy zapytaniach, na które Google generuje odpowiedź
           AI, źródłem są dziś inne serwisy — a to właśnie ta odpowiedź trafia do użytkownika
@@ -786,7 +793,11 @@ function raportHTML(r) {
       ${r.zrodla.nasze_cytowania
         ? `<p class="wyimek"><b>Państwa strona jest wśród źródeł</b> — model zacytował ją
             ${r.zrodla.nasze_cytowania} razy${r.zrodla.nasze_miejsce
-              ? `, co daje ${r.zrodla.nasze_miejsce}. miejsce wśród wszystkich cytowanych serwisów`
+              ? `, co daje ${r.zrodla.nasze_miejsce}. miejsce wśród wszystkich cytowanych
+                 serwisów${r.zrodla.remisujacych
+                   ? ` — ex aequo z ${r.zrodla.remisujacych} ${
+                       r.zrodla.remisujacych === 1 ? "innym serwisem" : "innymi serwisami"}`
+                   : ""}`
               : ""}. Oznacza to, że treść jest dla modelu dostępna i wiarygodna;
             jeśli mimo to marka nie pada w odpowiedziach, przyczyna leży w tym,
             <b>jak treść odpowiada na pytania klientów</b>, a nie w jej dostępności.</p>`

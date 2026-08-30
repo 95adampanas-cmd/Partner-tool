@@ -798,7 +798,7 @@ async def api_audyt(request):
                 cytowane = {w["prompt"].lower() for w in (aio.get("wzmianki") or [])}
                 luka = await asyncio.to_thread(
                     audyt.analiza_luki, audyt.pula_fraz(frazy), domena, cytowane, 8,
-                    f"audyt_luka_{domena}"
+                    f"audyt_luka_{domena}", not aio.get("probka_niepelna", False)
                 )
                 koszt += sum(w.get("koszt", 0) for w in luka)
                 seo["luka"] = luka
