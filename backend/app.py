@@ -823,6 +823,11 @@ async def api_audyt(request):
             print(f"  (nie udalo sie zapisac raportu: {e})")
         raport["saldo_po"] = dfs.saldo()
         return JSONResponse({"ok": True, "raport": raport})
+    except dfs.BladAPI as e:
+        # Awaria po stronie DataForSEO. Świadomie NIE budujemy raportu: dokument
+        # z pustych danych wygląda jak wynik i powiedziałby partnerowi, że ma zerową
+        # widoczność — a to nieprawda. Lepiej pokazać błąd niż fałszywe zero.
+        return JSONResponse({"ok": False, "error": str(e), "typ": "api"})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 

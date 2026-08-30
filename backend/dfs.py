@@ -42,6 +42,35 @@ PROBY = 3
 ODSTEPY = (1.5, 4.0)
 
 
+class BladAPI(RuntimeError):
+    """Zadanie odrzucone przez DataForSEO."""
+
+
+# Odpowiedź potrafi mieć status 20000 Ok na wierzchu, a błąd DOPIERO w zadaniu.
+# 31.08.2026 konto zostało zawieszone (40201) i wszystkie zadania wracały puste,
+# podczas gdy odpowiedź nadal mówiła "Ok". Parsery zobaczyły brak danych i zbudowały
+# raport pełen ZER — gotowy do wysłania partnerowi, z informacją o zerowej widoczności
+# firmy, która ma 748 fraz. Dlatego status zadania sprawdzamy zawsze i twardo.
+BLEDY_TRWALE = {
+    40201: "Konto DataForSEO zostało tymczasowo zawieszone przez dostawcę "
+           "(nietypowa aktywność). Napisz na support@dataforseo.com — do tego czasu "
+           "żadne dane nie zostaną pobrane.",
+    40100: "Błędny login lub hasło do DataForSEO.",
+    40200: "Brak środków na koncie DataForSEO.",
+}
+
+
+def _sprawdz_zadanie(odp: dict, endpoint: str) -> None:
+    """Rzuca wyjątek, gdy zadanie się nie powiodło. Cisza jest tu niedopuszczalna:
+    puste dane potraktowane jak zero zamieniają awarię w fałszywy wynik."""
+    zad = (odp.get("tasks") or [{}])[0]
+    kod = zad.get("status_code")
+    if kod == 20000:
+        return
+    opis = BLEDY_TRWALE.get(kod) or zad.get("status_message") or "nieznany błąd"
+    raise BladAPI(f"[{endpoint}] DataForSEO odrzuciło zadanie (kod {kod}). {opis}")
+
+
 def _zapytaj(req: urllib.request.Request, timeout: int) -> dict:
     ostatni = None
     for nr in range(PROBY):
@@ -75,6 +104,7 @@ def pobierz(endpoint: str, nazwa_fixture: str | None = None) -> dict:
     """GET — używane przez endpointy informacyjne (listy modeli, lokalizacji). Zwykle darmowe."""
     req = urllib.request.Request(f"{BAZA}/{endpoint}", headers={"Authorization": _auth()})
     odp = _zapytaj(req, 60)
+    _sprawdz_zadanie(odp, endpoint)
     nazwa = nazwa_fixture or endpoint.replace("/", "_")
     (FIXTURES / f"{nazwa}.json").write_text(
         json.dumps(odp, ensure_ascii=False, indent=1), encoding="utf-8"
@@ -98,9 +128,12 @@ def wywolaj(endpoint: str, dane: list | None = None, nazwa_fixture: str | None =
     odp = _zapytaj(req, 180)
 
     nazwa = nazwa_fixture or endpoint.replace("/", "_")
+    # zapisujemy PRZED sprawdzeniem — surowa odpowiedź z błędem też jest dowodem
     (FIXTURES / f"{nazwa}.json").write_text(
         json.dumps(odp, ensure_ascii=False, indent=1), encoding="utf-8"
     )
+
+    _sprawdz_zadanie(odp, endpoint)
 
     zadanie = (odp.get("tasks") or [{}])[0]
     print(f"[{endpoint}]")
