@@ -78,8 +78,21 @@ Nie wolno tego uogólniać w rozmowie z partnerem.
 i TOP3 z Senuto/Ahrefs i z naszego narzędzia. Jeśli proporcja stała → można podać
 przelicznik. Jeśli nie → ta sekcja potrzebuje innego źródła danych.
 
-### ⬜ DO USTALENIA: czy wyższy limit fraz z AI Overviews podnosi koszt
-**Wymaga jednego wywołania — nie da się rozstrzygnąć offline.**
+### ⬜ NAJPIERW: sprawdzić, czy sekcja AI Overviews poprawnie liczy i pokazuje dane
+**Priorytet przy pierwszym audycie po doładowaniu** (decyzja Adama, 30.08.2026).
+
+Ostatni audyt elektromaniacy.pl pokazał w tej sekcji zero, bo do API poszła domena
+z wielkiej litery. Po naprawie payload jest poprawny, ale nikt nie widział jeszcze
+odpowiedzi z prawdziwymi danymi. Do sprawdzenia na fixtures po audycie Adama:
+- czy `total_count` i lista fraz są niepuste i sensowne,
+- czy `srednia_pozycja` zgadza się z pozycjami w `sources`,
+- czy tabela w raporcie pokazuje te frazy, które przyszły z API,
+- czy zgadza się liczba fraz podana w „Kluczowych liczbach".
+
+Kosztów ani limitu na tym etapie NIE badamy.
+
+### ⬜ NA POTEM: czy wyższy limit fraz z AI Overviews podnosi koszt
+**Odłożone** — wracamy do tego dopiero, gdy sekcja AIO będzie potwierdzona jako działająca.
 
 Status „nie ustalono" w analizie luki to obejście, nie rozwiązanie. Pobieramy 10 fraz
 z `llm_mentions`, a firma bywa widoczna na kilkudziesięciu (elektromaniacy.pl: 72).
