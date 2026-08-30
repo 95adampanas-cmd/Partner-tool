@@ -37,6 +37,7 @@ from agents import Agent, Runner
 
 import audyt
 import dfs
+import geo
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
@@ -759,6 +760,16 @@ async def api_audyt(request):
             except Exception:
                 pass  # zostaje wersja z parsera — lepsze to niż brak
 
+        # 2c) Skąd model czerpie wiedzę — z zapisanych źródeł, bez dodatkowego kosztu
+        zrodla = audyt.analiza_zrodel(wiersze, domena)
+
+        # 2d) Techniczny audyt GEO — czy roboty AI w ogóle mogą przeczytać stronę.
+        # Same żądania HTTP do strony klienta, zero kosztu API.
+        try:
+            techniczne = await asyncio.to_thread(geo.audyt_geo, firma.get("url", ""), firma)
+        except Exception:
+            techniczne = None
+
         # 3) AI Overview (opcjonalnie — najdroższy pojedynczy element)
         aio = None
         if z_aio:
@@ -789,6 +800,8 @@ async def api_audyt(request):
                 seo["luka"] = luka
 
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
+        raport["zrodla"] = zrodla
+        raport["techniczne"] = techniczne
         raport["saldo_po"] = dfs.saldo()
         return JSONResponse({"ok": True, "raport": raport})
     except Exception as e:

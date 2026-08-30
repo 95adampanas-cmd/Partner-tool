@@ -461,6 +461,34 @@ button { font-family: var(--sans); }
   color: #86868f; margin: 18px 0 26px; padding-top: 10px; border-top: 1px solid #e6e4e0; }
 .zrodlo-danych b { color: #55555c; font-weight: 500; }
 
+/* Ustalenia audytu technicznego — dokument, nie dashboard: bez ramek i cieni,
+   hierarchię niesie lewa krawędź i typografia. */
+.ustalenie { margin: 22px 0; padding-left: 18px; border-left: 2px solid #e0ded9; }
+.ustalenie.blokada { border-left-color: var(--orange); }
+.ustalenie.ok { border-left-color: #c9d6cb; }
+.ustalenie.drobne { border-left-color: #eceae5; }
+.ustalenie p { margin: 7px 0 0; font-size: 14.5px; }
+.ust-naglowek { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ust-naglowek b { font-size: 15.5px; font-weight: 600; }
+.ust-znacznik {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 4px; white-space: nowrap;
+  color: #86868f; border: 1px solid #e0ded9;
+}
+.ust-znacznik.blokada { background: rgba(240,78,42,.1); color: var(--orange-dim);
+  border-color: rgba(240,78,42,.35); }
+.ust-znacznik.ok { color: #5d7a63; border-color: #cfdcd1; }
+.dowod {
+  font-family: var(--mono); font-size: 11px; line-height: 1.75; color: #55555c;
+  background: #f6f5f2; border: 1px solid #e6e4e0; border-radius: 6px;
+  padding: 11px 13px; margin: 11px 0 0; white-space: pre-wrap; overflow-x: auto;
+}
+.ust-rada { color: #55555c; font-size: 13.5px !important; }
+.ust-rada span {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--orange-dim); display: block; margin-bottom: 3px;
+}
+
 .metodyka { font-size: 13px; color: #6a6a72; line-height: 1.6; margin-top: 14px;
             padding-top: 12px; border-top: 1px solid #e6e4e0; }
 .tabela-dok .url { word-break: break-all; font-size: 12.5px; }

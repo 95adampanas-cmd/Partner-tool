@@ -771,6 +771,65 @@ function raportHTML(r) {
           nad wynikami wyszukiwania.</p>`}
     </section>` : ""}
 
+    <!-- SKĄD MODEL CZERPIE WIEDZĘ -->
+    ${r.zrodla && r.zrodla.zrodel_lacznie ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Skąd AI czerpie wiedzę")}
+      <p>Odpowiadając na pytania klientów, model opiera się na konkretnych stronach.
+        Zebraliśmy wszystkie, które zacytował przy ${r.zrodla.pytan} pytaniach —
+        to pokazuje, komu w tej branży „ufa" i czy jesteście w tym gronie.</p>
+      <div class="liczby">
+        ${liczba(r.zrodla.zrodel_lacznie, "zacytowanych źródeł")}
+        ${liczba(r.zrodla.domen_unikalnych, "unikalnych serwisów")}
+        ${liczba(r.zrodla.nasze_cytowania, "cytowań Państwa strony")}
+      </div>
+      ${r.zrodla.nasze_cytowania
+        ? `<p class="wyimek"><b>Państwa strona jest wśród źródeł</b> — model zacytował ją
+            ${r.zrodla.nasze_cytowania} razy${r.zrodla.nasze_miejsce
+              ? `, co daje ${r.zrodla.nasze_miejsce}. miejsce wśród wszystkich cytowanych serwisów`
+              : ""}. Oznacza to, że treść jest dla modelu dostępna i wiarygodna;
+            jeśli mimo to marka nie pada w odpowiedziach, przyczyna leży w tym,
+            <b>jak treść odpowiada na pytania klientów</b>, a nie w jej dostępności.</p>`
+        : `<p class="ostrzezenie"><b>Państwa strona nie pojawiła się ani razu</b> wśród
+            źródeł cytowanych przez model. Odpowiedzi dla klientów budowane są wyłącznie
+            na treściach konkurencji i serwisów branżowych.</p>`}
+      <table class="tabela-dok">
+        <thead><tr><th>Serwis, z którego model korzystał</th><th class="pr waska">Cytowań</th></tr></thead>
+        <tbody>${r.zrodla.top_zrodla.map((z) => `<tr>
+          <td>${esc(z.domena)}</td><td class="pr waska">${z.cytowan}</td></tr>`).join("")}</tbody>
+      </table>
+      <p class="metodyka">Obecność w serwisach z tej listy — katalogach, rankingach,
+        zestawieniach branżowych — bezpośrednio zwiększa szansę na pojawienie się
+        w odpowiedziach AI, bo to z nich model buduje rekomendacje.</p>
+    </section>` : ""}
+
+    <!-- TECHNICZNE WARUNKI WIDOCZNOŚCI -->
+    ${r.techniczne && r.techniczne.ustalenia && r.techniczne.ustalenia.length ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, r.techniczne.blokady
+          ? "Dlaczego AI nie widzi strony" : "Techniczne warunki widoczności")}
+      <p>Sprawdziliśmy bezpośrednio na Państwa stronie, czy roboty modeli AI mogą
+        pobrać jej treść i czy znajdują na niej informacje potrzebne do zrozumienia,
+        kim jest firma. Każde ustalenie poniżej jest wynikiem pomiaru.</p>
+      <div class="liczby">
+        ${liczba(r.techniczne.blokady, r.techniczne.blokady === 1 ? "blokada" : "blokady")}
+        ${liczba(r.techniczne.braki, "braków do uzupełnienia")}
+        ${liczba(r.techniczne.ok, "elementów poprawnych")}
+      </div>
+      ${r.techniczne.ustalenia.map((u) => `
+        <div class="ustalenie ${esc(u.waga)}">
+          <div class="ust-naglowek">
+            <span class="ust-znacznik ${esc(u.waga)}">${
+              u.waga === "blokada" ? "blokada" : u.waga === "brak" ? "do poprawy"
+              : u.waga === "drobne" ? "bez wpływu" : "w porządku"}</span>
+            <b>${esc(u.tytul)}</b>
+          </div>
+          <p>${esc(u.fakt)}</p>
+          ${u.dowod ? `<pre class="dowod">${esc(u.dowod)}</pre>` : ""}
+          ${u.co_zrobic ? `<p class="ust-rada"><span>Co z tym zrobić</span>${esc(u.co_zrobic)}</p>` : ""}
+        </div>`).join("")}
+    </section>` : ""}
+
     <!-- RYNEK CHATBOTÓW -->
     <section class="r-strona">
       ${naglowekSekcji(++nr, st.rynek_chatbotow.naglowek)}

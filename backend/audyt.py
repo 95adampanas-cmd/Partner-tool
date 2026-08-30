@@ -9,6 +9,7 @@ do API sięgamy dopiero przy realnym audycie.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 import re
 
 import dfs
@@ -151,6 +152,48 @@ PORTALE = (
 # Poniżej tylu fraz pokrywanie się słów kluczowych jest przypadkowe — lista „konkurentów"
 # przestaje cokolwiek znaczyć. Wtedy uczciwiej napisać, że danych jest za mało.
 PROG_WIARYGODNOSCI = 30
+
+
+def analiza_zrodel(wiersze: list[dict], domena: str, limit: int = 12) -> dict:
+    """Skąd model bierze wiedzę, odpowiadając na pytania klientów.
+
+    Przy każdym pytaniu zapisujemy listę cytowanych URL-i. Zagregowane pokazują,
+    które serwisy model traktuje jako źródło w tej branży — i czy strona klienta
+    jest wśród nich. To pomiar, nie interpretacja: liczymy wystąpienia.
+
+    Weryfikacja na tebim.pro: 5 pytań → 100 źródeł → 53 domeny, tebim.pro cytowany
+    8 razy, dokładnie tyle samo co polecany przez model konkurent. Wniosek bywa więc
+    odwrotny od oczekiwanego („jesteście widoczni, problem leży gdzie indziej") —
+    i dlatego tę sekcję trzeba liczyć, a nie zakładać z góry.
+    """
+    from collections import Counter
+
+    wszystkie = [u for w in wiersze for u in (w.get("zrodla") or [])]
+    if not wszystkie:
+        return {}
+
+    licznik = Counter()
+    for u in wszystkie:
+        host = urlparse(u).netloc.replace("www.", "").lower()
+        if host:
+            licznik[host] += 1
+
+    nasze = licznik.get(domena.replace("www.", "").lower(), 0)
+    obce = [{"domena": d, "cytowan": n} for d, n in licznik.most_common()
+            if d != domena.replace("www.", "").lower()][:limit]
+
+    # Pozycja klienta na tle wszystkich cytowanych źródeł — liczba, nie ocena.
+    ranking = [n for _, n in licznik.most_common()]
+    miejsce = sum(1 for n in ranking if n > nasze) + 1 if nasze else None
+
+    return {
+        "zrodel_lacznie": len(wszystkie),
+        "domen_unikalnych": len(licznik),
+        "nasze_cytowania": nasze,
+        "nasze_miejsce": miejsce,
+        "pytan": len(wiersze),
+        "top_zrodla": obce,
+    }
 
 
 def data_bazy() -> str:
