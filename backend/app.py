@@ -806,6 +806,21 @@ async def api_audyt(request):
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne
+
+        # Gotowy raport zapisujemy na dysk. Odpowiedzi DataForSEO trafiają do fixtures/
+        # automatycznie, ale wynik NASZEGO modelu (marki konkurencyjne) i cała złożona
+        # treść — nie. Bez tego nie da się później zweryfikować, co dokładnie zobaczył
+        # użytkownik, inaczej niż powtarzając płatny audyt.
+        try:
+            import json as _json
+            from datetime import datetime as _dt
+            (Path(__file__).resolve().parent / "fixtures").mkdir(exist_ok=True)
+            plik = (Path(__file__).resolve().parent / "fixtures" /
+                    f"raport_{domena}_{_dt.now():%Y%m%d_%H%M}.json")
+            plik.write_text(_json.dumps(raport, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(f"  raport zapisany: {plik.name}")
+        except Exception as e:
+            print(f"  (nie udalo sie zapisac raportu: {e})")
         raport["saldo_po"] = dfs.saldo()
         return JSONResponse({"ok": True, "raport": raport})
     except Exception as e:

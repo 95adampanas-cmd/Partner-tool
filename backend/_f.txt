@@ -1,0 +1,32 @@
+
+=== elektromaniacy.pl ===
+OK   | wzmianki zgodne z tekstem
+       2 = 2
+OK   | procent poprawny
+       40%
+OK   | brak firmy na liscie konkurentow
+OK   | cytowana zgodna ze zrodlami
+OK   | suma cytowan = liczba zrodel
+       98 zrodel, 68 domen, nasze=10, miejsce=1 (remisuje z 0)
+
+=== tebim.pro ===
+OK   | wzmianki zgodne z tekstem
+       2 = 2
+OK   | procent poprawny
+       40%
+OK   | brak firmy na liscie konkurentow
+OK   | cytowana zgodna ze zrodlami
+OK   | suma cytowan = liczba zrodel
+       100 zrodel, 53 domen, nasze=8, miejsce=1 (remisuje z 2)
+
+=== SEO elektromaniacy ===
+OK   | top3 <= top10 <= lacznie
+       42 / 271 / 748
+OK   | badana domena nie jest wlasnym konkurentem
+OK   | brak marketplace'ow w konkurencji
+       spyshop.pl, szpiegujemy.com, eltrox.pl, alfatronik.com.pl, nocnylowca.pl, spy-center.pl
+OK   | podpis zrodla obecny
+       DataForSEO Labs · baza Google PL / 2026-08-28
+
+======================================================
+WYNIK: 0 bledow

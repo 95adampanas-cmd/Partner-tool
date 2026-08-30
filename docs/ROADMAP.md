@@ -78,6 +78,21 @@ Nie wolno tego uogólniać w rozmowie z partnerem.
 i TOP3 z Senuto/Ahrefs i z naszego narzędzia. Jeśli proporcja stała → można podać
 przelicznik. Jeśli nie → ta sekcja potrzebuje innego źródła danych.
 
+### ⬜ DO USTALENIA: czy wyższy limit fraz z AI Overviews podnosi koszt
+**Wymaga jednego wywołania — nie da się rozstrzygnąć offline.**
+
+Status „nie ustalono" w analizie luki to obejście, nie rozwiązanie. Pobieramy 10 fraz
+z `llm_mentions`, a firma bywa widoczna na kilkudziesięciu (elektromaniacy.pl: 72).
+Przy takiej próbce nie wolno orzec, że strona nie jest w danym AI Overview cytowana —
+mogła być wśród 62 nieprzejrzanych.
+
+**Test:** to samo zapytanie z `limit: 10` i `limit: 100`, porównanie pola `cost`
+w obu odpowiedziach. DataForSEO rozlicza część endpointów ryczałtem, część od pozycji.
+
+- **Limit nie zmienia ceny** → podnosimy, lista kompletna, luka wraca do twardego
+  „nie cytują Was". Sekcja odzyskuje pełną moc argumentu.
+- **Limit zwiększa koszt** → zostaje „nie ustalono". Słabszy przekaz, ale uczciwy.
+
 ### ⬜ POTRZEBNE: dostęp do API Senuto lub Ahrefs (warstwa fraz)
 
 **Czego dokładnie potrzebujemy:** API zwracające listę fraz, na które domena jest widoczna,
