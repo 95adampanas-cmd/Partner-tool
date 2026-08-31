@@ -350,7 +350,12 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
   if (e.target.name === "dostawca") { audytDostawca = e.target.value; return renderAudyt(); }
-  if (e.target.name === "silnik") { audytSilnik = e.target.value; return renderAudyt(); }
+  if (e.target.name === "silnik") {
+    const v = e.target.value;
+    audytSilniki = e.target.checked ? [...audytSilniki, v] : audytSilniki.filter((x) => x !== v);
+    if (!audytSilniki.length) audytSilniki = [v];   // zawsze co najmniej jeden
+    return renderAudyt();
+  }
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
   if (e.target.checked) {
@@ -537,7 +542,7 @@ function kopiuj(przycisk) {
 let audytWybrana = null;
 let audytIle = 5;
 let audytDostawca = "dataforseo";
-let audytSilnik = "perplexity";     // ktory model AI pytamy   // jeden dostawca na audyt, nigdy dwaj naraz
+let audytSilniki = ["perplexity"];   // ktore modele AI pytamy (mozna kilka)   // jeden dostawca na audyt, nigdy dwaj naraz
 let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
@@ -545,11 +550,25 @@ const KOSZT_AIO = 0.11;       // llm_mentions, zmierzone
 const KOSZT_SEO = 0.04;       // 3 wywolania Labs, zmierzone
 // Zmierzone na tym samym prompcie: Perplexity dal 9 marek za $0.006,
 // ChatGPT 3 marki za $0.109. Tanszy dal WIECEJ danych — ale ma 6% rynku PL.
+// Modele potwierdzone darmowym endpointem DataForSEO — wszystkie z wyszukiwaniem w sieci.
 const SILNIKI = {
-  perplexity: { nazwa: "Perplexity", udzial: "6,18%", koszt: 0.006 },
-  chatgpt:    { nazwa: "ChatGPT",    udzial: "86,4%", koszt: 0.109 },
+  chatgpt:    { nazwa: "ChatGPT",       udzial: "86,4%", koszt: 0.109 },
+  perplexity: { nazwa: "Perplexity",    udzial: "6,18%", koszt: 0.006 },
+  gemini:     { nazwa: "Google Gemini", udzial: "3,22%", koszt: 0.020 },
+  claude:     { nazwa: "Claude",        udzial: "0,71%", koszt: 0.030 },
 };
 let audytSEO = true;
+
+// Każde pytanie idzie do każdego wybranego modelu, więc koszty się sumują.
+function pokrycieRynku() {
+  const suma = audytSilniki.reduce(
+    (s, k) => s + parseFloat((SILNIKI[k]?.udzial || "0").replace(",", ".")), 0);
+  return suma.toFixed(1).replace(".", ",") + "%";
+}
+
+function kosztSilnikow() {
+  return audytSilniki.reduce((s, k) => s + (SILNIKI[k]?.koszt || 0), 0);
+}
 
 function renderAudyt() {
   const wybor = document.getElementById("audyt-wybor");
@@ -576,8 +595,8 @@ function renderAudyt() {
   // SE Ranking rozlicza sie w kredytach, nie w dolarach — pokazujemy wlasciwa jednostke,
   // zamiast przeliczac jedno na drugie i sugerowac porownywalnosc, ktorej nie ma.
   const koszt = sr
-    ? (audytIle * SILNIKI[audytSilnik].koszt).toFixed(3)
-    : (audytIle * SILNIKI[audytSilnik].koszt + (audytAIO ? KOSZT_AIO : 0)
+    ? (audytIle * kosztSilnikow()).toFixed(3)
+    : (audytIle * kosztSilnikow() + (audytAIO ? KOSZT_AIO : 0)
        + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
   const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 : 0)) : 0;
   wybor.innerHTML = `<div class="card">
@@ -600,19 +619,19 @@ function renderAudyt() {
       z DataForSEO. Ich dane o pozycjach dzielą się na TOP 1-5, nie TOP 3, więc raport
       podpisze tę liczbę zgodnie z tym, co faktycznie mierzy.</p>` : ""}
 
-    <div class="mono"><i class="sq"></i>Który model AI pytamy</div>
-    <div class="akcje" style="margin-bottom:16px">
+    <div class="mono"><i class="sq"></i>Które modele AI pytamy</div>
+    <div class="akcje" style="margin-bottom:10px">
       ${Object.entries(SILNIKI).map(([k, m]) => `
-        <label class="akcja check"><input type="radio" name="silnik" value="${k}"
-          ${audytSilnik === k ? "checked" : ""}> ${m.nazwa}
-          <span class="cena">${m.udzial} rynku PL · $${m.koszt}/pytanie</span></label>`).join("")}
+        <label class="akcja check"><input type="checkbox" name="silnik" value="${k}"
+          ${audytSilniki.includes(k) ? "checked" : ""}> ${m.nazwa}
+          <span class="cena">${m.udzial} · $${m.koszt}</span></label>`).join("")}
     </div>
-    ${audytSilnik === "perplexity" ? `<p class="hint" style="margin:-8px 0 16px">
-      Perplexity jest 18× tańszy i w teście dał <b>więcej</b> nazw konkurencyjnych marek.
-      Ma jednak 6% polskiego rynku — jeśli rozmowa dotyczy widoczności w ChatGPT,
-      wybierz ChatGPT, mimo kosztu.</p>` : `<p class="hint" style="margin:-8px 0 16px">
-      ChatGPT to 86,4% polskiego rynku, ale kosztuje <b>18× więcej</b> za pytanie
-      i w naszym teście wymienił mniej marek konkurencyjnych.</p>`}
+    <p class="hint" style="margin:0 0 16px">
+      Każde pytanie trafia do <b>każdego</b> zaznaczonego modelu, więc koszty się sumują.
+      Łączny udział wybranych: <b>${pokrycieRynku()}</b> polskiego rynku zapytań do AI.
+      ${audytSilniki.length > 1
+        ? " Przy kilku modelach widać, czy brak wzmianki dotyczy jednego silnika, czy wszystkich."
+        : " Przy jednym modelu nie da się odróżnić cechy silnika od prawidłowości."}</p>
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
@@ -642,7 +661,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silnik: audytSilnik,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki,
                              ai_overview: audytAIO, seo: audytSEO }),
     });
     const data = await res.json();
@@ -687,10 +706,25 @@ function raportHTML(r) {
       <p class="wiodacy">Sprawdziliśmy, jak modele AI odpowiadają na pytania, które zadaje realny
         klient szukający takich usług. <b>W żadnym z pytań nie padła nazwa firmy</b> — mierzymy,
         czy sztuczna inteligencja wskaże ją samodzielnie.</p>
-      ${r.silnik ? `<p class="metodyka" style="margin-bottom:0;border-bottom:0;padding-bottom:0">
-        Pytania zadaliśmy modelowi <b>${esc(r.silnik.nazwa)}</b>, który odpowiada za
-        <b>${String(r.silnik.udzial).replace(".", ",")}%</b> zapytań do AI w Polsce
-        (udziały rynkowe — sekcja dalej).</p>` : ""}
+      ${p.per_silnik && p.per_silnik.length ? `
+      <table class="tabela-dok" style="margin-top:26px">
+        <thead><tr><th>Model AI</th><th class="pr waska">Udział w PL</th>
+          <th class="pr waska">Wzmianki</th><th class="pr waska">Cytowania</th></tr></thead>
+        <tbody>${p.per_silnik.map((m) => `<tr>
+          <td class="cel">${esc(m.nazwa)}</td>
+          <td class="pr waska">${m.udzial != null
+            ? String(m.udzial).replace(".", ",") + "%" : "—"}</td>
+          <td class="pr waska">${m.wspomniana} / ${m.pytan}</td>
+          <td class="pr waska">${m.cytowana} / ${m.pytan}</td></tr>`).join("")}</tbody>
+      </table>
+      <p class="metodyka">${p.per_silnik.length > 1
+        ? `Te same pytania zadaliśmy <b>${p.per_silnik.length}</b> modelom, co pokrywa
+           <b>${p.per_silnik.reduce((s, m) => s + (m.udzial || 0), 0).toFixed(1)
+              .replace(".", ",")}%</b> polskiego rynku zapytań do AI. Różnice między
+           wierszami pokazują, czy widoczność zależy od konkretnego silnika.`
+        : `Pytania zadaliśmy jednemu modelowi. Wynik dotyczy
+           <b>${String(p.per_silnik[0].udzial).replace(".", ",")}%</b> polskiego rynku —
+           przy innym silniku mógłby wyglądać inaczej.`}</p>` : ""}
       <p class="metodyka">Ma to znaczenie przy porównywaniu z innymi analizami. Narzędzia
         monitorujące pytają zwykle wprost o markę („Kim są…", „oferta firmy…") i sprawdzają, czy
         model ją zna — tam wynik bywa bliski 100%. My zadajemy pytania klienta, który firmy

@@ -23,11 +23,18 @@ SILNIK_CHATGPT = ("chat_gpt", "gpt-5.6-sol")
 # raport pokazuje wykres, na którym ChatGPT ma 86,4%, więc badanie wyłącznie
 # Perplexity (6,18%) tworzy niespójność między tym, co mówimy, a co mierzymy.
 # Raport musi napisać wprost, którego modelu pytaliśmy i jaki ma udział.
+# Modele potwierdzone darmowym endpointem .../llm_responses/models — wszystkie
+# obsługują wyszukiwanie w sieci, więc odpowiadają na podstawie aktualnych stron,
+# a nie samej pamięci modelu.
 SILNIKI = {
-    "perplexity": {"silnik": SILNIK_DOMYSLNY, "nazwa": "Perplexity",
-                   "udzial": 6.18, "koszt": 0.006},
-    "chatgpt":    {"silnik": SILNIK_CHATGPT, "nazwa": "ChatGPT",
+    "chatgpt":    {"silnik": ("chat_gpt", "o4-mini"), "nazwa": "ChatGPT",
                    "udzial": 86.4, "koszt": 0.109},
+    "perplexity": {"silnik": ("perplexity", "sonar"), "nazwa": "Perplexity",
+                   "udzial": 6.18, "koszt": 0.006},
+    "gemini":     {"silnik": ("gemini", "gemini-3.6-flash"), "nazwa": "Google Gemini",
+                   "udzial": 3.22, "koszt": 0.020},
+    "claude":     {"silnik": ("claude", "claude-sonnet-5"), "nazwa": "Claude",
+                   "udzial": 0.71, "koszt": 0.030},
 }
 
 LOKALIZACJA_PL = 2616
@@ -526,7 +533,20 @@ def podsumuj(wiersze: list[dict], ai_overview: dict | None) -> dict:
             licznik[marka] = licznik.get(marka, 0) + 1
     konkurenci = sorted(licznik.items(), key=lambda x: x[1], reverse=True)[:10]
 
+    # Rozbicie na silniki — przy kilku modelach jedna liczba zbiorcza zaciera obraz.
+    # „2/10 wzmianek" nic nie mówi; „ChatGPT 0/5, Perplexity 2/5" mówi wszystko.
+    per_silnik = {}
+    for w in wiersze:
+        s_ = w.get("silnik_nazwa") or "—"
+        d = per_silnik.setdefault(s_, {"nazwa": s_, "udzial": w.get("silnik_udzial"),
+                                       "pytan": 0, "wspomniana": 0, "cytowana": 0})
+        d["pytan"] += 1
+        d["wspomniana"] += bool(w["wspomniana"])
+        d["cytowana"] += bool(w["cytowana"])
+
     return {
+        "per_silnik": sorted(per_silnik.values(),
+                             key=lambda x: -(x["udzial"] or 0)),
         "promptow": len(wiersze),
         "wspomniana": wspomniana,
         "cytowana": cytowana,

@@ -727,8 +727,9 @@ async def api_audyt(request):
         z_aio = bool(body.get("ai_overview", True))
         # Jeden dostawca na audyt — nigdy dwaj naraz.
         dostawca = (body.get("dostawca") or "dataforseo").lower()
-        klucz_silnika = (body.get("silnik") or "perplexity").lower()
-        opis_silnika = audyt.SILNIKI.get(klucz_silnika) or audyt.SILNIKI["perplexity"]
+        # Można wybrać kilka modeli naraz — wtedy każde pytanie idzie do każdego z nich.
+        wybrane = body.get("silniki") or [body.get("silnik") or "perplexity"]
+        silniki = [audyt.SILNIKI[k] for k in wybrane if k in audyt.SILNIKI]                   or [audyt.SILNIKI["perplexity"]]
         koszt_kredytow = 0
 
         nazwa = firma.get("nazwa") or ""
@@ -744,15 +745,22 @@ async def api_audyt(request):
         r = await Runner.run(agent_prompty, f"Wygeneruj {ile} pytań.\n\n{opis}")
         pytania = (r.final_output.pytania or [])[:ile]
 
-        # 2) Każde pytanie do Perplexity (18x taniej niż ChatGPT przy lepszej liście marek)
+        # 2) Każde pytanie do KAŻDEGO wybranego modelu. Przy kilku modelach widać,
+        # czy brak wzmianki to cecha jednego silnika, czy prawidłowość — a to zupełnie
+        # inna rozmowa z partnerem.
         koszt = 0.0
         wiersze = []
-        for i, pytanie in enumerate(pytania, 1):
-            odp = await asyncio.to_thread(
-                audyt.zapytaj_llm, pytanie, opis_silnika["silnik"], f"audyt_{domena}_{i}"
-            )
-            koszt += odp.get("cost", 0)
-            wiersze.append(audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie))
+        for opis in silniki:
+            for i, pytanie in enumerate(pytania, 1):
+                nazwa_f = f"audyt_{domena}_{opis['silnik'][0]}_{i}"
+                odp = await asyncio.to_thread(
+                    audyt.zapytaj_llm, pytanie, opis["silnik"], nazwa_f
+                )
+                koszt += odp.get("cost", 0)
+                w = audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie)
+                w["silnik_nazwa"] = opis["nazwa"]
+                w["silnik_udzial"] = opis["udzial"]
+                wiersze.append(w)
 
         # 2b) Marki konkurencyjne — jedno wywołanie na wszystkie odpowiedzi naraz (tanio)
         if wiersze:
@@ -833,7 +841,7 @@ async def api_audyt(request):
 
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
         raport["dostawca"] = dostawca
-        raport["silnik"] = {"nazwa": opis_silnika["nazwa"], "udzial": opis_silnika["udzial"]}
+        raport["silniki"] = [{"nazwa": s["nazwa"], "udzial": s["udzial"]} for s in silniki]
         raport["koszt_kredytow"] = koszt_kredytow
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne
