@@ -752,11 +752,25 @@ function raportHTML(r) {
         ${liczba(r.seo.top10, "fraz w TOP 10")}
         ${liczba(r.seo.fraz_lacznie, "fraz widocznych łącznie")}
       </div>
-      <p>Strona jest widoczna na <b>${r.seo.fraz_lacznie}</b> fraz, z czego
-        <b>${r.seo.top3}</b> w pierwszej trójce. W ostatnim okresie
-        <b>${r.seo.wzrosty}</b> pozycji wzrosło, <b>${r.seo.spadki}</b> spadło,
-        pojawiło się <b>${r.seo.nowe}</b> nowych fraz, a <b>${r.seo.utracone}</b> utracono.
-        Ruch generuje <b>${r.seo.podstron_widocznych}</b> podstron.</p>
+      ${(() => {
+        // Zdanie składamy z tego, co dostawca FAKTYCZNIE podał. Wcześniej było
+        // wpisane na sztywno i przy SE Ranking wychodziło „Ruch generuje null
+        // podstron", a liczbę z TOP 5 opisywało jako „w pierwszej trójce".
+        const czolo = (r.seo.etykieta_czolo || "fraz w TOP 3")
+          .replace(/^fraz w /, "").replace(/ \(.*\)$/, "");
+        const zd = [`Strona jest widoczna na <b>${r.seo.fraz_lacznie}</b> fraz,
+          z czego <b>${r.seo.top3}</b> w ${czolo === "TOP 3" ? "pierwszej trójce" : czolo}.`];
+        if (r.seo.wzrosty != null && r.seo.spadki != null) {
+          zd.push(`W ostatnim okresie <b>${r.seo.wzrosty}</b> pozycji wzrosło,
+            <b>${r.seo.spadki}</b> spadło${r.seo.nowe != null
+              ? `, pojawiło się <b>${r.seo.nowe}</b> nowych fraz, a <b>${r.seo.utracone}</b> utracono`
+              : ""}.`);
+        }
+        if (r.seo.podstron_widocznych != null) {
+          zd.push(`Ruch generuje <b>${r.seo.podstron_widocznych}</b> podstron.`);
+        }
+        return `<p>${zd.join(" ")}</p>`;
+      })()}
       ${!r.seo.dane_wiarygodne ? `<p class="ostrzezenie"><b>Widoczność organiczna jest znikoma.</b>
         Przy tak małej liczbie fraz poniższe zestawienie konkurencji traktujcie jako orientacyjne —
         pokazuje, kto zajmuje te same zapytania, ale przy większej liczbie fraz obraz może się zmienić.</p>` : ""}

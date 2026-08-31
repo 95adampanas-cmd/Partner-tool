@@ -451,6 +451,9 @@ def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,
     fraz = poz.get("count") or 0
     return {
         "dane_wiarygodne": fraz >= PROG_WIARYGODNOSCI,
+        # Etykietę podaje dostawca, nie szablon — DataForSEO ma osobny koszyk pos_1
+        # i pos_2_3, więc TOP 3 jest tu liczbą dokładną, nie przybliżeniem.
+        "etykieta_czolo": "fraz w TOP 3",
         "ruch_nasz_calkowity": realny.get(domena),
         "zrodlo": "DataForSEO Labs · baza Google PL",
         "data_bazy": data_bazy(),
