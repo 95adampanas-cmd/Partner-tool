@@ -556,18 +556,29 @@ const SILNIKI = {
   // i SE Ranking, wiec sekcja pytan nie pada razem z dostawca SEO.
   chatgpt_wprost: { nazwa: "ChatGPT (bezpośrednio)", udzial: "86,4%", koszt: 0.012,
                     wlasny: true },
-  chatgpt:    { nazwa: "ChatGPT",       udzial: "86,4%", koszt: 0.109 },
-  perplexity: { nazwa: "Perplexity",    udzial: "6,18%", koszt: 0.006 },
-  gemini:     { nazwa: "Google Gemini", udzial: "3,22%", koszt: 0.020 },
-  claude:     { nazwa: "Claude",        udzial: "0,71%", koszt: 0.030 },
+  chatgpt:    { nazwa: "ChatGPT",       udzial: "86,4%", koszt: 0.109, dfs: true },
+  perplexity: { nazwa: "Perplexity",    udzial: "6,18%", koszt: 0.006, dfs: true },
+  gemini:     { nazwa: "Google Gemini", udzial: "3,22%", koszt: 0.020, dfs: true },
+  claude:     { nazwa: "Claude",        udzial: "0,71%", koszt: 0.030, dfs: true },
   // Google AI Mode to konwersacyjny tryb wyszukiwarki, nie chatbot — StatCounter
   // go nie mierzy, wiec udzialu nie podajemy zamiast zmyslac liczbe.
-  ai_mode:    { nazwa: "Google AI Mode", udzial: null,    koszt: 0.006,
+  ai_mode:    { nazwa: "Google AI Mode", udzial: null,    koszt: 0.006, dfs: true,
                 opis: "tryb konwersacyjny wyszukiwarki" },
 };
 let audytSEO = true;
 
 // Każde pytanie idzie do każdego wybranego modelu, więc koszty się sumują.
+// Które zaznaczone opcje przechodzą przez DataForSEO — żeby powiedzieć to PRZED
+// audytem, a nie dopiero błędem 402 po minucie czekania.
+function wymagaDFS() {
+  const l = audytSilniki.filter((k) => SILNIKI[k]?.dfs).map((k) => SILNIKI[k].nazwa);
+  if (audytDostawca !== "seranking") {
+    if (audytSEO) l.push("Widoczność w Google");
+    if (audytAIO) l.push("Widoczność w AI Overviews");
+  }
+  return l.length ? l : null;
+}
+
 function pokrycieRynku() {
   // ChatGPT wprost i ChatGPT przez DataForSEO to TEN SAM silnik — liczenie obu
   // dalo by 172,8% rynku. Sumujemy unikalne udzialy, nie zaznaczenia.
@@ -624,10 +635,9 @@ function renderAudyt() {
       <label class="akcja check"><input type="radio" name="dostawca" value="seranking"
         ${sr ? "checked" : ""}> SE Ranking <span class="cena">rozliczenie w kredytach</span></label>
     </div>
-    ${sr ? `<p class="hint" style="margin:-8px 0 16px">SE Ranking nie pozwala zadać własnego
-      pytania modelowi — sekcja <b>„Jak AI odpowiada na pytania klientów"</b> i tak korzysta
-      z DataForSEO. Ich dane o pozycjach dzielą się na TOP 1-5, nie TOP 3, więc raport
-      podpisze tę liczbę zgodnie z tym, co faktycznie mierzy.</p>` : ""}
+    ${sr ? `<p class="hint" style="margin:-8px 0 16px">Dane o pozycjach dzielą się u nich
+      na <b>TOP 1-5</b>, nie TOP 3 — raport podpisze tę liczbę zgodnie z tym, co
+      faktycznie mierzy. Pytania klientów zadajemy niezależnie, naszym kluczem OpenAI.</p>` : ""}
 
     <div class="mono"><i class="sq"></i>Które modele AI pytamy</div>
     <div class="akcje" style="margin-bottom:10px">
@@ -635,8 +645,12 @@ function renderAudyt() {
         <label class="akcja check"><input type="checkbox" name="silnik" value="${k}"
           ${audytSilniki.includes(k) ? "checked" : ""}> ${m.nazwa}
           <span class="cena">${m.udzial || m.opis} · $${m.koszt}${
-            m.wlasny ? " · nasz klucz" : ""}</span></label>`).join("")}
+            m.wlasny ? " · nasz klucz" : m.dfs ? " · przez DataForSEO" : ""
+          }</span></label>`).join("")}
     </div>
+    ${wymagaDFS() ? `<p class="ostrzezenie-inline">Zaznaczone opcje wymagają konta
+      <b>DataForSEO</b> ze środkami: ${wymagaDFS().join(", ")}. Jeśli saldo jest puste,
+      audyt zakończy się błędem — odznacz je albo doładuj konto.</p>` : ""}
     <p class="hint" style="margin:0 0 16px">
       Każde pytanie trafia do <b>każdego</b> zaznaczonego modelu, więc koszty się sumują.
       Łączny udział wybranych: <b>${pokrycieRynku()}</b> polskiego rynku zapytań do AI.
@@ -656,7 +670,7 @@ function renderAudyt() {
     </div>
     <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>${
       kredyty ? ` + <b class="cena-suma">${kredyty.toLocaleString("pl-PL")} kredytów</b> SE Ranking` : ""}
-      · pytania generuje nasz model, odpowiedzi zbiera Perplexity (18× taniej niż ChatGPT).</p>
+      · pytania układa nasz model, odpowiedzi zbieramy z zaznaczonych silników.</p>
     <button class="akcja glowna generuj-audyt" type="button" style="margin-top:16px">
       <svg class="ico sm"><use href="#i-chart"/></svg>Wygeneruj audyt</button>
   </div>`;

@@ -51,6 +51,16 @@ class BladAPI(RuntimeError):
 # podczas gdy odpowiedź nadal mówiła "Ok". Parsery zobaczyły brak danych i zbudowały
 # raport pełen ZER — gotowy do wysłania partnerowi, z informacją o zerowej widoczności
 # firmy, która ma 748 fraz. Dlatego status zadania sprawdzamy zawsze i twardo.
+# Kody HTTP, które DataForSEO zwraca zamiast normalnej odpowiedzi.
+BLEDY_HTTP = {
+    401: "błędny login lub hasło (sprawdź DATAFORSEO_LOGIN i DATAFORSEO_PASSWORD w .env).",
+    402: "brak środków na koncie. Doładuj konto albo odznacz opcje korzystające "
+         "z DataForSEO — sekcja techniczna i ChatGPT (bezpośrednio) działają bez niego.",
+    403: "dostęp zabroniony — konto może być zawieszone.",
+    404: "nieznany endpoint (błąd po naszej stronie).",
+    429: "zbyt wiele zapytań naraz — spróbuj ponownie za chwilę.",
+}
+
 BLEDY_TRWALE = {
     40201: "Konto DataForSEO zostało tymczasowo zawieszone przez dostawcę "
            "(nietypowa aktywność). Napisz na support@dataforseo.com — do tego czasu "
@@ -78,7 +88,9 @@ def _zapytaj(req: urllib.request.Request, timeout: int) -> dict:
             return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
         except urllib.error.HTTPError as e:
             if e.code < 500:
-                raise                      # 401, 403, 404 — ponawianie nic nie da
+                # Surowe „HTTP Error 402: Payment Required" nic nie mówi użytkownikowi
+                # ani o tym, KTÓRY dostawca zawiódł, ani co z tym zrobić.
+                raise BladAPI(f"DataForSEO: {BLEDY_HTTP.get(e.code, f'błąd HTTP {e.code}')}")
             ostatni = e
         except (urllib.error.URLError, ConnectionResetError, TimeoutError, OSError) as e:
             ostatni = e
