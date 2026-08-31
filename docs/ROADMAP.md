@@ -78,6 +78,24 @@ Nie wolno tego uogólniać w rozmowie z partnerem.
 i TOP3 z Senuto/Ahrefs i z naszego narzędzia. Jeśli proporcja stała → można podać
 przelicznik. Jeśli nie → ta sekcja potrzebuje innego źródła danych.
 
+### ⬜ Ścieżka KLIENCI — własny zestaw zbieranych danych
+Struktura dwóch ścieżek gotowa (commit 9b28f57): nawigacja, filtrowanie w „Pracy",
+ton maila. Ale **model danych jest wciąż partnerski** — zbieramy usługi, zespół,
+realizacje i flagę konkurenta.
+
+Decyzja Adama (31.08.2026): przy kliencie zbieramy **zupełnie inne rzeczy**.
+Ekstrakcji na razie NIE przerabiamy — czekamy na ustalenie, co dokładnie.
+
+Do przemyślenia przy tej rozmowie:
+- flaga `konkurent` znaczy co innego w każdej ścieżce. Agencja SEO dyskwalifikuje
+  i partnera, i klienta. Ale sklep ze słabą widocznością to dla partnera nikt,
+  a dla klienta **najlepszy trop** — czyli przy kliencie interesuje nas potencjał,
+  nie tylko wykluczenie.
+- pola `wielkosc_zespolu`, `case_studies`, `liczba_projektow` służą ocenie partnera.
+  Przy kliencie prawdopodobnie nieistotne.
+- `Firma` to dziś jeden model Pydantic dla obu ścieżek. Rozdzielenie oznacza też
+  osobne kolumny CSV — a te i tak czekają na potwierdzenie nazw z Pipedrive.
+
 ### ⬜ NAJPIERW: sprawdzić, czy sekcja AI Overviews poprawnie liczy i pokazuje dane
 **Priorytet przy pierwszym audycie po doładowaniu** (decyzja Adama, 30.08.2026).
 
