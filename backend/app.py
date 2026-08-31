@@ -33,7 +33,7 @@ from starlette.staticfiles import StaticFiles
 import requests
 from bs4 import BeautifulSoup
 from tavily import TavilyClient
-from agents import Agent, Runner
+from agents import Agent, Runner, WebSearchTool
 
 import audyt
 import dfs
@@ -487,6 +487,38 @@ class Prompty(BaseModel):
     pytania: list[str]
 
 
+# ChatGPT pytany BEZPOŚREDNIO, naszym kluczem OpenAI — bez DataForSEO po drodze.
+# Powód nie jest kosztowy, tylko taki: sekcja z pytaniami klientów to nasza jedyna
+# przewaga nad audytami konkurencji, a szła przez dostawcę, który potrafi zawiesić
+# konto albo wyczerpać saldo i zabrać ją razem z resztą raportu. SE Ranking nie ma
+# odpowiednika tej funkcji (ich AI Search zwraca tylko prompty z własnej bazy),
+# więc bez tego przy wyborze SE Ranking sekcja w ogóle by nie działała.
+agent_pytajacy = Agent(
+    name="pytajacy",
+    instructions=(
+        "Odpowiadasz jak asystent wyszukiwarki na pytanie polskiego klienta. "
+        "Szukaj w sieci i podaj konkretne firmy z nazwy, jeśli pytanie ich dotyczy. "
+        "Pisz po polsku, rzeczowo, bez wstępów."
+    ),
+    tools=[WebSearchTool(search_context_size="medium")],
+    model=MODEL,
+)
+
+
+async def zapytaj_chatgpt_wprost(pytanie: str) -> dict:
+    """Zwraca kształt zgodny z audyt.analizuj_odpowiedz — treść i cytowane URL-e."""
+    wynik = await Runner.run(agent_pytajacy, pytanie)
+    zrodla = []
+    for item in wynik.new_items:
+        surowy = getattr(item, "raw_item", None)
+        for tresc in (getattr(surowy, "content", None) or []):
+            for ad in (getattr(tresc, "annotations", None) or []):
+                url = getattr(ad, "url", None)
+                if url:
+                    zrodla.append(url)
+    return {"tekst": str(wynik.final_output or ""), "zrodla": zrodla}
+
+
 class MarkiWOdpowiedziach(BaseModel):
     marki_per_odpowiedz: list[list[str]]
 
@@ -750,14 +782,26 @@ async def api_audyt(request):
         # inna rozmowa z partnerem.
         koszt = 0.0
         wiersze = []
+        # Sekcja pytań idzie zawsze przez DataForSEO i jest pierwsza w kolejności.
+        # Bez tego przełącznika brak środków u JEDNEGO dostawcy blokował cały audyt,
+        # łącznie z sekcjami, które miał wypełnić drugi. Teraz da się ją pominąć.
+        if not bool(body.get("pytania", True)):
+            silniki = []
         for opis in silniki:
             for i, pytanie in enumerate(pytania, 1):
-                nazwa_f = f"audyt_{domena}_{opis['silnik'][0]}_{i}"
-                odp = await asyncio.to_thread(
-                    audyt.zapytaj_llm, pytanie, opis["silnik"], nazwa_f
-                )
-                koszt += odp.get("cost", 0)
-                w = audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie)
+                if opis.get("wlasny_klucz"):
+                    # własny klucz OpenAI — bez pośrednika, więc i bez jego awarii
+                    surowy = await zapytaj_chatgpt_wprost(pytanie)
+                    w = audyt.z_wlasnego_zapytania(
+                        surowy["tekst"], surowy["zrodla"], nazwa, domena, pytanie)
+                    koszt += opis["koszt"]
+                else:
+                    nazwa_f = f"audyt_{domena}_{opis['silnik'][0]}_{i}"
+                    odp = await asyncio.to_thread(
+                        audyt.zapytaj_llm, pytanie, opis["silnik"], nazwa_f
+                    )
+                    koszt += odp.get("cost", 0)
+                    w = audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie)
                 w["silnik_nazwa"] = opis["nazwa"]
                 w["silnik_udzial"] = opis["udzial"]
                 wiersze.append(w)

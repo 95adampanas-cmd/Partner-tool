@@ -27,6 +27,11 @@ SILNIK_CHATGPT = ("chat_gpt", "gpt-5.6-sol")
 # obsługują wyszukiwanie w sieci, więc odpowiadają na podstawie aktualnych stron,
 # a nie samej pamięci modelu.
 SILNIKI = {
+    # ChatGPT pytany BEZPOŚREDNIO naszym kluczem OpenAI — jedyny silnik, który nie
+    # zależy od DataForSEO ani SE Ranking. Dzięki niemu sekcja z pytaniami klientów
+    # działa niezależnie od tego, który dostawca SEO jest wybrany i czy ma środki.
+    "chatgpt_wprost": {"silnik": ("openai", "wprost"), "nazwa": "ChatGPT (bezpośrednio)",
+                       "udzial": 86.4, "koszt": 0.012, "wlasny_klucz": True},
     "chatgpt":    {"silnik": ("chat_gpt", "o4-mini"), "nazwa": "ChatGPT",
                    "udzial": 86.4, "koszt": 0.109},
     "perplexity": {"silnik": ("perplexity", "sonar"), "nazwa": "Perplexity",
@@ -207,6 +212,26 @@ def analizuj_odpowiedz(odp: dict, marka: str, domena: str, prompt: str) -> dict:
                   if not any(w in m.lower() for w in warianty)],
         "zrodla": zrodla,
         "koszt": wynik.get("money_spent", 0),
+    }
+
+
+def z_wlasnego_zapytania(tekst: str, zrodla: list[str], marka: str,
+                         domena: str, prompt: str) -> dict:
+    """Ten sam wiersz co analizuj_odpowiedz, ale z danych spoza DataForSEO.
+    Używane, gdy pytamy model własnym kluczem — kształt musi być identyczny,
+    bo raport i wszystkie dalsze analizy nie mogą wiedzieć, skąd przyszła odpowiedź."""
+    warianty = warianty_marki(marka, domena)
+    t = (tekst or "").lower()
+    return {
+        "prompt": prompt,
+        "model": "",
+        "odpowiedz": tekst or "",
+        "wspomniana": any(w in t for w in warianty),
+        "cytowana": any(domena.lower() in (u or "").lower() for u in zrodla),
+        "marki": [m for m in _marki_z_tekstu(tekst or "", pomijaj=marka, pytanie=prompt)
+                  if not any(x in m.lower() for x in warianty)],
+        "zrodla": zrodla or [],
+        "koszt": 0,
     }
 
 

@@ -542,7 +542,7 @@ function kopiuj(przycisk) {
 let audytWybrana = null;
 let audytIle = 5;
 let audytDostawca = "dataforseo";
-let audytSilniki = ["perplexity"];   // ktore modele AI pytamy (mozna kilka)   // jeden dostawca na audyt, nigdy dwaj naraz
+let audytSilniki = ["chatgpt_wprost"];   // ktore modele AI pytamy (mozna kilka)   // jeden dostawca na audyt, nigdy dwaj naraz
 let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
@@ -552,6 +552,10 @@ const KOSZT_SEO = 0.04;       // 3 wywolania Labs, zmierzone
 // ChatGPT 3 marki za $0.109. Tanszy dal WIECEJ danych — ale ma 6% rynku PL.
 // Modele potwierdzone darmowym endpointem DataForSEO — wszystkie z wyszukiwaniem w sieci.
 const SILNIKI = {
+  // Jedyny silnik na naszym wlasnym kluczu — dziala niezaleznie od DataForSEO
+  // i SE Ranking, wiec sekcja pytan nie pada razem z dostawca SEO.
+  chatgpt_wprost: { nazwa: "ChatGPT (bezpośrednio)", udzial: "86,4%", koszt: 0.012,
+                    wlasny: true },
   chatgpt:    { nazwa: "ChatGPT",       udzial: "86,4%", koszt: 0.109 },
   perplexity: { nazwa: "Perplexity",    udzial: "6,18%", koszt: 0.006 },
   gemini:     { nazwa: "Google Gemini", udzial: "3,22%", koszt: 0.020 },
@@ -565,8 +569,10 @@ let audytSEO = true;
 
 // Każde pytanie idzie do każdego wybranego modelu, więc koszty się sumują.
 function pokrycieRynku() {
-  const suma = audytSilniki.reduce(
-    (s, k) => s + parseFloat((SILNIKI[k]?.udzial || "0%").replace(",", ".")), 0);
+  // ChatGPT wprost i ChatGPT przez DataForSEO to TEN SAM silnik — liczenie obu
+  // dalo by 172,8% rynku. Sumujemy unikalne udzialy, nie zaznaczenia.
+  const udzialy = new Set(audytSilniki.map((k) => SILNIKI[k]?.udzial).filter(Boolean));
+  const suma = [...udzialy].reduce((s, u) => s + parseFloat(u.replace(",", ".")), 0);
   return suma.toFixed(1).replace(".", ",") + "%";
 }
 
@@ -628,7 +634,8 @@ function renderAudyt() {
       ${Object.entries(SILNIKI).map(([k, m]) => `
         <label class="akcja check"><input type="checkbox" name="silnik" value="${k}"
           ${audytSilniki.includes(k) ? "checked" : ""}> ${m.nazwa}
-          <span class="cena">${m.udzial || m.opis} · $${m.koszt}</span></label>`).join("")}
+          <span class="cena">${m.udzial || m.opis} · $${m.koszt}${
+            m.wlasny ? " · nasz klucz" : ""}</span></label>`).join("")}
     </div>
     <p class="hint" style="margin:0 0 16px">
       Każde pytanie trafia do <b>każdego</b> zaznaczonego modelu, więc koszty się sumują.
