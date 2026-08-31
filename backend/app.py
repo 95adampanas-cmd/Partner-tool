@@ -727,6 +727,8 @@ async def api_audyt(request):
         z_aio = bool(body.get("ai_overview", True))
         # Jeden dostawca na audyt — nigdy dwaj naraz.
         dostawca = (body.get("dostawca") or "dataforseo").lower()
+        klucz_silnika = (body.get("silnik") or "perplexity").lower()
+        opis_silnika = audyt.SILNIKI.get(klucz_silnika) or audyt.SILNIKI["perplexity"]
         koszt_kredytow = 0
 
         nazwa = firma.get("nazwa") or ""
@@ -747,7 +749,7 @@ async def api_audyt(request):
         wiersze = []
         for i, pytanie in enumerate(pytania, 1):
             odp = await asyncio.to_thread(
-                audyt.zapytaj_llm, pytanie, audyt.SILNIK_DOMYSLNY, f"audyt_{domena}_{i}"
+                audyt.zapytaj_llm, pytanie, opis_silnika["silnik"], f"audyt_{domena}_{i}"
             )
             koszt += odp.get("cost", 0)
             wiersze.append(audyt.analizuj_odpowiedz(odp, nazwa, domena, pytanie))
@@ -831,6 +833,7 @@ async def api_audyt(request):
 
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
         raport["dostawca"] = dostawca
+        raport["silnik"] = {"nazwa": opis_silnika["nazwa"], "udzial": opis_silnika["udzial"]}
         raport["koszt_kredytow"] = koszt_kredytow
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne

@@ -350,6 +350,7 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
   if (e.target.name === "dostawca") { audytDostawca = e.target.value; return renderAudyt(); }
+  if (e.target.name === "silnik") { audytSilnik = e.target.value; return renderAudyt(); }
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
   if (e.target.checked) {
@@ -535,12 +536,19 @@ function kopiuj(przycisk) {
 // Jedyna PŁATNA funkcja (DataForSEO) — pokazujemy koszt zanim user kliknie.
 let audytWybrana = null;
 let audytIle = 5;
-let audytDostawca = "dataforseo";   // jeden dostawca na audyt, nigdy dwaj naraz
+let audytDostawca = "dataforseo";
+let audytSilnik = "perplexity";     // ktory model AI pytamy   // jeden dostawca na audyt, nigdy dwaj naraz
 let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
 const KOSZT_AIO = 0.11;       // llm_mentions, zmierzone
 const KOSZT_SEO = 0.04;       // 3 wywolania Labs, zmierzone
+// Zmierzone na tym samym prompcie: Perplexity dal 9 marek za $0.006,
+// ChatGPT 3 marki za $0.109. Tanszy dal WIECEJ danych — ale ma 6% rynku PL.
+const SILNIKI = {
+  perplexity: { nazwa: "Perplexity", udzial: "6,18%", koszt: 0.006 },
+  chatgpt:    { nazwa: "ChatGPT",    udzial: "86,4%", koszt: 0.109 },
+};
 let audytSEO = true;
 
 function renderAudyt() {
@@ -568,8 +576,8 @@ function renderAudyt() {
   // SE Ranking rozlicza sie w kredytach, nie w dolarach — pokazujemy wlasciwa jednostke,
   // zamiast przeliczac jedno na drugie i sugerowac porownywalnosc, ktorej nie ma.
   const koszt = sr
-    ? (audytIle * KOSZT_PROMPT).toFixed(3)
-    : (audytIle * KOSZT_PROMPT + (audytAIO ? KOSZT_AIO : 0)
+    ? (audytIle * SILNIKI[audytSilnik].koszt).toFixed(3)
+    : (audytIle * SILNIKI[audytSilnik].koszt + (audytAIO ? KOSZT_AIO : 0)
        + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
   const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 : 0)) : 0;
   wybor.innerHTML = `<div class="card">
@@ -591,6 +599,20 @@ function renderAudyt() {
       pytania modelowi — sekcja <b>„Jak AI odpowiada na pytania klientów"</b> i tak korzysta
       z DataForSEO. Ich dane o pozycjach dzielą się na TOP 1-5, nie TOP 3, więc raport
       podpisze tę liczbę zgodnie z tym, co faktycznie mierzy.</p>` : ""}
+
+    <div class="mono"><i class="sq"></i>Który model AI pytamy</div>
+    <div class="akcje" style="margin-bottom:16px">
+      ${Object.entries(SILNIKI).map(([k, m]) => `
+        <label class="akcja check"><input type="radio" name="silnik" value="${k}"
+          ${audytSilnik === k ? "checked" : ""}> ${m.nazwa}
+          <span class="cena">${m.udzial} rynku PL · $${m.koszt}/pytanie</span></label>`).join("")}
+    </div>
+    ${audytSilnik === "perplexity" ? `<p class="hint" style="margin:-8px 0 16px">
+      Perplexity jest 18× tańszy i w teście dał <b>więcej</b> nazw konkurencyjnych marek.
+      Ma jednak 6% polskiego rynku — jeśli rozmowa dotyczy widoczności w ChatGPT,
+      wybierz ChatGPT, mimo kosztu.</p>` : `<p class="hint" style="margin:-8px 0 16px">
+      ChatGPT to 86,4% polskiego rynku, ale kosztuje <b>18× więcej</b> za pytanie
+      i w naszym teście wymienił mniej marek konkurencyjnych.</p>`}
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
@@ -620,7 +642,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silnik: audytSilnik,
                              ai_overview: audytAIO, seo: audytSEO }),
     });
     const data = await res.json();
@@ -665,6 +687,10 @@ function raportHTML(r) {
       <p class="wiodacy">Sprawdziliśmy, jak modele AI odpowiadają na pytania, które zadaje realny
         klient szukający takich usług. <b>W żadnym z pytań nie padła nazwa firmy</b> — mierzymy,
         czy sztuczna inteligencja wskaże ją samodzielnie.</p>
+      ${r.silnik ? `<p class="metodyka" style="margin-bottom:0;border-bottom:0;padding-bottom:0">
+        Pytania zadaliśmy modelowi <b>${esc(r.silnik.nazwa)}</b>, który odpowiada za
+        <b>${String(r.silnik.udzial).replace(".", ",")}%</b> zapytań do AI w Polsce
+        (udziały rynkowe — sekcja dalej).</p>` : ""}
       <p class="metodyka">Ma to znaczenie przy porównywaniu z innymi analizami. Narzędzia
         monitorujące pytają zwykle wprost o markę („Kim są…", „oferta firmy…") i sprawdzają, czy
         model ją zna — tam wynik bywa bliski 100%. My zadajemy pytania klienta, który firmy

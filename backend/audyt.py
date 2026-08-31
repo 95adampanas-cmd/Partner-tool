@@ -19,6 +19,17 @@ import dfs
 SILNIK_DOMYSLNY = ("perplexity", "sonar")
 SILNIK_CHATGPT = ("chat_gpt", "gpt-5.6-sol")
 
+# Który silnik pytamy — wybiera użytkownik. Udział w rynku PL jest tu istotny:
+# raport pokazuje wykres, na którym ChatGPT ma 86,4%, więc badanie wyłącznie
+# Perplexity (6,18%) tworzy niespójność między tym, co mówimy, a co mierzymy.
+# Raport musi napisać wprost, którego modelu pytaliśmy i jaki ma udział.
+SILNIKI = {
+    "perplexity": {"silnik": SILNIK_DOMYSLNY, "nazwa": "Perplexity",
+                   "udzial": 6.18, "koszt": 0.006},
+    "chatgpt":    {"silnik": SILNIK_CHATGPT, "nazwa": "ChatGPT",
+                   "udzial": 86.4, "koszt": 0.109},
+}
+
 LOKALIZACJA_PL = 2616
 JEZYK_PL = "Polish"
 
