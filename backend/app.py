@@ -38,6 +38,7 @@ from agents import Agent, Runner
 import audyt
 import dfs
 import geo
+import seranking
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
@@ -724,6 +725,9 @@ async def api_audyt(request):
         firma = body.get("firma") or {}
         ile = int(body.get("ile_promptow") or 5)
         z_aio = bool(body.get("ai_overview", True))
+        # Jeden dostawca na audyt — nigdy dwaj naraz.
+        dostawca = (body.get("dostawca") or "dataforseo").lower()
+        koszt_kredytow = 0
 
         nazwa = firma.get("nazwa") or ""
         # .lower() JEST KONIECZNE. DataForSEO dopasowuje domenę wrażliwie na wielkość liter:
@@ -774,23 +778,50 @@ async def api_audyt(request):
         except Exception:
             techniczne = None
 
-        # 3) AI Overview (opcjonalnie — najdroższy pojedynczy element)
+        # 3) AI Overview — u SE Ranking to inny endpoint i inna jednostka rozliczeniowa
+        if z_aio and dostawca == "seranking":
+            try:
+                sr, k = await asyncio.to_thread(
+                    seranking.wzmianki_ai, domena, "ai-overview", 10, f"audyt_{domena}")
+                koszt_kredytow += k
+                aio = seranking.analizuj_wzmianki(sr, domena)
+            except seranking.BladAPI as e:
+                raise dfs.BladAPI(str(e))
+
+        # 3b) AI Overview przez DataForSEO (opcjonalnie — najdroższy pojedynczy element)
         aio = None
-        if z_aio:
+        if z_aio and dostawca != "seranking":
             odp_aio = await asyncio.to_thread(
                 audyt.wzmianki_ai_overview, domena, 10, f"audyt_aio_{domena}"
             )
             koszt += odp_aio.get("cost", 0)
             aio = audyt.analizuj_ai_overview(odp_aio, domena)
 
-        # 4) Klasyczne SEO — „Raport Zero" (3 wywołania Labs, razem ~$0.04)
+        # 4) Klasyczne SEO — „Raport Zero"
+        # Dostawcę wybiera użytkownik przed audytem i NIGDY nie mieszamy dwóch
+        # w jednym dokumencie: jedna liczba, jedno podpisane źródło. Różnice znaczeń
+        # (SE Ranking nie ma koszyka TOP 3, tylko TOP 5) niesie pole `etykieta_czolo`,
+        # żeby raport nie podpisał liczby nazwą metryki, której nie dotyczy.
         seo = None
         if bool(body.get("seo", True)):
-            rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
-                audyt.dane_seo, domena, f"audyt_seo_{domena}"
-            )
-            koszt += k
-            seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy, ruch_konk)
+            if dostawca == "seranking":
+                ov, fr, kk, st, k = await asyncio.to_thread(
+                    seranking.dane_seo, domena, f"audyt_{domena}")
+                koszt_kredytow += k
+                dom_konk = [c.get("domain", "").lower() for c in
+                            (kk if isinstance(kk, list) else (kk or {}).get("competitors") or [])
+                            if c.get("domain")][:8]
+                ruch_k, k2 = await asyncio.to_thread(
+                    seranking.ruch_domen, dom_konk, f"audyt_{domena}")
+                koszt_kredytow += k2
+                seo = seranking.analizuj_seo(ov, fr, kk, st, domena, ruch_k, audyt.PORTALE)
+                frazy = fr
+            else:
+                rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
+                    audyt.dane_seo, domena, f"audyt_seo_{domena}"
+                )
+                koszt += k
+                seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy, ruch_konk)
 
             # 4b) Luka GEO — zestawienie pozycji w Google z obecnoscia w AI Overview.
             # Wymaga danych z AIO (kto nas cytuje), wiec tylko gdy wlaczone.
@@ -804,6 +835,8 @@ async def api_audyt(request):
                 seo["luka"] = luka
 
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
+        raport["dostawca"] = dostawca
+        raport["koszt_kredytow"] = koszt_kredytow
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne
 

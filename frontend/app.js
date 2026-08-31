@@ -349,6 +349,7 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
+  if (e.target.name === "dostawca") { audytDostawca = e.target.value; return renderAudyt(); }
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
   if (e.target.checked) {
@@ -534,6 +535,7 @@ function kopiuj(przycisk) {
 // Jedyna PŁATNA funkcja (DataForSEO) — pokazujemy koszt zanim user kliknie.
 let audytWybrana = null;
 let audytIle = 5;
+let audytDostawca = "dataforseo";   // jeden dostawca na audyt, nigdy dwaj naraz
 let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
@@ -562,8 +564,14 @@ function renderAudyt() {
     return;
   }
 
-  const koszt = (audytIle * KOSZT_PROMPT + (audytAIO ? KOSZT_AIO : 0)
-                 + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
+  const sr = audytDostawca === "seranking";
+  // SE Ranking rozlicza sie w kredytach, nie w dolarach — pokazujemy wlasciwa jednostke,
+  // zamiast przeliczac jedno na drugie i sugerowac porownywalnosc, ktorej nie ma.
+  const koszt = sr
+    ? (audytIle * KOSZT_PROMPT).toFixed(3)
+    : (audytIle * KOSZT_PROMPT + (audytAIO ? KOSZT_AIO : 0)
+       + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
+  const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 : 0)) : 0;
   wybor.innerHTML = `<div class="card">
     <div class="wzor-head">
       <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
@@ -572,6 +580,18 @@ function renderAudyt() {
     </div>
   </div>
   <div class="card">
+    <div class="mono"><i class="sq"></i>Źródło danych SEO</div>
+    <div class="akcje" style="margin-bottom:16px">
+      <label class="akcja check"><input type="radio" name="dostawca" value="dataforseo"
+        ${!sr ? "checked" : ""}> DataForSEO <span class="cena">rozliczenie w $</span></label>
+      <label class="akcja check"><input type="radio" name="dostawca" value="seranking"
+        ${sr ? "checked" : ""}> SE Ranking <span class="cena">rozliczenie w kredytach</span></label>
+    </div>
+    ${sr ? `<p class="hint" style="margin:-8px 0 16px">SE Ranking nie pozwala zadać własnego
+      pytania modelowi — sekcja <b>„Jak AI odpowiada na pytania klientów"</b> i tak korzysta
+      z DataForSEO. Ich dane o pozycjach dzielą się na TOP 1-5, nie TOP 3, więc raport
+      podpisze tę liczbę zgodnie z tym, co faktycznie mierzy.</p>` : ""}
+
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
       <label class="akcja check"><input type="checkbox" id="audyt-seo" ${audytSEO ? "checked" : ""}>
@@ -582,7 +602,8 @@ function renderAudyt() {
         <input type="range" id="audyt-ile" min="3" max="10" value="${audytIle}" style="width:110px">
         <b>${audytIle}</b></label>
     </div>
-    <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>
+    <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>${
+      kredyty ? ` + <b class="cena-suma">${kredyty.toLocaleString("pl-PL")} kredytów</b> SE Ranking` : ""}
       · pytania generuje nasz model, odpowiedzi zbiera Perplexity (18× taniej niż ChatGPT).</p>
     <button class="akcja glowna generuj-audyt" type="button" style="margin-top:16px">
       <svg class="ico sm"><use href="#i-chart"/></svg>Wygeneruj audyt</button>
@@ -599,7 +620,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca,
                              ai_overview: audytAIO, seo: audytSEO }),
     });
     const data = await res.json();
@@ -656,7 +677,7 @@ function raportHTML(r) {
       ${naglowekSekcji(++nr, "Widoczność w Google")}
       <div class="liczby">
         ${liczba(r.seo.ruch.toLocaleString("pl-PL"), "szacowany ruch organiczny / mies.")}
-        ${liczba(r.seo.top3, "fraz w TOP 3")}
+        ${liczba(r.seo.top3, r.seo.etykieta_czolo || "fraz w TOP 3")}
         ${liczba(r.seo.top10, "fraz w TOP 10")}
         ${liczba(r.seo.fraz_lacznie, "fraz widocznych łącznie")}
       </div>
