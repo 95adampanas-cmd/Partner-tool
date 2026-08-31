@@ -47,14 +47,28 @@
   </div>
 
   <nav class="nav">
-    <div class="nav-grupa mono">Pozyskiwanie</div>
-    <button class="nav-item aktywny" data-sekcja="research">
+    <!-- Dwie ścieżki pozyskiwania. Te same trzy narzędzia, ale inny cel, więc inne
+         kryteria: dla partnera agencja SEO to konkurent, dla klienta sklep ze słabą
+         widocznością to najlepszy trop. Sekcje są te same — przełącznik ustawia tryb. -->
+    <div class="nav-grupa mono">Partnerzy</div>
+    <button class="nav-item aktywny" data-sekcja="research" data-tryb="partner">
       <svg class="ico"><use href="#i-link"/></svg><span>Research po URL</span>
     </button>
-    <button class="nav-item" data-sekcja="szukaj">
+    <button class="nav-item" data-sekcja="szukaj" data-tryb="partner">
       <svg class="ico"><use href="#i-target"/></svg><span>Szukaj po branży</span>
     </button>
-    <button class="nav-item" data-sekcja="podobne">
+    <button class="nav-item" data-sekcja="podobne" data-tryb="partner">
+      <svg class="ico"><use href="#i-layers"/></svg><span>Szukaj podobnych</span>
+    </button>
+
+    <div class="nav-grupa mono">Klienci</div>
+    <button class="nav-item" data-sekcja="research" data-tryb="klient">
+      <svg class="ico"><use href="#i-link"/></svg><span>Research po URL</span>
+    </button>
+    <button class="nav-item" data-sekcja="szukaj" data-tryb="klient">
+      <svg class="ico"><use href="#i-target"/></svg><span>Szukaj po branży</span>
+    </button>
+    <button class="nav-item" data-sekcja="podobne" data-tryb="klient">
       <svg class="ico"><use href="#i-layers"/></svg><span>Szukaj podobnych</span>
     </button>
 
@@ -79,7 +93,7 @@
 <main class="main">
 
   <section class="sekcja aktywna" data-sekcja="research">
-    <header class="sekcja-head">
+    <header class="sekcja-head" data-tryb-naglowek>
       <h1>Research po URL</h1>
       <p>Wklej adres firmy — zbierzemy usługi, zespół, realizacje, dane spółki i osobę decyzyjną.
         Oznaczymy, czy to konkurent. <b>Ocenę robisz Ty.</b></p>
@@ -93,7 +107,7 @@
   </section>
 
   <section class="sekcja" data-sekcja="szukaj">
-    <header class="sekcja-head">
+    <header class="sekcja-head" data-tryb-naglowek>
       <h1>Szukaj po branży</h1>
       <p>Nie masz firmy na start? Rozpisujemy branżę na kilka fraz naraz, żeby wyjść poza
         pierwszą dziesiątkę Google — i odsiewamy katalogi oraz martwe strony.</p>
@@ -111,7 +125,7 @@
   </section>
 
   <section class="sekcja" data-sekcja="podobne">
-    <header class="sekcja-head">
+    <header class="sekcja-head" data-tryb-naglowek>
       <h1>Szukaj podobnych</h1>
       <p>Wybierz zbadaną firmę i zaznacz usługi, które mają definiować podobieństwo.
         <b>To Ty decydujesz, co znaczy „podobna".</b></p>

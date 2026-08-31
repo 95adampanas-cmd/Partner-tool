@@ -626,6 +626,8 @@ async def api_research(request):
         firma = wynik.final_output.model_dump()
         firma["url"] = url
         firma["zrodlo_danych"] = odwiedzone
+        # ścieżka, w której firma została zbadana — „Praca" rozdziela po niej listy
+        firma["tryb"] = (body.get("tryb") or "partner").lower()
         return JSONResponse({"ok": True, "firma": firma})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})

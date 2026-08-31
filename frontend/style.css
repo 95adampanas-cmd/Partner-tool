@@ -189,6 +189,34 @@ button { font-family: var(--sans); }
 .pusto p { margin: 0; }
 .pusto span { color: var(--faint); font-size: 13.5px; }
 
+/* Przełącznik ścieżki — partnerzy / klienci. Segmentowany, bo to wybór kontekstu,
+   nie akcja: pokazuje obie opcje naraz z licznikiem, żeby było widać, gdzie co leży. */
+.znacznik-tryb {
+  display: block; margin: -2px 0 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--orange);
+}
+.znacznik-tryb::first-line { font-weight: 500; }
+
+.przelacznik-tryb {
+  display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 16px;
+  background: var(--surface); border: 1px solid var(--border-soft); border-radius: 10px;
+}
+.tryb-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-family: var(--sans); font-size: 13.5px; font-weight: 500;
+  padding: 7px 15px; border-radius: 7px; transition: color .14s, background .14s;
+}
+.tryb-btn:hover { color: var(--text); }
+.tryb-btn.aktywny { background: rgba(255,255,255,.07); color: var(--text); }
+.tryb-btn em {
+  font-family: var(--mono); font-style: normal; font-size: 10.5px;
+  color: var(--faint); background: rgba(255,255,255,.05);
+  padding: 1px 6px; border-radius: 999px;
+}
+.tryb-btn.aktywny em { color: var(--orange); background: rgba(240,78,42,.12); }
+
 /* ══ KARTY ══ */
 .card {
   background: var(--surface);

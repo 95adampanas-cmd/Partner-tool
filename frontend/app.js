@@ -7,6 +7,18 @@ let tabSeq = 0;
 let koszyk = [];     // firmy zaznaczone do eksportu
 let kolumny = [];    // definicja kolumn CSV — z backendu (jedno źródło prawdy)
 
+// Dwie ścieżki pozyskiwania: partnerzy i klienci. To NIE jest tylko etykieta —
+// zmienia kryteria oceny (dla partnera agencja SEO to konkurent, dla klienta
+// sklep ze słabą widocznością to najlepszy trop) i ton maila. Każda zbadana firma
+// pamięta, w której ścieżce powstała, więc „Praca" potrafi je rozdzielić.
+let tryb = "partner";
+const TRYBY = {
+  partner: { nazwa: "Partnerzy", jeden: "partnera",
+             opis: "Firmy, które mogą polecać nas swoim klientom albo odsprzedawać nasze usługi." },
+  klient:  { nazwa: "Klienci", jeden: "klienta",
+             opis: "Firmy, które mogą kupić SEO/GEO — im słabsza widoczność, tym większy potencjał." },
+};
+
 fetch("/api/columns").then((r) => r.json()).then((d) => { kolumny = d.kolumny || []; });
 
 // ══ Nawigacja między sekcjami ══
@@ -14,15 +26,25 @@ function pokazSekcje(nazwa) {
   document.querySelectorAll(".sekcja").forEach((s) =>
     s.classList.toggle("aktywna", s.dataset.sekcja === nazwa));
   document.querySelectorAll(".nav-item").forEach((b) =>
-    b.classList.toggle("aktywny", b.dataset.sekcja === nazwa));
+    b.classList.toggle("aktywny", b.dataset.sekcja === nazwa
+      && (!b.dataset.tryb || b.dataset.tryb === tryb)));
   if (nazwa === "eksport") renderEksport();
   if (nazwa === "podobne") renderPodobne();
   if (nazwa === "audyt") renderAudyt();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
+  // Sekcje pozyskiwania są wspólne dla obu ścieżek, więc muszą powiedzieć,
+  // w której jesteśmy — inaczej nie wiadomo, czy badamy partnera czy klienta.
+  document.querySelectorAll("[data-tryb-naglowek] .znacznik-tryb").forEach((e) => e.remove());
+  document.querySelectorAll("[data-tryb-naglowek] h1").forEach((h) =>
+    h.insertAdjacentHTML("afterend",
+      `<span class="znacznik-tryb">${TRYBY[tryb].nazwa} · ${esc(TRYBY[tryb].opis)}</span>`));
   window.scrollTo(0, 0);
 }
 document.querySelectorAll(".nav-item").forEach((b) =>
-  b.addEventListener("click", () => pokazSekcje(b.dataset.sekcja)));
+  b.addEventListener("click", () => {
+    if (b.dataset.tryb) tryb = b.dataset.tryb;
+    pokazSekcje(b.dataset.sekcja);
+  }));
 
 // ══ SEKCJA: Research po URL ══
 const form = document.getElementById("form");
@@ -56,7 +78,7 @@ async function research(url) {
   const res = await fetch("/api/research", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, tryb }),
   });
   return res.json();
 }
@@ -78,7 +100,7 @@ const ZBIERAMY = [
 function renderResearchPanel() {
   const box = document.getElementById("research-panel");
 
-  if (!tabs.length) {
+  if (!firmyTrybu().length) {
     box.innerHTML = `<div class="card panel-info">
       <div class="mono"><i class="sq"></i>Co zbierzemy ze strony</div>
       <div class="siatka-info">${ZBIERAMY.map(([ikona, tytul, opis]) => `
@@ -91,12 +113,13 @@ function renderResearchPanel() {
     return;
   }
 
-  const konkurenci = tabs.filter((t) => t.firma.konkurent).length;
-  const ostatnie = tabs.slice(-4).reverse();
+  const moje = firmyTrybu();
+  const konkurenci = moje.filter((t) => t.firma.konkurent).length;
+  const ostatnie = moje.slice(-4).reverse();
   box.innerHTML = `
     <div class="kafle">
-      ${kafel(tabs.length, "zbadane firmy", "building")}
-      ${kafel(koszyk.length, "w eksporcie", "table")}
+      ${kafel(moje.length, "zbadane firmy", "building")}
+      ${kafel(koszyk.filter((f) => (f.tryb || "partner") === tryb).length, "w eksporcie", "table")}
       ${kafel(konkurenci, konkurenci === 1 ? "konkurent" : "konkurenci", "alert")}
     </div>
     <div class="card">
@@ -145,7 +168,7 @@ formKryteria.addEventListener("submit", async (e) => {
     const res = await fetch("/api/szukaj", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branza, miasto }),
+      body: JSON.stringify({ branza, miasto, tryb }),
     });
     const data = await res.json();
     szukajWynik.innerHTML = data.ok ? listaFirmHTML(data, "Znalezione firmy") : errorHTML(data.error);
@@ -161,10 +184,10 @@ function otworzFirme(firma) {
   let wpis = tabs.find((t) => t.firma.url === firma.url);
   if (!wpis) {
     const id = "tab" + ++tabSeq;
-    wpis = { id, nazwa: hostname(firma.url), firma };
+    wpis = { id, nazwa: hostname(firma.url), firma, tryb: firma.tryb || tryb };
     tabs.push(wpis);
     document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, firma));
-    odswiezBadge("badge-firmy", tabs.length);
+    odswiezBadge("badge-firmy", firmyTrybu().length);
     renderResearchPanel();
   }
   pokazSekcje("firmy");
@@ -176,7 +199,7 @@ function pokazListe() {
   activeId = null;
   document.getElementById("firmy-detal").hidden = true;
   document.getElementById("firmy-lista").hidden = false;
-  document.getElementById("firmy-pusto").hidden = tabs.length > 0;
+  document.getElementById("firmy-pusto").hidden = firmyTrybu().length > 0;
   document.getElementById("firmy-head").hidden = false;
   renderListeFirm();
 }
@@ -194,8 +217,25 @@ function pokazDetal(id) {
   window.scrollTo(0, 0);
 }
 
+// Wszystkie sekcje „Pracy" pokazują wyłącznie firmy z aktywnej ścieżki.
+// Bez tego audyt partnera i audyt klienta lądowałyby na jednej liście, a to
+// dwa różne procesy sprzedażowe.
+function firmyTrybu() {
+  return tabs.filter((t) => (t.tryb || "partner") === tryb);
+}
+
+function przelacznikTrybu() {
+  return `<div class="przelacznik-tryb">
+    ${Object.entries(TRYBY).map(([k, t]) => `
+      <button class="tryb-btn ${tryb === k ? "aktywny" : ""}" data-ustaw-tryb="${k}"
+        type="button">${t.nazwa}
+        <em>${tabs.filter((x) => (x.tryb || "partner") === k).length}</em></button>`).join("")}
+  </div>`;
+}
+
 function renderListeFirm() {
-  document.getElementById("firmy-lista").innerHTML = tabs.map((t) => {
+  const lista = firmyTrybu();
+  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + lista.map((t) => {
     const f = t.firma;
     const wKoszyku = koszyk.some((k) => k.url === f.url);
     return `<div class="firma-row" data-id="${t.id}">
@@ -220,7 +260,7 @@ function renderListeFirm() {
 function usunFirme(id) {
   tabs = tabs.filter((t) => t.id !== id);
   document.querySelector(`#panels .panel[data-id="${id}"]`)?.remove();
-  odswiezBadge("badge-firmy", tabs.length);
+  odswiezBadge("badge-firmy", firmyTrybu().length);
   renderResearchPanel();
   pokazListe();
 }
@@ -359,6 +399,12 @@ document.addEventListener("change", (e) => {
     }
     return renderAudyt();
   }
+  const btnTryb = e.target.closest("[data-ustaw-tryb]");
+  if (btnTryb) {
+    tryb = btnTryb.dataset.ustawTryb;
+    const sekcja = document.querySelector(".sekcja.aktywna")?.dataset.sekcja;
+    return pokazSekcje(sekcja || "firmy");
+  }
   if (e.target.name === "silnik_sr") { audytSilnikSR = e.target.value; return renderAudyt(); }
   if (e.target.name === "silnik") {
     const v = e.target.value;
@@ -369,11 +415,17 @@ document.addEventListener("change", (e) => {
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
   if (e.target.checked) {
-    if (!koszyk.some((k) => k.url === firma.url)) koszyk.push(firma);
+    if (!koszyk.some((k) => k.url === firma.url)) {
+      // ścieżka bierze się z wpisu firmy, nie z aktualnie oglądanej zakładki —
+      // firma zbadana jako klient ma trafić do eksportu klientów, nawet gdy
+      // dodajemy ją będąc w widoku partnerów
+      const w = tabs.find((t) => t.firma.url === firma.url);
+      koszyk.push({ ...firma, tryb: (w && w.tryb) || firma.tryb || tryb });
+    }
   } else {
     koszyk = koszyk.filter((k) => k.url !== firma.url);
   }
-  odswiezBadge("badge-eksport", koszyk.length);
+  odswiezBadge("badge-eksport", koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
   renderEksport();
   renderListeFirm(); // odśwież znacznik „w eksporcie" na liście
   renderResearchPanel();
@@ -612,17 +664,20 @@ function kosztSilnikow() {
 
 function renderAudyt() {
   const wybor = document.getElementById("audyt-wybor");
-  if (!tabs.length) {
-    wybor.innerHTML = `<div class="pusto"><svg class="ico xl"><use href="#i-inbox"/></svg>
-      <p>Najpierw zbadaj firmę.<br><span>Audyt robimy dla firmy z sekcji <b>Firmy</b>.</span></p></div>`;
+  const dostepne = firmyTrybu();
+  if (!dostepne.length) {
+    wybor.innerHTML = przelacznikTrybu() +
+      `<div class="pusto"><svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Brak zbadanych firm w ścieżce <b>${TRYBY[tryb].nazwa}</b>.<br>
+      <span>${esc(TRYBY[tryb].opis)}</span></p></div>`;
     return;
   }
-  const wpis = tabs.find((t) => t.id === audytWybrana);
+  const wpis = dostepne.find((t) => t.id === audytWybrana);
 
   if (!wpis) {
-    wybor.innerHTML = `<div class="card">
+    wybor.innerHTML = przelacznikTrybu() + `<div class="card">
       <div class="mono"><i class="sq"></i>Wybierz firmę do audytu</div>
-      <div class="similar-list">${tabs.map((t) => `
+      <div class="similar-list">${dostepne.map((t) => `
         <div class="sim-row wybierz-audyt" data-id="${t.id}">
           <div class="sim-info"><span class="sim-name">${esc(t.firma.nazwa)}</span>
             <span class="firma-row-meta">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</span></div>
@@ -1109,19 +1164,22 @@ function przytnij(tekst, limit) {
 // ══ SEKCJA: Eksport ══
 function renderEksport() {
   const box = document.getElementById("eksport-box");
-  if (!koszyk.length) {
-    box.innerHTML = `<div class="pusto">Koszyk pusty — zaznacz „Dodaj do eksportu" na karcie firmy.</div>`;
+  const doEksportu = koszyk.filter((f) => (f.tryb || "partner") === tryb);
+  if (!doEksportu.length) {
+    box.innerHTML = przelacznikTrybu() +
+      `<div class="pusto">Brak firm w ścieżce <b>${TRYBY[tryb].nazwa}</b> —
+       zaznacz „Dodaj do eksportu" na karcie firmy.</div>`;
     return;
   }
   const naglowki = kolumny.map((k) => `<th>${esc(k.naglowek)}</th>`).join("");
-  const wiersze = koszyk.map((f) =>
+  const wiersze = doEksportu.map((f) =>
     `<tr>${kolumny.map((k) => {
       const v = komorka(f[k.klucz]);
       return `<td class="${v === BRAK ? "brak" : ""}">${esc(v)}</td>`;
     }).join("")}</tr>`).join("");
 
   box.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> Do eksportu (${koszyk.length})</div>
+    <div class="mono"><span class="sq"></span> Do eksportu — ${TRYBY[tryb].nazwa} (${doEksportu.length})</div>
     <p class="hint">Dokładnie te kolumny i wartości trafią do pliku CSV.</p>
     <div class="tabela-scroll"><table class="tabela">
       <thead><tr>${naglowki}</tr></thead><tbody>${wiersze}</tbody>
@@ -1140,7 +1198,8 @@ async function pobierzCSV() {
   const res = await fetch("/api/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ firmy: koszyk }),
+    // eksportujemy tylko aktywną ścieżkę — jeden plik CSV = jeden proces sprzedażowy
+    body: JSON.stringify({ firmy: koszyk.filter((f) => (f.tryb || "partner") === tryb) }),
   });
   if (!res.ok) return alert("Nie udało się wyeksportować.");
   const blob = await res.blob();
