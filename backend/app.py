@@ -850,8 +850,8 @@ async def api_audyt(request):
                 koszt_kredytow += k
                 aio = seranking.analizuj_wzmianki(sr, domena)
                 aio["silnik_nazwa"] = seranking.SILNIKI_AI[silnik_sr]
-            except seranking.BladAPI as e:
-                raise dfs.BladAPI(str(e))
+            except seranking.BladAPI:
+                raise
 
         # 3b) AI Overview przez DataForSEO (opcjonalnie — najdroższy pojedynczy element)
         aio = None
@@ -918,9 +918,12 @@ async def api_audyt(request):
             print(f"  raport zapisany: {plik.name}")
         except Exception as e:
             print(f"  (nie udalo sie zapisac raportu: {e})")
-        raport["saldo_po"] = dfs.saldo()
+        # Saldo pytamy TYLKO tego dostawcy, którego faktycznie użyliśmy.
+        # Wcześniej szło bezwarunkowo, więc audyt „na SE Ranking" i tak zaglądał
+        # do DataForSEO — nieszkodliwie, ale wbrew zasadzie rozdzielenia.
+        raport["saldo_po"] = dfs.saldo() if dostawca != "seranking" else None
         return JSONResponse({"ok": True, "raport": raport})
-    except dfs.BladAPI as e:
+    except (dfs.BladAPI, seranking.BladAPI) as e:
         # Awaria po stronie DataForSEO. Świadomie NIE budujemy raportu: dokument
         # z pustych danych wygląda jak wynik i powiedziałby partnerowi, że ma zerową
         # widoczność — a to nieprawda. Lepiej pokazać błąd niż fałszywe zero.
