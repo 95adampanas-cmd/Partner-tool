@@ -349,7 +349,17 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
-  if (e.target.name === "dostawca") { audytDostawca = e.target.value; return renderAudyt(); }
+  if (e.target.name === "dostawca") {
+    audytDostawca = e.target.value;
+    if (audytDostawca === "seranking") {
+      // odznaczamy silniki idace przez DataForSEO — inaczej zostalyby zaznaczone
+      // i audyt „na SE Ranking" siegalby po drugiego dostawce
+      audytSilniki = audytSilniki.filter((k) => !SILNIKI[k]?.dfs);
+      if (!audytSilniki.length) audytSilniki = ["chatgpt_wprost"];
+    }
+    return renderAudyt();
+  }
+  if (e.target.name === "silnik_sr") { audytSilnikSR = e.target.value; return renderAudyt(); }
   if (e.target.name === "silnik") {
     const v = e.target.value;
     audytSilniki = e.target.checked ? [...audytSilniki, v] : audytSilniki.filter((x) => x !== v);
@@ -542,7 +552,16 @@ function kopiuj(przycisk) {
 let audytWybrana = null;
 let audytIle = 5;
 let audytDostawca = "dataforseo";
-let audytSilniki = ["chatgpt_wprost"];   // ktore modele AI pytamy (mozna kilka)   // jeden dostawca na audyt, nigdy dwaj naraz
+let audytSilniki = ["chatgpt_wprost"];
+// Silnik bazy SE Ranking dla sekcji wzmianek — ich dane pokrywaja 5 platform.
+let audytSilnikSR = "ai-overview";
+const SILNIKI_SR = {
+  "ai-overview": "Google AI Overviews",
+  "ai-mode":     "Google AI Mode",
+  "chatgpt":     "ChatGPT",
+  "perplexity":  "Perplexity",
+  "gemini":      "Google Gemini",
+};   // ktore modele AI pytamy (mozna kilka)   // jeden dostawca na audyt, nigdy dwaj naraz
 let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
@@ -641,13 +660,16 @@ function renderAudyt() {
 
     <div class="mono"><i class="sq"></i>Które modele AI pytamy</div>
     <div class="akcje" style="margin-bottom:10px">
-      ${Object.entries(SILNIKI).map(([k, m]) => `
+      ${Object.entries(SILNIKI).filter(([, m]) => !sr || !m.dfs).map(([k, m]) => `
         <label class="akcja check"><input type="checkbox" name="silnik" value="${k}"
           ${audytSilniki.includes(k) ? "checked" : ""}> ${m.nazwa}
           <span class="cena">${m.udzial || m.opis} · $${m.koszt}${
             m.wlasny ? " · nasz klucz" : m.dfs ? " · przez DataForSEO" : ""
           }</span></label>`).join("")}
     </div>
+    ${sr ? `<p class="hint" style="margin:0 0 16px">Przy SE Ranking pokazujemy tylko
+      silniki na <b>naszym własnym kluczu</b> — audyt nie dotyka wtedy DataForSEO
+      w żadnym miejscu. Modele z ich bazy wybierasz niżej, przy wzmiankach.</p>` : ""}
     ${wymagaDFS() ? `<p class="ostrzezenie-inline">Zaznaczone opcje wymagają konta
       <b>DataForSEO</b> ze środkami: ${wymagaDFS().join(", ")}. Jeśli saldo jest puste,
       audyt zakończy się błędem — odznacz je albo doładuj konto.</p>` : ""}
@@ -657,6 +679,17 @@ function renderAudyt() {
       ${audytSilniki.length > 1
         ? " Przy kilku modelach widać, czy brak wzmianki dotyczy jednego silnika, czy wszystkich."
         : " Przy jednym modelu nie da się odróżnić cechy silnika od prawidłowości."}</p>
+
+    ${sr && audytAIO ? `
+    <div class="mono"><i class="sq"></i>Wzmianki — z której platformy</div>
+    <div class="akcje" style="margin-bottom:10px">
+      ${Object.entries(SILNIKI_SR).map(([k, n]) => `
+        <label class="akcja check"><input type="radio" name="silnik_sr" value="${k}"
+          ${audytSilnikSR === k ? "checked" : ""}> ${n}</label>`).join("")}
+    </div>
+    <p class="hint" style="margin:0 0 16px">SE Ranking ma zapisane wzmianki z pięciu
+      platform, w tym <b>Google AI Mode</b>. To ich baza, odświeżana miesięcznie —
+      pokazuje, gdzie firma <b>jest</b> cytowana, a nie odpowiada na nasze pytania.</p>` : ""}
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
@@ -686,7 +719,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki, silnik_sr: audytSilnikSR,
                              ai_overview: audytAIO, seo: audytSEO }),
     });
     const data = await res.json();
@@ -872,7 +905,10 @@ function raportHTML(r) {
 
     ${r.ai_overview ? `
     <section class="r-strona">
-      ${naglowekSekcji(++nr, "Widoczność w AI Overviews")}
+      ${naglowekSekcji(++nr, r.ai_overview.silnik_nazwa
+          && r.ai_overview.silnik_nazwa !== "Google AI Overviews"
+          ? `Widoczność w ${r.ai_overview.silnik_nazwa}`
+          : "Widoczność w AI Overviews")}
       ${st.ai_overview.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
       ${r.ai_overview.wzmianki && r.ai_overview.wzmianki.length ? `
       <div class="liczby">

@@ -760,8 +760,15 @@ async def api_audyt(request):
         # Jeden dostawca na audyt — nigdy dwaj naraz.
         dostawca = (body.get("dostawca") or "dataforseo").lower()
         # Można wybrać kilka modeli naraz — wtedy każde pytanie idzie do każdego z nich.
-        wybrane = body.get("silniki") or [body.get("silnik") or "perplexity"]
-        silniki = [audyt.SILNIKI[k] for k in wybrane if k in audyt.SILNIKI]                   or [audyt.SILNIKI["perplexity"]]
+        wybrane = body.get("silniki") or [body.get("silnik") or "chatgpt_wprost"]
+        silniki = [audyt.SILNIKI[k] for k in wybrane if k in audyt.SILNIKI]
+        if dostawca == "seranking":
+            # Twardy wymóg: wybór SE Ranking odcina DataForSEO CAŁKOWICIE.
+            # Zostają wyłącznie silniki na własnym kluczu — inaczej audyt „na SE Ranking"
+            # po cichu sięgałby po drugiego dostawcę i padał na jego saldzie.
+            silniki = [s for s in silniki if s.get("wlasny_klucz")]
+        if not silniki:
+            silniki = [audyt.SILNIKI["chatgpt_wprost"]]
         koszt_kredytow = 0
 
         nazwa = firma.get("nazwa") or ""
@@ -835,10 +842,14 @@ async def api_audyt(request):
         # 3) AI Overview — u SE Ranking to inny endpoint i inna jednostka rozliczeniowa
         if z_aio and dostawca == "seranking":
             try:
+                silnik_sr = (body.get("silnik_sr") or "ai-overview")
+                if silnik_sr not in seranking.SILNIKI_AI:
+                    silnik_sr = "ai-overview"
                 sr, k = await asyncio.to_thread(
-                    seranking.wzmianki_ai, domena, "ai-overview", 10, f"audyt_{domena}")
+                    seranking.wzmianki_ai, domena, silnik_sr, 10, f"audyt_{domena}")
                 koszt_kredytow += k
                 aio = seranking.analizuj_wzmianki(sr, domena)
+                aio["silnik_nazwa"] = seranking.SILNIKI_AI[silnik_sr]
             except seranking.BladAPI as e:
                 raise dfs.BladAPI(str(e))
 

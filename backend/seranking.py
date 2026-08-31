@@ -49,6 +49,17 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 KRAJ_PL = "pl"
 
 # ile kredytów kosztuje co — do pokazania użytkownikowi przed audytem
+# Silniki, dla których SE Ranking ma dane o wzmiankach. To ICH baza — nie da się
+# zadać własnego pytania, ale da się sprawdzić, gdzie domena jest cytowana w każdym
+# z nich. Dzięki temu audyt na SE Ranking nie musi w ogóle dotykać DataForSEO.
+SILNIKI_AI = {
+    "ai-overview": "Google AI Overviews",
+    "ai-mode":     "Google AI Mode",
+    "chatgpt":     "ChatGPT",
+    "perplexity":  "Perplexity",
+    "gemini":      "Google Gemini",
+}
+
 KOSZTY = {
     "overview": 100, "keywords": 100, "competitors": 100,
     "pages": 100, "discover_brand": 100, "prompt": 200,
