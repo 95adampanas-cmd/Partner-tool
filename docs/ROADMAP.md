@@ -78,6 +78,12 @@ Nie wolno tego uogólniać w rozmowie z partnerem.
 i TOP3 z Senuto/Ahrefs i z naszego narzędzia. Jeśli proporcja stała → można podać
 przelicznik. Jeśli nie → ta sekcja potrzebuje innego źródła danych.
 
+### ⬜ Baza przy wdrożeniu na Render — dysk jest efemeryczny
+Pamięć działa lokalnie (SQLite, `backend/dane.db`), ale **na Render plik zniknie przy
+każdym deployu**. Przed wdrożeniem trzeba wybrać: podpiąć dysk trwały (płatny) albo
+przenieść się na Postgres. Warstwa dostępu jest w jednym module `baza.py`, więc
+podmiana silnika nie dotyka reszty kodu.
+
 ### ⬜ Ścieżka KLIENCI — własny zestaw zbieranych danych
 Struktura dwóch ścieżek gotowa (commit 9b28f57): nawigacja, filtrowanie w „Pracy",
 ton maila. Ale **model danych jest wciąż partnerski** — zbieramy usługi, zespół,

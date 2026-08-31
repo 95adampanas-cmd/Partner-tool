@@ -21,6 +21,28 @@ const TRYBY = {
 
 fetch("/api/columns").then((r) => r.json()).then((d) => { kolumny = d.kolumny || []; });
 
+// Wczytanie pamięci przy starcie. Bez tego odświeżenie strony kasowało cały dzień
+// pracy — research jednej firmy to ~30 s i kilka groszy, więc utrata dwudziestu
+// to realna strata, nie niedogodność.
+async function wczytajPamiec() {
+  try {
+    const d = await (await fetch("/api/firmy")).json();
+    for (const f of d.firmy || []) {
+      const id = "tab" + ++tabSeq;
+      tabs.push({ id, nazwa: hostname(f.url), firma: f, tryb: f.tryb || "partner" });
+      document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, f));
+      if (f.w_koszyku) koszyk.push({ ...f, tryb: f.tryb || "partner" });
+    }
+    odswiezBadge("badge-firmy", firmyTrybu().length);
+    odswiezBadge("badge-eksport",
+      koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
+    renderResearchPanel();
+  } catch (e) {
+    console.warn("Nie udało się wczytać zapisanych firm:", e);
+  }
+}
+wczytajPamiec();
+
 // ══ Nawigacja między sekcjami ══
 function pokazSekcje(nazwa) {
   document.querySelectorAll(".sekcja").forEach((s) =>
@@ -224,6 +246,15 @@ function firmyTrybu() {
   return tabs.filter((t) => (t.tryb || "partner") === tryb);
 }
 
+// Stan koszyka trzymamy też w bazie — inaczej po odświeżeniu firmy wracały,
+// ale zaznaczenia do eksportu już nie.
+function zapiszKoszyk(url, w_koszyku) {
+  fetch("/api/koszyk", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, w_koszyku }),
+  }).catch(() => {});
+}
+
 function przelacznikTrybu(liczOd = tabs) {
   return `<div class="przelacznik-tryb" role="tablist">
     ${Object.entries(TRYBY).map(([k, t]) => `
@@ -258,6 +289,15 @@ function renderListeFirm() {
 }
 
 function usunFirme(id) {
+  // usuwamy też z bazy — inaczej firma wracałaby po odświeżeniu strony
+  const wpis = tabs.find((t) => t.id === id);
+  if (wpis) {
+    fetch("/api/firmy/usun", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: wpis.firma.url }),
+    }).catch(() => {});
+    koszyk = koszyk.filter((k) => k.url !== wpis.firma.url);
+  }
   tabs = tabs.filter((t) => t.id !== id);
   document.querySelector(`#panels .panel[data-id="${id}"]`)?.remove();
   odswiezBadge("badge-firmy", firmyTrybu().length);
@@ -415,6 +455,7 @@ document.addEventListener("change", (e) => {
   if (!e.target.classList.contains("do-eksportu")) return;
   const firma = firmaZPanelu(e.target.closest(".panel"));
   if (e.target.checked) {
+    zapiszKoszyk(firma.url, true);
     if (!koszyk.some((k) => k.url === firma.url)) {
       // ścieżka bierze się z wpisu firmy, nie z aktualnie oglądanej zakładki —
       // firma zbadana jako klient ma trafić do eksportu klientów, nawet gdy
@@ -423,6 +464,7 @@ document.addEventListener("change", (e) => {
       koszyk.push({ ...firma, tryb: (w && w.tryb) || firma.tryb || tryb });
     }
   } else {
+    zapiszKoszyk(firma.url, false);
     koszyk = koszyk.filter((k) => k.url !== firma.url);
   }
   odswiezBadge("badge-eksport", koszyk.filter((f) => (f.tryb || "partner") === tryb).length);

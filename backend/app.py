@@ -36,6 +36,7 @@ from tavily import TavilyClient
 from agents import Agent, Runner, WebSearchTool
 
 import audyt
+import baza
 import dfs
 import geo
 import seranking
@@ -628,6 +629,7 @@ async def api_research(request):
         firma["zrodlo_danych"] = odwiedzone
         # ścieżka, w której firma została zbadana — „Praca" rozdziela po niej listy
         firma["tryb"] = (body.get("tryb") or "partner").lower()
+        baza.zapisz_firme(firma, firma["tryb"])
         return JSONResponse({"ok": True, "firma": firma})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
@@ -921,6 +923,8 @@ async def api_audyt(request):
             plik = (Path(__file__).resolve().parent / "fixtures" /
                     f"raport_{domena}_{_dt.now():%Y%m%d_%H%M}.json")
             plik.write_text(_json.dumps(raport, ensure_ascii=False, indent=1), encoding="utf-8")
+            baza.zapisz_audyt(firma.get("url", ""), raport,
+                              (firma.get("tryb") or "partner"), dostawca)
             print(f"  raport zapisany: {plik.name}")
         except Exception as e:
             print(f"  (nie udalo sie zapisac raportu: {e})")
@@ -936,6 +940,42 @@ async def api_audyt(request):
         return JSONResponse({"ok": False, "error": str(e), "typ": "api"})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
+
+
+async def api_firmy(request):
+    """Lista zbadanych firm z bazy — front wczytuje ją przy starcie, żeby praca
+    nie ginęła po odświeżeniu strony."""
+    tryb = request.query_params.get("tryb")
+    return JSONResponse({"ok": True, "firmy": baza.firmy(tryb)})
+
+
+async def api_firma_usun(request):
+    try:
+        body = await request.json()
+        baza.usun_firme((body.get("url") or "").strip())
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+async def api_koszyk(request):
+    try:
+        body = await request.json()
+        baza.ustaw_koszyk((body.get("url") or "").strip(), bool(body.get("w_koszyku")))
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+async def api_audyty(request):
+    """Historia audytów. Ten sam URL badany dwa razy to dwa pomiary — porównanie
+    ich pokazuje, czy działania partnera przyniosły efekt."""
+    url = request.query_params.get("url")
+    id_ = request.query_params.get("id")
+    if id_:
+        r = baza.audyt(int(id_))
+        return JSONResponse({"ok": bool(r), "raport": r})
+    return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
 
 
 async def api_columns(request):
@@ -968,6 +1008,11 @@ app = Starlette(routes=[
     Route("/api/szukaj", api_szukaj, methods=["POST"]),
     Route("/api/email", api_email, methods=["POST"]),
     Route("/api/columns", api_columns, methods=["GET"]),
+    # pamięć — bez tego cała praca ginęła po odświeżeniu strony
+    Route("/api/firmy", api_firmy, methods=["GET"]),
+    Route("/api/firmy/usun", api_firma_usun, methods=["POST"]),
+    Route("/api/koszyk", api_koszyk, methods=["POST"]),
+    Route("/api/audyty", api_audyty, methods=["GET"]),
     Route("/api/audyt", api_audyt, methods=["POST"]),
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),
