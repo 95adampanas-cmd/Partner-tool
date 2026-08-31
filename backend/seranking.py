@@ -34,6 +34,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -70,6 +71,25 @@ class BladAPI(RuntimeError):
     """Zapytanie odrzucone przez SE Ranking."""
 
 
+# SE Ranking ma ostry limit zapytań — 429 „too many requests" wraca nawet przy
+# wywołaniach sekwencyjnych z krótką przerwą. Pilnujemy więc minimalnego odstępu
+# GLOBALNIE (nie w pojedynczej funkcji), bo audyt woła kilka miejsc naraz,
+# i dodatkowo ponawiamy z rosnącym odczekaniem. Inaczej audyt przerywa się
+# w połowie i zużyte kredyty przepadają bez raportu.
+ODSTEP_MIN = 1.5
+PROBY_429 = 4
+_ostatnie = [0.0]
+_zamek = threading.Lock()
+
+
+def _przepustnica() -> None:
+    with _zamek:
+        czekaj = ODSTEP_MIN - (time.monotonic() - _ostatnie[0])
+        if czekaj > 0:
+            time.sleep(czekaj)
+        _ostatnie[0] = time.monotonic()
+
+
 def _klucz() -> str:
     k = os.environ.get("SERANKING_API_KEY", "")
     if not k:
@@ -85,14 +105,27 @@ def _get(sciezka: str, params: dict, nazwa_fixture: str | None = None) -> dict:
         "Authorization": f"Token {_klucz()}",
         "Accept": "application/json",
     })
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            odp = json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        tresc = e.read().decode("utf-8", "ignore")[:300]
-        raise BladAPI(f"[{sciezka}] SE Ranking odrzuciło zapytanie (HTTP {e.code}). {tresc}")
-    except Exception as e:
-        raise BladAPI(f"[{sciezka}] Nie udało się połączyć z SE Ranking: {e}")
+    odp = None
+    for proba in range(PROBY_429):
+        _przepustnica()
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                odp = json.loads(r.read())
+            break
+        except urllib.error.HTTPError as e:
+            tresc = e.read().decode("utf-8", "ignore")[:300]
+            if e.code == 429 and proba < PROBY_429 - 1:
+                czekaj = 3.0 * (proba + 1)
+                print(f"  [SE Ranking: limit zapytań, ponawiam za {czekaj:.0f}s]")
+                time.sleep(czekaj)
+                continue
+            if e.code == 429:
+                raise BladAPI(
+                    f"[{sciezka}] SE Ranking odrzuca zapytania (limit przekroczony) "
+                    f"mimo {PROBY_429} prób. Odczekaj minutę i spróbuj ponownie.")
+            raise BladAPI(f"[{sciezka}] SE Ranking odrzuciło zapytanie (HTTP {e.code}). {tresc}")
+        except Exception as e:
+            raise BladAPI(f"[{sciezka}] Nie udało się połączyć z SE Ranking: {e}")
 
     if nazwa_fixture:
         FIXTURES.mkdir(exist_ok=True)
@@ -128,10 +161,8 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, di
     # SEKWENCYJNIE, nie równolegle. Sonda pokazała, że przy czterech wywołaniach naraz
     # SE Ranking odsyła HTTP 429 „too many requests" — inaczej niż DataForSEO, które
     # znosi sześć wątków. Pół sekundy przerwy wystarcza.
-    wyniki = []
-    for co in ("overview", "keywords", "competitors", "pages"):
-        wyniki.append(pobierz(co))
-        time.sleep(0.5)
+    # Odstęp pilnuje _przepustnica() w _get, więc tu tylko kolejność.
+    wyniki = [pobierz(co) for co in ("overview", "keywords", "competitors", "pages")]
     overview, frazy, konk, strony = wyniki
     return overview, frazy, konk, strony, sum(
         KOSZTY[k] for k in ("overview", "keywords", "competitors", "pages"))
