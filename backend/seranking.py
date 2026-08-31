@@ -34,8 +34,15 @@ from pathlib import Path
 from urllib.parse import urlencode
 import json
 import os
+import time
 import urllib.error
 import urllib.request
+
+from dotenv import load_dotenv
+
+# Modul bywa uzywany samodzielnie (sonda diagnostyczna), nie tylko przez app.py,
+# wiec wczytuje .env u siebie — tak samo jak dfs.py.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
 BAZA = "https://api.seranking.com/v1"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -107,26 +114,21 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, di
         return _get("domain/pages", {"source": KRAJ_PL, "target": domena,
                                      "scope": "domain", "limit": 10}, f("sr_strony"))
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        overview, frazy, konk, strony = pool.map(
-            pobierz, ("overview", "keywords", "competitors", "pages"))
+    # SEKWENCYJNIE, nie równolegle. Sonda pokazała, że przy czterech wywołaniach naraz
+    # SE Ranking odsyła HTTP 429 „too many requests" — inaczej niż DataForSEO, które
+    # znosi sześć wątków. Pół sekundy przerwy wystarcza.
+    wyniki = []
+    for co in ("overview", "keywords", "competitors", "pages"):
+        wyniki.append(pobierz(co))
+        time.sleep(0.5)
+    overview, frazy, konk, strony = wyniki
     return overview, frazy, konk, strony, sum(
         KOSZTY[k] for k in ("overview", "keywords", "competitors", "pages"))
 
 
-def ruch_domen(domeny: list[str], nazwa_fixture: str = "") -> tuple[dict[str, int], int]:
-    """Ruch konkurentów. Ich endpoint konkurentów go nie podaje, więc pytamy
-    o każdą domenę osobno — 100 kredytów za sztukę."""
-    def jedna(d):
-        try:
-            o = _get("domain/overview/db", {"source": KRAJ_PL, "domain": d}, None)
-            return d, round((o.get("organic") or {}).get("traffic_sum") or 0)
-        except Exception:
-            return d, None
-
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        wyniki = dict(pool.map(jedna, domeny))
-    return wyniki, KOSZTY["overview"] * len(domeny)
+# ruch_domen() usunięte: sonda pokazała, że domain/competitors zwraca `traffic_sum`
+# dla każdego konkurenta od razu. Dopytywanie o każdą domenę osobno kosztowałoby
+# 800 kredytów na audyt za dane, które i tak już mamy w odpowiedzi.
 
 
 def wzmianki_ai(domena: str, silnik: str = "ai-overview", limit: int = 10,
@@ -137,8 +139,11 @@ def wzmianki_ai(domena: str, silnik: str = "ai-overview", limit: int = 10,
     To NIE jest odpowiednik naszej sekcji z pytaniami klientów — tu dostajemy
     prompty z ich bazy, a nie odpowiedzi na pytania, które sami układamy.
     """
+    # `source` i `scope` są wymagane — bez nich API odsyła 500 („source can't be empty",
+    # potem „scope can't be empty"). Ustalone sondą, w dokumentacji tego nie było.
     odp = _get("ai-search/prompts-by-target",
-               {"target": domena, "engine": silnik, "limit": limit},
+               {"target": domena, "engine": silnik, "limit": limit,
+                "source": KRAJ_PL, "scope": "domain"},
                f"{nazwa_fixture}_sr_ai" if nazwa_fixture else None)
     return odp, KOSZTY["prompt"] * limit
 
@@ -162,12 +167,15 @@ def analizuj_seo(overview: dict, frazy: dict, konk: dict, strony: dict,
     poz = [k.get("position") for k in lista_fraz if isinstance(k.get("position"), int)]
     top3_dokladnie = sum(1 for p in poz if p <= 3) if poz else None
 
-    czolo = top3_dokladnie if top3_dokladnie is not None else (org.get("top1_5") or 0)
-    etykieta = ("fraz w TOP 3" if top3_dokladnie is not None
-                else "fraz w TOP 5")
-    if top3_dokladnie is not None and len(lista_fraz) < (org.get("keywords_count") or 0):
-        # policzone z próbki, nie z całości — mówimy to wprost
-        etykieta = f"fraz w TOP 3 (z {len(lista_fraz)} zbadanych)"
+    # Domyślnie bierzemy ICH kompletną liczbę (TOP 1-5) i podpisujemy ją zgodnie
+    # z prawdą. TOP 3 liczymy tylko wtedy, gdy mamy PEŁNĄ listę fraz — inaczej byłaby
+    # to liczba z 2% zbioru (100 pobranych z 4322) podana jako metryka całej domeny,
+    # czyli dokładnie ten sam błąd co „średnia z próbki" w sekcji AI Overviews.
+    pelna_lista = bool(poz) and len(lista_fraz) >= (org.get("keywords_count") or 0)
+    if pelna_lista:
+        czolo, etykieta = top3_dokladnie, "fraz w TOP 3"
+    else:
+        czolo, etykieta = (org.get("top1_5") or 0), "fraz w TOP 5"
 
     lista_konk = konk if isinstance(konk, list) else (konk or {}).get("competitors") or []
     konkurenci = []
@@ -178,7 +186,10 @@ def analizuj_seo(overview: dict, frazy: dict, konk: dict, strony: dict,
         konkurenci.append({
             "domena": d,
             "wspolne_frazy": k.get("common_keywords") or 0,
-            "ruch_calkowity": (ruch_konkurentow or {}).get(d),
+            # traffic_sum przychodzi wprost z domain/competitors — potwierdzone sondą
+            "ruch_calkowity": round(k.get("traffic_sum") or 0) or None,
+            # to NIE jest średnia pozycja, tylko ich miara podobieństwa profilu fraz.
+            # Nie podpisujemy jej cudzą nazwą — raport dostaje wartość i własną etykietę.
             "srednia_pozycja": k.get("domain_relevance") or "—",
         })
 
@@ -211,12 +222,16 @@ def analizuj_seo(overview: dict, frazy: dict, konk: dict, strony: dict,
         "fraz_lacznie": fraz_lacznie,
         "ruch": round(org.get("traffic_sum") or 0),
         "ruch_nasz_calkowity": round(org.get("traffic_sum") or 0),
-        # Ich overview nie podaje wzrostów/spadków — nie zmyślamy zer, dajemy None,
-        # a raport pomija to zdanie zamiast pisać „0 pozycji wzrosło".
-        "wzrosty": None, "spadki": None, "nowe": None, "utracone": None,
+        # Sonda pokazała, że jednak podają — pod innymi nazwami niż DataForSEO.
+        "wzrosty": org.get("keywords_up_count"),
+        "spadki": org.get("keywords_down_count"),
+        "nowe": org.get("keywords_new_count"),
+        "utracone": org.get("keywords_lost_count"),
         "konkurenci": konkurenci[:8],
         "frazy": frazy_out,
-        "podstron_widocznych": len(lista_stron),
+        # NIE podajemy len(lista) jako liczby wszystkich podstron — to tylko tyle,
+        # ile pobraliśmy. Bez danych o całości zwracamy None, a raport pomija zdanie.
+        "podstron_widocznych": None,
         "top_podstrony": top_strony,
         "zrodlo": "SE Ranking · baza Google PL",
         "data_bazy": "",

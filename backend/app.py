@@ -808,13 +808,8 @@ async def api_audyt(request):
                 ov, fr, kk, st, k = await asyncio.to_thread(
                     seranking.dane_seo, domena, f"audyt_{domena}")
                 koszt_kredytow += k
-                dom_konk = [c.get("domain", "").lower() for c in
-                            (kk if isinstance(kk, list) else (kk or {}).get("competitors") or [])
-                            if c.get("domain")][:8]
-                ruch_k, k2 = await asyncio.to_thread(
-                    seranking.ruch_domen, dom_konk, f"audyt_{domena}")
-                koszt_kredytow += k2
-                seo = seranking.analizuj_seo(ov, fr, kk, st, domena, ruch_k, audyt.PORTALE)
+                # ruch konkurentów jest już w odpowiedzi domain/competitors
+                seo = seranking.analizuj_seo(ov, fr, kk, st, domena, None, audyt.PORTALE)
                 frazy = fr
             else:
                 rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
