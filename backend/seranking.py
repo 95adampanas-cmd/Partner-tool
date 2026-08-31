@@ -238,6 +238,53 @@ def analizuj_seo(overview: dict, frazy: dict, konk: dict, strony: dict,
     }
 
 
+def luka_z_fraz(frazy, domena: str, limit: int = 8) -> list[dict]:
+    """Sekcja „Luka między Google a AI" na danych SE Ranking.
+
+    Oni nie mają SERP-a na żądanie (ich śledzenie jest projektowe), ale pole
+    `block_type` w domain/keywords mówi, w jakim bloku wyniku strona się pojawia.
+    Wartość „sge" = Search Generative Experience, czyli blok AI Overview.
+
+    OGRANICZENIE, którego NIE zacieramy: wiemy tylko, gdzie strona JEST w bloku AI.
+    Gdy jej tam nie ma, nie wiemy, czy AI Overview w ogóle się na tej frazie pojawia —
+    a to dwie różne rzeczy. Takie wiersze dostają status „nie ustalono", nigdy
+    „nie cytują Was". Ten sam wybór zrobiliśmy przy niepełnej próbce w DataForSEO.
+    """
+    lista = frazy if isinstance(frazy, list) else (frazy or {}).get("keywords") or []
+    INFORMACYJNE = ("co to", "czym jest", "jak ", "znaczenie", "definicja",
+                    "dlaczego", "kiedy ", "ile ", "czy ")
+    # Deduplikacja po frazie: SE Ranking zwraca ranking per URL, więc ta sama fraza
+    # potrafi wystąpić kilka razy dla różnych podstron. Zostawiamy najlepszą pozycję.
+    najlepsze = {}
+    for k in lista:
+        f = (k.get("keyword") or "").lower()
+        if not f:
+            continue
+        poprz = najlepsze.get(f)
+        if not poprz or (k.get("position") or 999) < (poprz.get("position") or 999):
+            najlepsze[f] = k
+
+    wiersze = []
+    for k in najlepsze.values():
+        fraza = k.get("keyword") or ""
+        w_sge = (k.get("block_type") or "").lower() == "sge"
+        wiersze.append({
+            "fraza": fraza,
+            "wolumen": k.get("volume") or 0,
+            "typ": "informacyjna" if any(i in f" {fraza.lower()} " for i in INFORMACYJNE)
+                   else "handlowa",
+            "pozycja": k.get("position"),
+            "ma_aio": w_sge,
+            "cytowany_w_aio": w_sge,
+            "nieustalone": not w_sge,   # brak w bloku ≠ brak bloku
+            "koszt": 0,
+        })
+    # Sortujemy CAŁĄ listę, dopiero potem tniemy — inaczej frazy z blokiem AI
+    # wypadały poza limit i sekcja pokazywała same „nie ustalono".
+    wiersze.sort(key=lambda w: (w["nieustalone"], w["pozycja"] or 999))
+    return wiersze[:limit]
+
+
 def analizuj_wzmianki(odp: dict, domena: str) -> dict:
     """Sekcja AI Overviews z danych SE Ranking. Ich odpowiedź niesie też treść
     odpowiedzi modelu i cytowane linki — więcej, niż daje llm_mentions."""

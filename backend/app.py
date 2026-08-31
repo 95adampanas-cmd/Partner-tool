@@ -864,6 +864,9 @@ async def api_audyt(request):
                 koszt_kredytow += k
                 # ruch konkurentów jest już w odpowiedzi domain/competitors
                 seo = seranking.analizuj_seo(ov, fr, kk, st, domena, None, audyt.PORTALE)
+                # Ta sama sekcja co przy DataForSEO, tylko z ich danych — bez
+                # dodatkowego wywolania, bo block_type jest juz w odpowiedzi.
+                seo["luka"] = seranking.luka_z_fraz(fr, domena)
                 frazy = fr
             else:
                 rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
@@ -874,7 +877,7 @@ async def api_audyt(request):
 
             # 4b) Luka GEO — zestawienie pozycji w Google z obecnoscia w AI Overview.
             # Wymaga danych z AIO (kto nas cytuje), wiec tylko gdy wlaczone.
-            if seo.get("frazy") and aio:
+            if dostawca != "seranking" and seo.get("frazy") and aio:
                 cytowane = {w["prompt"].lower() for w in (aio.get("wzmianki") or [])}
                 luka = await asyncio.to_thread(
                     audyt.analiza_luki, audyt.pula_fraz(frazy), domena, cytowane, 8,
