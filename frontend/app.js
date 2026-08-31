@@ -36,8 +36,8 @@ function pokazSekcje(nazwa) {
   // w której jesteśmy — inaczej nie wiadomo, czy badamy partnera czy klienta.
   document.querySelectorAll("[data-tryb-naglowek] .znacznik-tryb").forEach((e) => e.remove());
   document.querySelectorAll("[data-tryb-naglowek] h1").forEach((h) =>
-    h.insertAdjacentHTML("afterend",
-      `<span class="znacznik-tryb">${TRYBY[tryb].nazwa} · ${esc(TRYBY[tryb].opis)}</span>`));
+    h.insertAdjacentHTML("beforebegin",
+      `<span class="znacznik-tryb">Ścieżka: ${TRYBY[tryb].nazwa}</span>`));
   window.scrollTo(0, 0);
 }
 document.querySelectorAll(".nav-item").forEach((b) =>
@@ -224,12 +224,12 @@ function firmyTrybu() {
   return tabs.filter((t) => (t.tryb || "partner") === tryb);
 }
 
-function przelacznikTrybu() {
-  return `<div class="przelacznik-tryb">
+function przelacznikTrybu(liczOd = tabs) {
+  return `<div class="przelacznik-tryb" role="tablist">
     ${Object.entries(TRYBY).map(([k, t]) => `
       <button class="tryb-btn ${tryb === k ? "aktywny" : ""}" data-ustaw-tryb="${k}"
-        type="button">${t.nazwa}
-        <em>${tabs.filter((x) => (x.tryb || "partner") === k).length}</em></button>`).join("")}
+        type="button" role="tab" aria-selected="${tryb === k}">${t.nazwa}
+        <em>${liczOd.filter((x) => (x.tryb || "partner") === k).length}</em></button>`).join("")}
   </div>`;
 }
 
@@ -1166,7 +1166,7 @@ function renderEksport() {
   const box = document.getElementById("eksport-box");
   const doEksportu = koszyk.filter((f) => (f.tryb || "partner") === tryb);
   if (!doEksportu.length) {
-    box.innerHTML = przelacznikTrybu() +
+    box.innerHTML = przelacznikTrybu(koszyk) +
       `<div class="pusto">Brak firm w ścieżce <b>${TRYBY[tryb].nazwa}</b> —
        zaznacz „Dodaj do eksportu" na karcie firmy.</div>`;
     return;
@@ -1178,7 +1178,7 @@ function renderEksport() {
       return `<td class="${v === BRAK ? "brak" : ""}">${esc(v)}</td>`;
     }).join("")}</tr>`).join("");
 
-  box.innerHTML = `<div class="card">
+  box.innerHTML = przelacznikTrybu(koszyk) + `<div class="card">
     <div class="mono"><span class="sq"></span> Do eksportu — ${TRYBY[tryb].nazwa} (${doEksportu.length})</div>
     <p class="hint">Dokładnie te kolumny i wartości trafią do pliku CSV.</p>
     <div class="tabela-scroll"><table class="tabela">
