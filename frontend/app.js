@@ -556,13 +556,17 @@ const SILNIKI = {
   perplexity: { nazwa: "Perplexity",    udzial: "6,18%", koszt: 0.006 },
   gemini:     { nazwa: "Google Gemini", udzial: "3,22%", koszt: 0.020 },
   claude:     { nazwa: "Claude",        udzial: "0,71%", koszt: 0.030 },
+  // Google AI Mode to konwersacyjny tryb wyszukiwarki, nie chatbot — StatCounter
+  // go nie mierzy, wiec udzialu nie podajemy zamiast zmyslac liczbe.
+  ai_mode:    { nazwa: "Google AI Mode", udzial: null,    koszt: 0.006,
+                opis: "tryb konwersacyjny wyszukiwarki" },
 };
 let audytSEO = true;
 
 // Każde pytanie idzie do każdego wybranego modelu, więc koszty się sumują.
 function pokrycieRynku() {
   const suma = audytSilniki.reduce(
-    (s, k) => s + parseFloat((SILNIKI[k]?.udzial || "0").replace(",", ".")), 0);
+    (s, k) => s + parseFloat((SILNIKI[k]?.udzial || "0%").replace(",", ".")), 0);
   return suma.toFixed(1).replace(".", ",") + "%";
 }
 
@@ -624,7 +628,7 @@ function renderAudyt() {
       ${Object.entries(SILNIKI).map(([k, m]) => `
         <label class="akcja check"><input type="checkbox" name="silnik" value="${k}"
           ${audytSilniki.includes(k) ? "checked" : ""}> ${m.nazwa}
-          <span class="cena">${m.udzial} · $${m.koszt}</span></label>`).join("")}
+          <span class="cena">${m.udzial || m.opis} · $${m.koszt}</span></label>`).join("")}
     </div>
     <p class="hint" style="margin:0 0 16px">
       Każde pytanie trafia do <b>każdego</b> zaznaczonego modelu, więc koszty się sumują.

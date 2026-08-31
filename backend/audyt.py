@@ -35,6 +35,13 @@ SILNIKI = {
                    "udzial": 3.22, "koszt": 0.020},
     "claude":     {"silnik": ("claude", "claude-sonnet-5"), "nazwa": "Claude",
                    "udzial": 0.71, "koszt": 0.030},
+    # Google AI Mode — tryb konwersacyjny wyszukiwarki. To NIE jest AI Overview
+    # (tamto jest podsumowaniem do frazy i nie da się z nim rozmawiać). AI Mode
+    # przyjmuje pytanie jak chatbot, więc pasuje do naszej metodyki.
+    # Udziału rynkowego nie znamy — StatCounter mierzy chatboty, a AI Mode jest
+    # częścią wyszukiwarki. Wpisanie tu liczby byłoby zmyśleniem, więc jest None.
+    "ai_mode":    {"silnik": ("google", "ai_mode"), "nazwa": "Google AI Mode",
+                   "udzial": None, "koszt": 0.006, "endpoint": "serp"},
 }
 
 LOKALIZACJA_PL = 2616
@@ -88,7 +95,27 @@ TRESC_STALA = {
 #  PARSERY — działają na odpowiedziach API (offline na fixtures)
 # ══════════════════════════════════════════════════════════════════
 def _tekst_i_zrodla(wynik: dict) -> tuple[str, list[str]]:
-    """Wyciąga treść odpowiedzi i cytowane URL-e z odpowiedzi llm_responses."""
+    """Wyciąga treść odpowiedzi i cytowane URL-e.
+
+    Obsługuje dwa kształty: llm_responses (items → sections) oraz Google AI Mode,
+    który zwraca strukturę SERP-ową (items → ai_mode / typ z markdown i references).
+    """
+    # Google AI Mode — struktura SERP. Rozpoznajemy po obecności item_types.
+    if wynik.get("item_types") or any(
+            (i or {}).get("type") in ("ai_mode", "ai_overview")
+            for i in (wynik.get("items") or [])):
+        t, z = [], []
+        for it in wynik.get("items") or []:
+            if it.get("markdown"):
+                t.append(it["markdown"])
+            for sek in it.get("items") or []:
+                if sek.get("text"):
+                    t.append(sek["text"])
+            for ref in (it.get("references") or []):
+                if ref.get("url"):
+                    z.append(ref["url"])
+        return "\n\n".join(t), z
+
     tekst, zrodla = [], []
     for item in wynik.get("items") or []:
         for sekcja in item.get("sections") or []:
@@ -452,8 +479,23 @@ def analizuj_ai_overview(odp: dict, domena: str) -> dict:
 # ══════════════════════════════════════════════════════════════════
 #  ZBIERANIE DANYCH (płatne — używać świadomie)
 # ══════════════════════════════════════════════════════════════════
+def zapytaj_ai_mode(prompt: str, nazwa_fixture=None) -> dict:
+    """Google AI Mode — konwersacyjny tryb wyszukiwarki. Inny endpoint i inny kształt
+    odpowiedzi niż llm_responses, dlatego osobna funkcja.
+    NIEZWERYFIKOWANE: kształt odpowiedzi nie był jeszcze sprawdzony na żywym wywołaniu
+    (saldo na zerze). Parser jest defensywny, ale traktuj wynik ostrożnie."""
+    return dfs.wywolaj(
+        "serp/google/ai_mode/live/advanced",
+        [{"keyword": prompt, "location_code": LOKALIZACJA_PL,
+          "language_code": "pl", "device": "desktop"}],
+        nazwa_fixture,
+    )
+
+
 def zapytaj_llm(prompt: str, silnik=SILNIK_DOMYSLNY, nazwa_fixture=None) -> dict:
     dostawca, model = silnik
+    if (dostawca, model) == ("google", "ai_mode"):
+        return zapytaj_ai_mode(prompt, nazwa_fixture)
     return dfs.wywolaj(
         f"ai_optimization/{dostawca}/llm_responses/live",
         [{
