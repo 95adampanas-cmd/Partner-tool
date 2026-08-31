@@ -1,0 +1,17 @@
+SUROWA ODPOWIEDZ: dict, klucze: ['total', 'date', 'prompts']
+total=73  promptow=10
+
+PO PARSOWANIU:
+  liczba_wzmianek = 73
+  pobrano         = 10
+  srednia_pozycja = 3.6
+
+FRAZY:
+   telewizja satelitarna                wol=  2400  poz=5  tresc=2403 zn.
+   keyless                              wol=   990  poz=7  tresc=2116 zn.
+   podczerwien                          wol=   480  poz=5  tresc=3344 zn.
+   skaner częstotliwości                wol=   480  poz=4  tresc=1753 zn.
+   skanery częstotliwości               wol=   480  poz=4  tresc=1753 zn.
+   jak wykryć podsłuch w domu           wol=   390  poz=6  tresc=2783 zn.
+   wykrywacz podsłuchów aplikacja       wol=   320  poz=1  tresc=1750 zn.
+   jak znaleźć podsłuch                 wol=   320  poz=1  tresc=2446 zn.

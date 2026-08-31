@@ -926,6 +926,24 @@ function raportHTML(r) {
               <td class="pr waska">${w.wolumen ? w.wolumen.toLocaleString("pl-PL") : "—"}</td>
               <td class="pr waska">${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
       </table>
+
+      ${r.ai_overview.wzmianki.some((w) => w.tekst) ? `
+      <p class="metodyka" style="margin-top:26px">Poniżej rzeczywiste odpowiedzi, które
+        Google pokazał na te zapytania. To <b>nie są nasze pytania</b> — to zapytania
+        z bazy dostawcy, wybrane dlatego, że Państwa strona jest w nich cytowana.</p>
+      ${r.ai_overview.wzmianki.filter((w) => w.tekst).slice(0, 3).map((w) => `
+        <article class="pytanie">
+          <div class="pytanie-glowa">
+            <h3>${esc(w.prompt)}</h3>
+            <span class="status cyt">Strona cytowana</span>
+          </div>
+          <blockquote>${formatujOdpowiedz(w.tekst, r.firma.nazwa)}</blockquote>
+          <div class="pytanie-meta">
+            <span>pozycja ${w.pozycja ? "#" + w.pozycja : "—"}</span>
+            <span>${w.wolumen ? w.wolumen.toLocaleString("pl-PL") + " wyszukiwań/mies." : ""}</span>
+            <span>${(w.zrodla || []).length} źródeł</span>
+          </div>
+        </article>`).join("")}` : ""}
       ${r.ai_overview.probka_niepelna ? `<p class="metodyka">Tabela pokazuje
         ${r.ai_overview.pobrano} fraz o największej liczbie wyszukiwań spośród
         <b>${r.ai_overview.liczba_wzmianek}</b>, na których strona pojawia się

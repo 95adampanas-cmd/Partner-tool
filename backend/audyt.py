@@ -481,6 +481,10 @@ def analizuj_ai_overview(odp: dict, domena: str) -> dict:
     for it in items:
         wzmianki.append({
             "prompt": it.get("question", ""),
+            # Pełna treść odpowiedzi Google — mamy ją w odpowiedzi API i nie kosztuje
+            # nic dodatkowo. Bez niej raport pokazywał samą frazę i pozycję, czyli
+            # najmniej interesującą część tego, za co zapłaciliśmy.
+            "tekst": it.get("answer") or "",
             "wolumen": it.get("ai_search_volume") or 0,
             "zrodla": [(s.get("domain") or "") for s in (it.get("sources") or [])],
             "pozycja": next(
