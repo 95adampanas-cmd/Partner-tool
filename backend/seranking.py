@@ -230,9 +230,11 @@ def analizuj_seo(overview: dict, frazy: dict, konk: dict, strony: dict,
             "wspolne_frazy": k.get("common_keywords") or 0,
             # traffic_sum przychodzi wprost z domain/competitors — potwierdzone sondą
             "ruch_calkowity": round(k.get("traffic_sum") or 0) or None,
-            # to NIE jest średnia pozycja, tylko ich miara podobieństwa profilu fraz.
-            # Nie podpisujemy jej cudzą nazwą — raport dostaje wartość i własną etykietę.
-            "srednia_pozycja": k.get("domain_relevance") or "—",
+            # SE Ranking nie podaje średniej pozycji konkurenta. `domain_relevance`
+            # to ICH miara podobieństwa profilu fraz — wartości typu 0,5 czy 40,64
+            # nie są pozycjami i wpisanie ich pod taką nazwą byłoby kłamstwem.
+            "srednia_pozycja": None,
+            "podobienstwo": k.get("domain_relevance"),
         })
 
     lista_stron = strony if isinstance(strony, list) else (strony or {}).get("pages") or []
@@ -316,9 +318,11 @@ def luka_z_fraz(frazy, domena: str, limit: int = 8) -> list[dict]:
             "typ": "informacyjna" if any(i in f" {fraza.lower()} " for i in INFORMACYJNE)
                    else "handlowa",
             "pozycja": k.get("position"),
-            "ma_aio": w_sge,
+            # None, nie False: brak strony w bloku AI nie dowodzi, że bloku nie ma.
+            # False oznaczałoby „sprawdziliśmy i AI Overview się nie pojawia".
+            "ma_aio": True if w_sge else None,
             "cytowany_w_aio": w_sge,
-            "nieustalone": not w_sge,   # brak w bloku ≠ brak bloku
+            "nieustalone": not w_sge,
             "koszt": 0,
         })
     # Sortujemy CAŁĄ listę, dopiero potem tniemy — inaczej frazy z blokiem AI

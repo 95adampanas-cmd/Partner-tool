@@ -824,12 +824,14 @@ function raportHTML(r) {
       ${r.seo.konkurenci.length ? `
       <table class="tabela-dok">
         <thead><tr><th>Konkurent w wynikach</th><th class="pr waska">Wspólne frazy</th>
-          <th class="pr waska">Ruch łącznie</th><th class="pr waska">Śr. pozycja</th></tr></thead>
+          <th class="pr waska">Ruch łącznie</th><th class="pr waska">${r.seo.konkurenci.some((k) => k.podobienstwo != null)
+            ? "Podobieństwo" : "Śr. pozycja"}</th></tr></thead>
         <tbody>${r.seo.konkurenci.map((k) => `<tr><td>${esc(k.domena)}</td>
           <td class="pr waska">${k.wspolne_frazy}</td>
           <td class="pr waska">${k.ruch_calkowity != null
             ? k.ruch_calkowity.toLocaleString("pl-PL") : "—"}</td>
-          <td class="pr waska">${k.srednia_pozycja}</td></tr>`).join("")}</tbody>
+          <td class="pr waska">${k.podobienstwo != null ? k.podobienstwo
+            : (k.srednia_pozycja != null ? k.srednia_pozycja : "—")}</td></tr>`).join("")}</tbody>
       </table>
       ${r.seo.ruch_nasz_calkowity ? `<p class="metodyka">Kolumna „Ruch łącznie" to szacowany
         <b>całkowity</b> ruch organiczny domeny, nie tylko na frazach wspólnych — dzięki temu widać

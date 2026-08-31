@@ -839,7 +839,12 @@ async def api_audyt(request):
         except Exception:
             techniczne = None
 
-        # 3) AI Overview — u SE Ranking to inny endpoint i inna jednostka rozliczeniowa
+        # 3) AI Overview — u SE Ranking to inny endpoint i inna jednostka rozliczeniowa.
+        # UWAGA: inicjalizacja MUSI być tutaj, przed pierwszym przypisaniem. Wcześniej
+        # `aio = None` stało niżej, między blokiem SE Ranking a blokiem DataForSEO,
+        # i kasowało wynik SE Ranking zaraz po jego ustawieniu — sekcja znikała
+        # z raportu mimo naliczonych kredytów.
+        aio = None
         if z_aio and dostawca == "seranking":
             try:
                 silnik_sr = (body.get("silnik_sr") or "ai-overview")
@@ -854,7 +859,6 @@ async def api_audyt(request):
                 raise
 
         # 3b) AI Overview przez DataForSEO (opcjonalnie — najdroższy pojedynczy element)
-        aio = None
         if z_aio and dostawca != "seranking":
             odp_aio = await asyncio.to_thread(
                 audyt.wzmianki_ai_overview, domena, 10, f"audyt_aio_{domena}"
