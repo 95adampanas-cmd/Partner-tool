@@ -26,6 +26,9 @@ dist/
 # raport z testu filtra (generowany)
 raport_filtr.txt
 
+# robocze zrzuty z weryfikacji API — surowe odpowiedzi, nie kod
+backend/_*.txt
+
 # fixtures z API (zawieraja dane, nie kod)
 backend/fixtures/
 
