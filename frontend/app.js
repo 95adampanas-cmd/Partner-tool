@@ -1103,9 +1103,17 @@ function raportHTML(r) {
     ${r.zrodla && r.zrodla.zrodel_lacznie ? `
     <section class="r-strona">
       ${naglowekSekcji(++nr, "Skąd AI czerpie wiedzę")}
-      <p>Odpowiadając na pytania klientów, model opiera się na konkretnych stronach.
-        Zebraliśmy wszystkie, które zacytował przy ${r.zrodla.pytan} pytaniach —
-        to pokazuje, komu w tej branży „ufa" i czy jesteście w tym gronie.</p>
+      <p>Zadaliśmy modelowi${p.per_silnik && p.per_silnik.length === 1
+          ? ` <b>${esc(p.per_silnik[0].nazwa)}</b>` : "om"}
+        ${r.zrodla.pytan} pytania klienta i zebraliśmy wszystkie strony, na których
+        oparł odpowiedzi. To pokazuje, komu w tej branży „ufa".</p>
+      ${r.ai_overview && r.ai_overview.wzmianki && r.ai_overview.wzmianki.length ? `
+      <p class="metodyka" style="margin-top:0">To <b>inny pomiar niż sekcja
+        „${esc(r.ai_overview.silnik_nazwa || "Widoczność w AI Overviews")}"</b> powyżej.
+        Tam liczyliśmy zapytania, przy których Google już Państwa cytuje. Tutaj pytamy
+        sami — pytaniami klienta, który firmy nie zna — i sprawdzamy, czy model sięgnie
+        po Państwa stronę z własnej inicjatywy. Obie liczby mogą się różnić i obie są
+        prawdziwe.</p>` : ""}
       <div class="liczby">
         ${liczba(r.zrodla.zrodel_lacznie, "zacytowanych źródeł")}
         ${liczba(r.zrodla.domen_unikalnych, "unikalnych serwisów")}
@@ -1122,9 +1130,12 @@ function raportHTML(r) {
               : ""}. Oznacza to, że treść jest dla modelu dostępna i wiarygodna;
             jeśli mimo to marka nie pada w odpowiedziach, przyczyna leży w tym,
             <b>jak treść odpowiada na pytania klientów</b>, a nie w jej dostępności.</p>`
-        : `<p class="ostrzezenie"><b>Państwa strona nie pojawiła się ani razu</b> wśród
-            źródeł cytowanych przez model. Odpowiedzi dla klientów budowane są wyłącznie
-            na treściach konkurencji i serwisów branżowych.</p>`}
+        : `<p class="ostrzezenie"><b>Odpowiadając na te pytania, model nie sięgnął
+            po Państwa stronę ani razu.</b> Zbudował odpowiedzi wyłącznie na treściach
+            konkurencji i serwisów branżowych${r.ai_overview && r.ai_overview.liczba_wzmianek
+              ? ` — mimo że w ${esc(r.ai_overview.silnik_nazwa || "AI Overviews")} jesteście
+                 cytowani na <b>${r.ai_overview.liczba_wzmianek}</b> frazach. Widoczność
+                 w jednym kanale nie przenosi się automatycznie na drugi` : ""}.</p>`}
       <table class="tabela-dok">
         <thead><tr><th>Serwis, z którego model korzystał</th><th class="pr waska">Cytowań</th></tr></thead>
         <tbody>${r.zrodla.top_zrodla.map((z) => `<tr>
