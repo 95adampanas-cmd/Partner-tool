@@ -1046,12 +1046,31 @@ function raportHTML(r) {
             : "średnia pozycja cytowania")}
       </div>
       <table class="tabela-dok">
-        <thead><tr><th>Zapytanie</th><th class="pr waska">Wyszukiwań/mies.</th><th class="pr waska">Pozycja</th></tr></thead>
+        <thead><tr><th>Zapytanie</th><th class="pr waska">Wyszukiwań/mies.</th>
+          <th class="pr waska">Jako źródło</th><th class="pr">Nazwa firmy</th></tr></thead>
         <tbody>${r.ai_overview.wzmianki.slice(0, 10).map((w) => `
           <tr><td>${esc(w.prompt)}</td>
               <td class="pr waska">${w.wolumen ? w.wolumen.toLocaleString("pl-PL") : "—"}</td>
-              <td class="pr waska">${w.pozycja ? "#" + w.pozycja : "—"}</td></tr>`).join("")}</tbody>
+              <td class="pr waska">${w.pozycja ? "#" + w.pozycja : "—"}</td>
+              <td class="pr">${w.wymieniona
+                ? `<span class="typ handlowa">wymieniona</span>`
+                : `<span class="typ">tylko źródło</span>`}</td></tr>`).join("")}</tbody>
       </table>
+      ${(() => {
+        // Bycie cytowanym źródłem a byciem wymienionym z nazwy to dwie różne rzeczy
+        // i różnica jest praktyczna: w pierwszym przypadku użytkownik czyta odpowiedź
+        // zbudowaną na treści firmy, ale jej nazwy nie widzi.
+        const w = r.ai_overview.wzmianki.slice(0, 10);
+        const nazwane = w.filter((x) => x.wymieniona).length;
+        if (!w.length) return "";
+        return `<p class="metodyka">Wśród ${w.length} zbadanych zapytań nazwa firmy pada
+          w treści odpowiedzi <b>${nazwane} ${nazwane === 1 ? "raz" : "razy"}</b>.
+          ${nazwane < w.length
+            ? `W pozostałych Google buduje odpowiedź na Państwa treści, ale <b>nie podaje
+               nazwy</b> — użytkownik musiałby rozwinąć panel źródeł, żeby ją zobaczyć.
+               To słabsza forma widoczności i osobny obszar do poprawy.`
+            : "To najmocniejsza forma widoczności — użytkownik widzi nazwę bez klikania."}</p>`;
+      })()}
 
       ${r.ai_overview.wzmianki.some((w) => w.tekst) ? `
       <p class="metodyka" style="margin-top:26px">Poniżej rzeczywiste odpowiedzi, które

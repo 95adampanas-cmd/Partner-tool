@@ -342,15 +342,23 @@ def luka_z_fraz(frazy, domena: str, limit: int = 8) -> list[dict]:
     return wiersze[:limit]
 
 
-def analizuj_wzmianki(odp: dict, domena: str) -> dict:
+def analizuj_wzmianki(odp: dict, domena: str, marka: str = "") -> dict:
     """Sekcja AI Overviews z danych SE Ranking. Ich odpowiedź niesie też treść
     odpowiedzi modelu i cytowane linki — więcej, niż daje llm_mentions."""
     lista = odp if isinstance(odp, list) else (odp or {}).get("prompts") or []
+    # patrz komentarz w audyt.analizuj_ai_overview — cytowanie jako źródło
+    # to nie to samo co wymienienie marki w treści odpowiedzi
+    from audyt import warianty_marki, bez_etykiet_zrodel
+    warianty = warianty_marki(marka, domena) if (marka or domena) else []
+
     wzmianki = []
     for it in lista:
         odpowiedz = it.get("answer") or {}
         linki = odpowiedz.get("links") or []
+        tekst_odp = odpowiedz.get("text") or ""
+        bez_podpisow = bez_etykiet_zrodel(tekst_odp, warianty).lower()
         wzmianki.append({
+            "wymieniona": any(w in bez_podpisow for w in warianty),
             "prompt": it.get("prompt") or "",
             "wolumen": it.get("volume") or 0,
             "zrodla": [str(l) for l in linki],
@@ -361,6 +369,7 @@ def analizuj_wzmianki(odp: dict, domena: str) -> dict:
     pozycje = [w["pozycja"] for w in wzmianki if w["pozycja"]]
     total = (odp or {}).get("total") if isinstance(odp, dict) else None
     return {
+        "wymienionych": sum(1 for w in wzmianki if w["wymieniona"]),
         "liczba_wzmianek": total if total is not None else len(wzmianki),
         "pobrano": len(wzmianki),
         "srednia_pozycja": round(sum(pozycje) / len(pozycje), 2) if pozycje else None,

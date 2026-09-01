@@ -863,7 +863,7 @@ async def api_audyt(request):
                         seranking.wzmianki_ai, domena, nazwa_pl, 10,
                         f"audyt_{domena}_{nazwa_pl}")
                     koszt_kredytow += k
-                    w = seranking.analizuj_wzmianki(sr, domena)
+                    w = seranking.analizuj_wzmianki(sr, domena, nazwa)
                     w["silnik_nazwa"] = seranking.SILNIKI_AI[nazwa_pl]
                     platformy.append(w)
                 # pierwsza platforma zasila sekcję szczegółową, reszta idzie do
@@ -882,7 +882,7 @@ async def api_audyt(request):
                 audyt.wzmianki_ai_overview, domena, 10, f"audyt_aio_{domena}"
             )
             koszt += odp_aio.get("cost", 0)
-            aio = audyt.analizuj_ai_overview(odp_aio, domena)
+            aio = audyt.analizuj_ai_overview(odp_aio, domena, nazwa)
 
         # 4) Klasyczne SEO — „Raport Zero"
         # Dostawcę wybiera użytkownik przed audytem i NIGDY nie mieszamy dwóch

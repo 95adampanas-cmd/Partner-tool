@@ -481,14 +481,46 @@ def analizuj_seo(rank: dict, konkurenci: dict, strony: dict, domena: str,
     }
 
 
-def analizuj_ai_overview(odp: dict, domena: str) -> dict:
+def bez_etykiet_zrodel(tekst: str, warianty: list[str]) -> str:
+    """Usuwa podpisy źródeł z treści odpowiedzi AI Overview.
+
+    Google podpisuje akapity nazwą źródła („Wikipedia +5", „Twój StartUp"), a API
+    wkleja te podpisy do pola z treścią. Bez ich odcięcia każde cytowanie wyglądałoby
+    jak wymienienie marki w zdaniu — a to zupełnie inna, znacznie mocniejsza rzecz.
+    Wykryte na twojstartup.pl: 7 z 10 rzekomych „wymienień" to były same podpisy.
+
+    Wycinamy tylko linie, które w CAŁOŚCI są nazwą marki (opcjonalnie z „+N").
+    Zdanie zawierające nazwę w treści zostaje nietknięte.
+    """
+    if not tekst:
+        return ""
+    wynik = []
+    for linia in tekst.splitlines():
+        goła = re.sub(r"[\s*•\-–]+", " ", linia).strip().lower()
+        goła = re.sub(r"\s*\+\s*\d+\s*$", "", goła).strip()
+        if goła and any(goła == w for w in warianty):
+            continue                      # sam podpis źródła — pomijamy
+        wynik.append(linia)
+    return "\n".join(wynik)
+
+
+def analizuj_ai_overview(odp: dict, domena: str, marka: str = "") -> dict:
     """Sekcja 2 — widoczność w AI Overviews (llm_mentions, platform=google)."""
     wynik = ((odp.get("tasks") or [{}])[0].get("result") or [{}])[0]
     items = wynik.get("items") or []
 
+    # Cytowanie jako źródło i wymienienie z nazwy to DWIE RÓŻNE rzeczy. Google potrafi
+    # zbudować odpowiedź na czyjejś treści, nie podając nazwy firmy — użytkownik widzi
+    # wtedy odpowiedź, ale nie markę. Zweryfikowane na żywo: dla „dodatkowa praca online"
+    # twojstartup.pl jest 5. źródłem, a w tekście odpowiedzi nie pada ani razu.
+    warianty = warianty_marki(marka, domena) if (marka or domena) else []
+
     wzmianki = []
     for it in items:
+        tekst_odp = it.get("answer") or ""
+        bez_podpisow = bez_etykiet_zrodel(tekst_odp, warianty).lower()
         wzmianki.append({
+            "wymieniona": any(w in bez_podpisow for w in warianty),
             "prompt": it.get("question", ""),
             # Pełna treść odpowiedzi Google — mamy ją w odpowiedzi API i nie kosztuje
             # nic dodatkowo. Bez niej raport pokazywał samą frazę i pozycję, czyli
@@ -506,6 +538,7 @@ def analizuj_ai_overview(odp: dict, domena: str) -> dict:
     pozycje = [w["pozycja"] for w in wzmianki if w["pozycja"]]
     total = wynik.get("total_count", 0)
     return {
+        "wymienionych": sum(1 for w in wzmianki if w["wymieniona"]),
         "liczba_wzmianek": total,
         "pobrano": len(items),
         # Średnią liczymy z pobranych pozycji, a tych bywa mniej niż wszystkich fraz
