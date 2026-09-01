@@ -494,6 +494,13 @@ def bez_etykiet_zrodel(tekst: str, warianty: list[str]) -> str:
     """
     if not tekst:
         return ""
+    # Odnośniki też nie są wymienieniem marki. DataForSEO wkleja cytowania jako
+    # linki markdown — „...magazynowych.[](https://www.tebim.pro/blog/...)" — więc
+    # domena trafiała się w URL-u i każde cytowanie liczyło się jako wzmianka.
+    # Zostawiamy etykietę linku (to bywa prawdziwy tekst), wycinamy sam adres.
+    tekst = re.sub(r"\[([^\]]*)\]\([^)]*\)", lambda m: m.group(1), tekst)
+    tekst = re.sub(r"https?://\S+", " ", tekst)
+
     wynik = []
     for linia in tekst.splitlines():
         goła = re.sub(r"[\s*•\-–]+", " ", linia).strip().lower()
