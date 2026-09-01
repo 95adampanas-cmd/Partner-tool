@@ -878,11 +878,24 @@ async def api_audyt(request):
 
         # 3b) AI Overview przez DataForSEO (opcjonalnie — najdroższy pojedynczy element)
         if z_aio and dostawca != "seranking":
-            odp_aio = await asyncio.to_thread(
-                audyt.wzmianki_ai_overview, domena, 10, f"audyt_aio_{domena}"
-            )
-            koszt += odp_aio.get("cost", 0)
-            aio = audyt.analizuj_ai_overview(odp_aio, domena, nazwa)
+            # Tak samo jak u SE Ranking: można wziąć kilka platform i pokazać różnicę.
+            wybrane_pl = body.get("platformy") or ["google"]
+            wybrane_pl = [x for x in wybrane_pl if x in audyt.PLATFORMY_WZMIANEK] or ["google"]
+            zebrane = []
+            for pl in wybrane_pl:
+                odp_aio = await asyncio.to_thread(
+                    audyt.wzmianki_ai_overview, domena, 10,
+                    f"audyt_aio_{domena}_{pl}", pl
+                )
+                koszt += odp_aio.get("cost", 0)
+                w = audyt.analizuj_ai_overview(odp_aio, domena, nazwa)
+                w["silnik_nazwa"] = audyt.PLATFORMY_WZMIANEK[pl]
+                zebrane.append(w)
+            aio = zebrane[0]
+            if len(zebrane) > 1:
+                aio["platformy"] = [
+                    {"nazwa": z["silnik_nazwa"], "liczba": z["liczba_wzmianek"],
+                     "srednia": z["srednia_pozycja"]} for z in zebrane]
 
         # 4) Klasyczne SEO — „Raport Zero"
         # Dostawcę wybiera użytkownik przed audytem i NIGDY nie mieszamy dwóch

@@ -445,6 +445,13 @@ document.addEventListener("change", (e) => {
     const sekcja = document.querySelector(".sekcja.aktywna")?.dataset.sekcja;
     return pokazSekcje(sekcja || "firmy");
   }
+  if (e.target.name === "platforma") {
+    const v = e.target.value;
+    audytPlatformy = e.target.checked
+      ? [...audytPlatformy, v] : audytPlatformy.filter((x) => x !== v);
+    if (!audytPlatformy.length) audytPlatformy = [v];
+    return renderAudyt();
+  }
   if (e.target.name === "silnik_sr") {
     const v = e.target.value;
     audytSilnikiSR = e.target.checked
@@ -655,6 +662,15 @@ let audytDostawca = "dataforseo";
 let audytSilniki = ["chatgpt_wprost"];
 // Silnik bazy SE Ranking dla sekcji wzmianek — ich dane pokrywaja 5 platform.
 let audytSilnikiSR = ["ai-overview"];
+// Platformy wzmianek u DataForSEO — ta sama idea co SILNIKI_SR, inny dostawca.
+const PLATFORMY_DFS = {
+  "google":     "Google AI Overviews",
+  "chat_gpt":   "ChatGPT",
+  "perplexity": "Perplexity",
+  "gemini":     "Google Gemini",
+};
+let audytPlatformy = ["google"];
+
 const SILNIKI_SR = {
   "ai-overview": "Google AI Overviews",
   "ai-mode":     "Google AI Mode",
@@ -740,7 +756,7 @@ function renderAudyt() {
   const koszt = sr
     ? (audytIle * kosztSilnikow()).toFixed(3)
     : (audytIle * kosztSilnikow() + (audytAIO ? KOSZT_AIO : 0)
-       + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
+       + (audytSEO ? KOSZT_SEO : 0) + (audytAIO ? KOSZT_AIO * (audytPlatformy.length - 1) : 0)).toFixed(3);
   const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 * audytSilnikiSR.length : 0)) : 0;
   wybor.innerHTML = `<div class="card">
     <div class="wzor-head">
@@ -782,6 +798,17 @@ function renderAudyt() {
       ${audytSilniki.length > 1
         ? " Przy kilku modelach widać, czy brak wzmianki dotyczy jednego silnika, czy wszystkich."
         : " Przy jednym modelu nie da się odróżnić cechy silnika od prawidłowości."}</p>
+
+    ${!sr && audytAIO ? `
+    <div class="mono"><i class="sq"></i>Wzmianki — z której platformy</div>
+    <div class="akcje" style="margin-bottom:10px">
+      ${Object.entries(PLATFORMY_DFS).map(([k, n]) => `
+        <label class="akcja check"><input type="checkbox" name="platforma" value="${k}"
+          ${audytPlatformy.includes(k) ? "checked" : ""}> ${n}</label>`).join("")}
+    </div>
+    <p class="hint" style="margin:0 0 16px">Baza DataForSEO — zapytania, przy których
+      firma <b>już jest</b> cytowana. Każda platforma to osobne wywołanie
+      (<b>+$${KOSZT_AIO}</b>).</p>` : ""}
 
     ${sr && audytAIO ? `
     <div class="mono"><i class="sq"></i>Wzmianki — z której platformy</div>
@@ -827,7 +854,7 @@ async function generujAudyt(przycisk) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki, silniki_sr: audytSilnikiSR,
-                             ai_overview: audytAIO, seo: audytSEO }),
+                             ai_overview: audytAIO, seo: audytSEO, platformy: audytPlatformy }),
     });
     const data = await res.json();
     box.innerHTML = data.ok ? raportHTML(data.raport) : errorHTML(data.error);

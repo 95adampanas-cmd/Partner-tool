@@ -627,17 +627,33 @@ def dane_seo(domena: str, nazwa_fixture: str = "") -> tuple[dict, dict, dict, di
     return rank, konk, strony, frazy, ruch_konk, koszt
 
 
-def wzmianki_ai_overview(domena: str, limit: int = 10, nazwa_fixture=None) -> dict:
-    return dfs.wywolaj(
-        "ai_optimization/llm_mentions/search/live",
-        [{
-            "language_name": JEZYK_PL,
-            "location_code": LOKALIZACJA_PL,
-            "target": [{"domain": domena}],
-            "limit": limit,
-        }],
-        nazwa_fixture,
-    )
+# Platformy, o które można pytać llm_mentions. Endpoint available_filters (darmowy)
+# potwierdza, że filtr `platform` istnieje — wcześniej nie wysyłaliśmy go wcale
+# i dostawaliśmy domyślnie google/google_ai_overview, przez co raport pokazywał
+# tylko AI Overviews, choć baza ma więcej. To samo ograniczenie mieliśmy po stronie
+# SE Ranking i tam też było nasze, nie dostawcy.
+PLATFORMY_WZMIANEK = {
+    "google":     "Google AI Overviews",
+    "chat_gpt":   "ChatGPT",
+    "perplexity": "Perplexity",
+    "gemini":     "Google Gemini",
+}
+
+
+def wzmianki_ai_overview(domena: str, limit: int = 10, nazwa_fixture=None,
+                         platforma: str = "google") -> dict:
+    zadanie = {
+        "language_name": JEZYK_PL,
+        "location_code": LOKALIZACJA_PL,
+        "target": [{"domain": domena}],
+        "limit": limit,
+    }
+    if platforma and platforma != "google":
+        # NIEZWERYFIKOWANE na żywym wywołaniu — saldo DataForSEO na zerze.
+        # Filtr potwierdzony w available_filters, wartości wzięte z listy providerów
+        # llm_responses, ale odpowiedzi dla innych platform jeszcze nie widzieliśmy.
+        zadanie["filters"] = [["platform", "=", platforma]]
+    return dfs.wywolaj("ai_optimization/llm_mentions/search/live", [zadanie], nazwa_fixture)
 
 
 # ══════════════════════════════════════════════════════════════════
