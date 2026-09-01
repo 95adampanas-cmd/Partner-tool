@@ -851,14 +851,28 @@ async def api_audyt(request):
         aio = None
         if z_aio and dostawca == "seranking":
             try:
-                silnik_sr = (body.get("silnik_sr") or "ai-overview")
-                if silnik_sr not in seranking.SILNIKI_AI:
-                    silnik_sr = "ai-overview"
-                sr, k = await asyncio.to_thread(
-                    seranking.wzmianki_ai, domena, silnik_sr, 10, f"audyt_{domena}")
-                koszt_kredytow += k
-                aio = seranking.analizuj_wzmianki(sr, domena)
-                aio["silnik_nazwa"] = seranking.SILNIKI_AI[silnik_sr]
+                # Ich baza pokrywa pięć platform — można wziąć kilka naraz i pokazać
+                # różnicę. To dokładnie ten wniosek, którego nie widać przy jednym
+                # silniku: firma może być pierwsza w Google AI Mode i nieobecna
+                # w ChatGPT, a obie liczby są prawdziwe.
+                wybrane_sr = body.get("silniki_sr") or [body.get("silnik_sr") or "ai-overview"]
+                wybrane_sr = [x for x in wybrane_sr if x in seranking.SILNIKI_AI] or ["ai-overview"]
+                platformy = []
+                for nazwa_pl in wybrane_sr:
+                    sr, k = await asyncio.to_thread(
+                        seranking.wzmianki_ai, domena, nazwa_pl, 10,
+                        f"audyt_{domena}_{nazwa_pl}")
+                    koszt_kredytow += k
+                    w = seranking.analizuj_wzmianki(sr, domena)
+                    w["silnik_nazwa"] = seranking.SILNIKI_AI[nazwa_pl]
+                    platformy.append(w)
+                # pierwsza platforma zasila sekcję szczegółową, reszta idzie do
+                # tabeli porównawczej — bez mieszania danych z różnych źródeł
+                aio = platformy[0]
+                if len(platformy) > 1:
+                    aio["platformy"] = [
+                        {"nazwa": p["silnik_nazwa"], "liczba": p["liczba_wzmianek"],
+                         "srednia": p["srednia_pozycja"]} for p in platformy]
             except seranking.BladAPI:
                 raise
 

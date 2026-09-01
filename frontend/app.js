@@ -445,7 +445,13 @@ document.addEventListener("change", (e) => {
     const sekcja = document.querySelector(".sekcja.aktywna")?.dataset.sekcja;
     return pokazSekcje(sekcja || "firmy");
   }
-  if (e.target.name === "silnik_sr") { audytSilnikSR = e.target.value; return renderAudyt(); }
+  if (e.target.name === "silnik_sr") {
+    const v = e.target.value;
+    audytSilnikiSR = e.target.checked
+      ? [...audytSilnikiSR, v] : audytSilnikiSR.filter((x) => x !== v);
+    if (!audytSilnikiSR.length) audytSilnikiSR = [v];
+    return renderAudyt();
+  }
   if (e.target.name === "silnik") {
     const v = e.target.value;
     audytSilniki = e.target.checked ? [...audytSilniki, v] : audytSilniki.filter((x) => x !== v);
@@ -648,7 +654,7 @@ let audytIle = 5;
 let audytDostawca = "dataforseo";
 let audytSilniki = ["chatgpt_wprost"];
 // Silnik bazy SE Ranking dla sekcji wzmianek — ich dane pokrywaja 5 platform.
-let audytSilnikSR = "ai-overview";
+let audytSilnikiSR = ["ai-overview"];
 const SILNIKI_SR = {
   "ai-overview": "Google AI Overviews",
   "ai-mode":     "Google AI Mode",
@@ -735,7 +741,7 @@ function renderAudyt() {
     ? (audytIle * kosztSilnikow()).toFixed(3)
     : (audytIle * kosztSilnikow() + (audytAIO ? KOSZT_AIO : 0)
        + (audytSEO ? KOSZT_SEO : 0)).toFixed(3);
-  const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 : 0)) : 0;
+  const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 * audytSilnikiSR.length : 0)) : 0;
   wybor.innerHTML = `<div class="card">
     <div class="wzor-head">
       <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
@@ -781,12 +787,16 @@ function renderAudyt() {
     <div class="mono"><i class="sq"></i>Wzmianki — z której platformy</div>
     <div class="akcje" style="margin-bottom:10px">
       ${Object.entries(SILNIKI_SR).map(([k, n]) => `
-        <label class="akcja check"><input type="radio" name="silnik_sr" value="${k}"
-          ${audytSilnikSR === k ? "checked" : ""}> ${n}</label>`).join("")}
+        <label class="akcja check"><input type="checkbox" name="silnik_sr" value="${k}"
+          ${audytSilnikiSR.includes(k) ? "checked" : ""}> ${n}</label>`).join("")}
     </div>
-    <p class="hint" style="margin:0 0 16px">SE Ranking ma zapisane wzmianki z pięciu
-      platform, w tym <b>Google AI Mode</b>. To ich baza, odświeżana miesięcznie —
-      pokazuje, gdzie firma <b>jest</b> cytowana, a nie odpowiada na nasze pytania.</p>` : ""}
+    <p class="hint" style="margin:0 0 16px">To ich baza, odświeżana miesięcznie —
+      pokazuje, gdzie firma <b>jest</b> cytowana, a nie odpowiada na nasze pytania.
+      ${audytSilnikiSR.length > 1
+        ? `Przy kilku platformach raport zestawi je obok siebie — a to właśnie różnica
+           między nimi bywa wnioskiem: firma potrafi być pierwsza w Google AI Mode
+           i nieobecna w ChatGPT.`
+        : `Możesz zaznaczyć kilka — <b>2 000 kredytów za każdą</b>.`}</p>` : ""}
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
@@ -816,7 +826,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki, silnik_sr: audytSilnikSR,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki, silniki_sr: audytSilnikiSR,
                              ai_overview: audytAIO, seo: audytSEO }),
     });
     const data = await res.json();
@@ -1014,6 +1024,20 @@ function raportHTML(r) {
           ? `Widoczność w ${r.ai_overview.silnik_nazwa}`
           : "Widoczność w AI Overviews")}
       ${st.ai_overview.akapity.map((a) => `<p>${pogrub(a)}</p>`).join("")}
+      ${r.ai_overview.platformy ? `
+      <table class="tabela-dok" style="margin-bottom:26px">
+        <thead><tr><th>Platforma AI</th><th class="pr waska">Fraz z cytowaniem</th>
+          <th class="pr waska">Śr. pozycja</th></tr></thead>
+        <tbody>${r.ai_overview.platformy.map((p) => `<tr>
+          <td class="cel">${esc(p.nazwa)}</td>
+          <td class="pr waska">${p.liczba != null ? p.liczba.toLocaleString("pl-PL") : "—"}</td>
+          <td class="pr waska">${p.srednia != null ? p.srednia : "—"}</td></tr>`).join("")}</tbody>
+      </table>
+      <p class="metodyka">Różnica między platformami to sama w sobie informacja —
+        firma może być mocno obecna w jednej i niewidoczna w drugiej, choć obie liczby
+        są prawdziwe. Szczegóły poniżej dotyczą
+        <b>${esc(r.ai_overview.silnik_nazwa || "pierwszej z nich")}</b>.</p>` : ""}
+
       ${r.ai_overview.wzmianki && r.ai_overview.wzmianki.length ? `
       <div class="liczby">
         ${liczba(r.ai_overview.liczba_wzmianek ?? "—", "fraz z AI Overview")}
