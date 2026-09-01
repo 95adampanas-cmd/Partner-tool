@@ -245,8 +245,19 @@ def analizuj_seo(overview: dict, frazy: dict, konk: dict, strony: dict,
 
     INFORMACYJNE = ("co to", "czym jest", "jak ", "znaczenie", "definicja",
                     "dlaczego", "kiedy ", "ile ", "czy ")
+    # Deduplikacja — SE Ranking zwraca ranking per URL, więc „twoj startup" pojawia
+    # się dwa razy z pozycjami #1 i #2. Zostawiamy najlepszą.
+    najlepsze_fr = {}
+    for k in lista_fraz:
+        kl = (k.get("keyword") or "").lower()
+        if not kl:
+            continue
+        p_ = najlepsze_fr.get(kl)
+        if not p_ or (k.get("position") or 999) < (p_.get("position") or 999):
+            najlepsze_fr[kl] = k
+
     frazy_out = []
-    for k in lista_fraz[:12]:
+    for k in sorted(najlepsze_fr.values(), key=lambda x: (x.get("position") or 999))[:12]:
         fraza = k.get("keyword") or ""
         frazy_out.append({
             "typ": "informacyjna" if any(i in f" {fraza.lower()} " for i in INFORMACYJNE)

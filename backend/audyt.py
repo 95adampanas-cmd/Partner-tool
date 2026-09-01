@@ -339,6 +339,15 @@ def _frazy(odp: dict, limit: int = 12) -> list[dict]:
             "ruch": round(serp.get("etv") or 0),
             "url": serp.get("relative_url") or serp.get("url") or "",
         })
+        # Ta sama fraza potrafi wystąpić kilka razy — API zwraca ranking per URL.
+    # Zostawiamy najlepszą pozycję, inaczej tabela pokazuje „twoj startup #1"
+    # i „twoj startup #2" jako dwie różne frazy.
+    najlepsze = {}
+    for f in lista:
+        k = f["fraza"].lower()
+        if k not in najlepsze or (f["pozycja"] or 999) < (najlepsze[k]["pozycja"] or 999):
+            najlepsze[k] = f
+    lista = list(najlepsze.values())
     lista.sort(key=lambda f: (f["pozycja"] or 999, -f["wolumen"]))
     return lista[:limit]
 

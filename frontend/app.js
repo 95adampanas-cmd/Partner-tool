@@ -937,18 +937,23 @@ function raportHTML(r) {
       ${r.seo.luka && r.seo.luka.length ? (() => {
         const luki = r.seo.luka.filter((w) => w.ma_aio && !w.cytowany_w_aio && !w.nieustalone);
         const stracone = luki.reduce((s, w) => s + (w.wolumen || 0), 0);
-        const zAio = r.seo.luka.filter((w) => w.ma_aio).length;
+        const cytowani = r.seo.luka.filter((w) => w.cytowany_w_aio);
+        const bezAio = r.seo.luka.filter((w) => w.ma_aio === false);
         return `<div class="wyimek luka-blok">
           <div class="mono"><i class="sq"></i>Luka między Google a AI</div>
           ${luki.length ? `<p>Na <b>${luki.length}</b> z ${r.seo.luka.length} sprawdzonych fraz Google
             pokazuje odpowiedź AI, w której <b>Państwa strona nie jest cytowana</b> — mimo pozycji
             w wynikach organicznych. To łącznie <b>${stracone.toLocaleString("pl-PL")}</b> wyszukiwań
             miesięcznie, przy których użytkownik dostaje gotową odpowiedź i może nie kliknąć w żaden wynik.</p>`
-          : `<p>Na sprawdzonych frazach Google <b>${zAio ? "w większości nie pokazuje" : "nie pokazuje"}</b>
-            odpowiedzi AI — zamiast niej wyświetla moduły produktowe i porównania cen. To typowe dla
-            zapytań zakupowych. ${r.aio && r.aio.liczba_wzmianek
-              ? `AI Overviews pojawiają się natomiast na zapytaniach poradnikowych — tam Państwa strona
-                 jest już cytowana na <b>${r.aio.liczba_wzmianek}</b> frazach (sekcja dalej).`
+          : cytowani.length
+          ? `<p><b>Na ${cytowani.length} z ${r.seo.luka.length} sprawdzonych fraz Państwa strona jest
+              cytowana w odpowiedzi AI</b> — czyli tam, gdzie Google generuje gotową odpowiedź nad
+              wynikami, pojawiacie się w niej Państwo. To mocna pozycja: użytkownik widzi Waszą treść
+              nawet wtedy, gdy nie kliknie w żaden wynik.</p>`
+          : `<p>Na sprawdzonych frazach Google <b>nie pokazuje</b> odpowiedzi AI — wyświetla klasyczne
+              wyniki albo moduły dodatkowe.${r.ai_overview && r.ai_overview.liczba_wzmianek
+              ? ` AI Overviews pojawiają się natomiast na innych zapytaniach — tam Państwa strona
+                 jest cytowana na <b>${r.ai_overview.liczba_wzmianek}</b> frazach (sekcja dalej).`
               : ""}</p>`}
         </div>
         <table class="tabela-dok">
