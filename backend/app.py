@@ -219,6 +219,48 @@ DOMENY_ODPADAJACE = (
     "instagram", "youtube", "wordpress.org", "domenomania",
     # media/blogi/fora — po ucięciu do domeny i tak nie byłyby firmą
     "blog", "news", "portal", "magazyn", "forum",
+
+    # ── Rejestry i wywiadownie gospodarcze ──
+    # Wchodziły jako firmy, bo wpis w rejestrze NAZYWA SIĘ jak firma: wynik
+    # "STUDIO ECOMMERCE SP. Z O.O. | KRS: 0001146410" wygląda w liście identycznie
+    # jak prawdziwy kandydat. Po ucięciu do domeny zostaje jednak bizraport.pl.
+    "rejestr.io", "bizraport", "krs-online", "krs-pobierz", "imsig", "mojepanstwo",
+    "infoveriti", "ems.ms.gov.pl", "rejestr.firmy", "wywiadownia", "bazafirm",
+    "katalogfirm", "firmy-w-polsce", "ncrejestr", "kalkulatory.gofin",
+
+    # ── Katalogi startupów i platformy społecznościowe ──
+    "skool.com", "startupblink", "dealroom", "producthunt", "angel.co", "wellfound",
+    "startup.info", "eu-startups",
+
+    # ── Izby i organizacje branżowe (publikują mapy i listy członków) ──
+    # mapa.iab.org.pl to katalog agencji, nie agencja.
+    "iab.org.pl", "eizba.pl", "piit.org.pl", "kigeit", "zpp.net.pl", "lewiatan.org",
+
+    # ── Media branżowe, wydarzenia, biura prasowe ──
+    "wiadomoscihandlowe", "e-biznes.pl", "poradnikprzedsiebiorcy", "dlaprasy",
+    "eventyb2b", "prnews", "wirtualnemedia", "money.pl", "bankier.pl", "interia.pl",
+    "onet.pl", "wp.pl", "gazeta.pl",
+
+    # ── Słowniki, porównywarki oprogramowania, fora, dokumentacja producentów ──
+    # Wsypały się przy branży "software house": termin jest angielski, więc
+    # wyszukiwarka podawała definicję ze słownika i dokumentację Visual Studio.
+    "dictionary", "cambridge.org", "merriam-webster", "reddit.com", "quora.com",
+    "stackoverflow", "github.com", "capterra", "g2.com", "getapp", "softwareadvice",
+    "microsoft.com", "google.com", "apple.com", "amazon.", "atlassian.com",
+    "yelp.com", "yell.com", "mapy.cz", "booksy",
+)
+
+# Domeny publiczne i uczelniane — nigdy nie są firmą-kandydatem. Wchodziły przez
+# rejestry usług rozwojowych (uslugirozwojowe.parp.gov.pl) i strony studiów
+# podyplomowych, które przy branży "e-commerce" trafiały w wyniki jako "firmy".
+KONCOWKI_PUBLICZNE = (".gov.pl", ".gov", ".gouv.fr", ".edu.pl", ".edu", ".ac.uk", ".mil")
+
+# Poddomeny, które nigdy nie są stroną firmy-kandydata, tylko jej dokumentacją,
+# pomocą technczną albo bazą wiedzy. Reguła strukturalna zamiast wyliczania domen:
+# "docs.johnsoncontrols.com" nie da się przewidzieć, ale prefiks już tak.
+PODDOMENY_ODPADAJACE = (
+    "docs.", "doc.", "support.", "help.", "helpdesk.", "developer.", "developers.",
+    "learn.", "wiki.", "kb.", "status.", "api.", "community.",
 )
 
 
@@ -235,6 +277,11 @@ def normalizuj_url(url: str) -> str | None:
         return None
     if any(d in domena for d in DOMENY_ODPADAJACE):
         return None
+    if domena.startswith(PODDOMENY_ODPADAJACE):
+        return None
+    # porównanie i na równość, bo sama "gov.pl" nie kończy się na ".gov.pl"
+    if any(domena == k.lstrip(".") or domena.endswith(k) for k in KONCOWKI_PUBLICZNE):
+        return None
     if domena.endswith(OBCE_TLD):
         return None
     if u.split("?")[0].endswith(ROZSZERZENIA):
@@ -249,10 +296,26 @@ FRAZY_NIE_FIRMA = (
     "najlepsze w kategorii", "najwieksze agencje", "największe agencje", "warto zna",
 )
 
-# Zestawienia: "50 agencji digital", "Top 5 Najlepszych...". Kotwiczymy na POCZĄTKU tytułu,
-# inaczej wpadały firmy typu "360agencja.pl" albo "Grupa 3 Agencja Reklamowa".
+# Zestawienia: "50 agencji digital", "Top 5 Najlepszych...".
+#
+# Wcześniej wzorzec był zakotwiczony na POCZĄTKU tytułu, żeby nie łapać firm z liczbą
+# w nazwie ("Grupa 3 Agencja Reklamowa"). Kotwica działała, ale przepuszczała
+# zestawienia z liczbą w środku — "Strony internetowe Warszawa: 20 firm i agencji,
+# które warto znać" wchodziło na listę jako firma.
+#
+# Kotwicę zdejmujemy, a przed fałszywym trafieniem chroni LICZBA MNOGA: zestawienie
+# mówi "20 firm" i "15 agencji", nazwa firmy — "3 Agencja". Dlatego wymagamy końcówek
+# mnogich z granicą słowa; "Agencja" w liczbie pojedynczej nie pasuje.
+# Do dwóch słów przerwy między liczbą a rzeczownikiem, bo zestawienia wtrącają
+# przymiotnik: "71 Top E-commerce Companies". Rzeczownik w liczbie mnogiej nadal
+# jest wymagany, więc "Grupa 3 Agencja Reklamowa" się nie łapie.
+# Drugi wariant — samo "Top 50 czegokolwiek". Rzeczownik bywa dowolny ("Top 50
+# E-Commerce Photo Studio Professionals"), więc lista końcówek go nie obejmie,
+# ale "top" przed liczbą jest jednoznaczne: to ranking, nie nazwa firmy.
 LISTICLE = re.compile(
-    r"^\s*(top\s+)?\d{1,3}\s+(top\s+|best\s+)?(najlepsz|agencj|firm|software|companies)",
+    r"\btop\s+\d{1,3}\b"
+    r"|\b\d{1,3}\s+([\w-]+\s+){0,2}"
+    r"(firm\b|firmy\b|agencji\b|agencje\b|companies\b|software\s+houses\b|najlepsz\w*\s+(agencj|firm))",
     re.IGNORECASE,
 )
 
@@ -261,6 +324,8 @@ LISTICLE = re.compile(
 TYTULY_ODRZUCAJACE = (
     "ranking", "top 10", "top10", "directory", "katalog firm", "zestawienie",
     "najlepszych agencji", "najlepsze agencje", "oferty pracy", "praca ", " praca",
+    # wpisy w rejestrach gospodarczych — wyglądają jak firma, są wyciągiem z KRS
+    "krs:", "nip:", "regon:", "| krs", "sprawozdanie finansowe",
 )
 
 
