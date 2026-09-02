@@ -271,13 +271,31 @@ def tavily_search(zapytanie: str, max_results: int = 15) -> list:
     return TavilyClient(api_key=key).search(zapytanie, max_results=max_results).get("results", [])
 
 
-# Odsiewamy TYLKO jawne agencje SEO/pozycjonowania (SEO jako rdzeń oferty).
-# Agencje SEM / Google Ads / marketingowe zostawiamy — to partnerzy komplementarni
-# (oni płatne kampanie, my organiczne), nie konkurenci.
-FRAZY_KONKURENTA = (
-    "agencja seo", "agencji seo", "agencja pozycjonowania", "pozycjonowanie stron",
-    "pozycjonowanie sklep", "seo agency", "specjalisci seo", "specjaliści seo",
+# Odsiewamy TYLKO firmy, dla których SEO jest rdzeniem i właściwie całą ofertą.
+# Agencja e-commerce czy software house z "optymalizacją SEO" wśród kilkunastu usług
+# to partner komplementarny, nie konkurent — i ma zostać na liście.
+#
+# Wcześniej filtr porównywał tytuł z listą ośmiu fraz. Na ośmiu realnych polskich
+# agencjach SEO przepuszczał siedem, w tym Grupę iCEA i Delante: wystarczyło, że
+# agencja nie wpisała frazy "agencja SEO" do znacznika title. Liczba odsianych była
+# prawdziwa, ale znaczyła "tyle firm miało tę frazę w tytule", a nie "tylu było
+# konkurentów".
+#
+# Teraz dwa etapy. Najpierw ten sygnał — tani, deterministyczny, tylko zawęża pole:
+# odpowiada na pytanie "czy w ogóle jest o czym rozmawiać". W realnym wyszukiwaniu
+# przechodzi przez niego 6 z 29 wyników, więc model ocenia garstkę, nie wszystko.
+#
+# Granice słów są tu istotne, nie kosmetyczne. Dopasowanie podciągiem łapało "sem"
+# w środku innych wyrazów i podawało do oceny firmę wdrożeniową oraz software house.
+SYGNAL_SEO = re.compile(
+    r"\b(seo|sem|ppc|sxo|adwords|google\s+ads|pozycjonowani\w*|pozycjonowa\w*)\b",
+    re.IGNORECASE,
 )
+
+
+def ma_sygnal_seo(tytul: str, opis: str) -> bool:
+    """Czy wynik w ogóle warto oddać modelowi do oceny. NIE jest werdyktem."""
+    return bool(SYGNAL_SEO.search(f"{tytul or ''} {opis or ''}"))
 
 # Usługi, których NIE wolno wpuścić do zapytania — inaczej szukamy własnych konkurentów.
 USLUGI_KONKURENCYJNE = ("seo", "sem", "pozycjonowanie", "google ads", "meta ads", "adwords", "ppc")
@@ -314,28 +332,34 @@ def bez_lokalizacji(fraza: str) -> str:
 
 
 def zapytanie_z_miejscem(fraza: str, miasto: str = "", limit_slow: int = 5) -> str:
-    """Fraza branżowa + miejsce wskazane przez USERA (albo "Polska", gdy nie wskazał).
+    """Fraza branżowa + miasto, ale TYLKO takie, jakie wskazał user.
 
-    Kolejność ma znaczenie: najpierw przycinamy FRAZĘ, dopiero potem doklejamy miejsce.
+    Bez miasta nie doklejamy nic — w szczególności nie "Polska". Sprawdzone na
+    tej samej frazie: z dopiskiem "Polska" wyszukiwarka zwracała YouTube, Trustpilot,
+    Clutch i artykuły o "e-Commerce Polska awards", bo słowo trafia w nazwy nagród
+    i izb branżowych, a nie w kraj. Bez dopisku — realne agencje. Polskojęzyczna
+    fraza sama załatwia geografię.
+
+    Kolejność ma znaczenie: najpierw przycinamy FRAZĘ, dopiero potem doklejamy miasto.
     Odwrotnie — jak było w pierwszej wersji — długa fraza wypychała lokalizację poza
     limit słów i zapytanie traciło dokładnie to, co ta funkcja miała zagwarantować.
     """
     slowa = bez_lokalizacji(fraza).replace("|", " ").split()[:limit_slow]
     if not slowa:
         return ""
-    return " ".join(slowa) + " " + (miasto.strip() or "Polska")
+    return " ".join(slowa) + (f" {miasto.strip()}" if miasto.strip() else "")
 
 
-def czy_konkurent_w_wyniku(tytul: str, url: str) -> bool:
-    t = (tytul or "").lower()
-    return any(f in t for f in FRAZY_KONKURENTA)
+def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> list:
+    """Zostawia realne firmy. Odrzuca katalogi/rankingi, badaną firmę i duplikaty domen.
 
-
-def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[list, int]:
-    """Zostawia realne firmy. Odrzuca: katalogi/rankingi, badaną firmę, duplikaty domen
-    oraz agencje SEO/SEM (konkurentów — nie są kandydatami na partnera).
-    Zwraca (firmy, ile_odsianych_konkurentow)."""
-    firmy, widziane, odsiani = [], set(), 0
+    Konkurentów NIE rozstrzyga — to robi odsiej_konkurentow() na podstawie opisu.
+    Tutaj zostaje tylko oznaczenie "warto o to zapytać model" i przeniesienie opisu
+    z Tavily dalej. Opis był wcześniej wyrzucany, choć przychodzi w tej samej
+    odpowiedzi i nic nie kosztuje — a to jedyne miejsce, po którym w ogóle da się
+    poznać, czym firma się zajmuje, bez wchodzenia na stronę.
+    """
+    firmy, widziane = [], set()
     for r in wyniki:
         strona = normalizuj_url(r.get("url", ""))
         if not strona:
@@ -348,14 +372,49 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> tuple[li
         tytul = (r.get("title") or "").strip()
         if any(f in tytul.lower() for f in TYTULY_ODRZUCAJACE):
             continue
-        if czy_konkurent_w_wyniku(tytul, strona):
-            odsiani += 1
-            continue
+        opis = " ".join((r.get("content") or "").split())[:600]
         # tytuł artykułu/zestawienia nie opisuje firmy — lepiej pokazać domenę
         if not tytul or any(f in tytul.lower() for f in FRAZY_NIE_FIRMA) or LISTICLE.search(tytul):
             tytul = dom
-        firmy.append({"nazwa": tytul[:60], "url": strona})
-    return firmy[:limit], odsiani
+        firmy.append({"nazwa": tytul[:60], "url": strona, "opis": opis,
+                      "_do_oceny": ma_sygnal_seo(tytul, opis)})
+    return firmy[:limit]
+
+
+async def odsiej_konkurentow(firmy: list[dict]) -> tuple[list[dict], int]:
+    """Usuwa firmy, dla których SEO jest rdzeniem i całą ofertą. Reszta zostaje.
+
+    Model dostaje wyłącznie kandydatów z sygnałem SEO — przy typowym wyszukiwaniu
+    kilka z kilkunastu. Gdy nie ma żadnego, nie ma też wywołania i kosztu.
+
+    Awaria modelu NIE może wyczyścić listy ani po cichu wpuścić wszystkich jako
+    czystych. Zostawiamy wtedy komplet firm i zwracamy 0 odsianych — czyli stan
+    zgodny z prawdą: nikogo nie odsialiśmy, bo nie było czym ocenić.
+    """
+    kandydaci = [f for f in firmy if f.get("_do_oceny")]
+    if not kandydaci:
+        return firmy, 0
+
+    wsad = "\n\n".join(
+        f"URL: {f['url']}\nTytuł: {f['nazwa']}\nOpis: {f.get('opis') or '(brak opisu)'}"
+        for f in kandydaci
+    )
+    try:
+        r = await Runner.run(agent_konkurent, wsad)
+        werdykty = {o.url: o for o in (r.final_output.oceny or [])}
+    except Exception as e:
+        print(f"[konkurenci] ocena nieudana, zostawiam wszystkie firmy: {e}")
+        return firmy, 0
+
+    zostaja, odsiani = [], 0
+    for f in firmy:
+        o = werdykty.get(f["url"])
+        if o is not None and o.konkurent:
+            odsiani += 1
+            print(f"[konkurenci] odsiany {f['url']} — {o.powod}")
+            continue
+        zostaja.append(f)
+    return zostaja, odsiani
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -493,6 +552,59 @@ ZASADY (twarde):
   Możesz je przeformułować na naturalną frazę wyszukiwarki, ale nie zmieniaj tematu.
 
 Zwróć TYLKO samo zapytanie, bez cudzysłowów i komentarza.""",
+    model=MODEL_TANI,
+)
+
+
+class OcenaKonkurenta(BaseModel):
+    url: str
+    konkurent: bool
+    powod: str
+
+
+class OcenyKonkurentow(BaseModel):
+    oceny: list[OcenaKonkurenta]
+
+
+# Drugi etap odsiewu konkurentów. Ocenia WYŁĄCZNIE wyniki, które przeszły SYGNAL_SEO,
+# więc przy typowym wyszukiwaniu dostaje kilka pozycji, nie kilkanaście.
+#
+# Dlaczego model, skoro przed chwilą odbieraliśmy mu robotę przy lokalizacji: tam
+# zadaniem było sklejenie dwóch stringów i nie było czego rozumieć. Tu trzeba czytać
+# ze zrozumieniem, czy firma SPRZEDAJE pozycjonowanie, czy tylko o nim wspomina przy
+# okazji wdrożenia sklepu. Tego żadna lista fraz nie rozstrzygnie.
+agent_konkurent = Agent(
+    name="konkurent",
+    instructions="""Oceniasz wyniki wyszukiwarki dla agencji SEO/SEM/GEO, która szuka
+firm PARTNERSKICH — czyli takich, którym mogłaby podnająć swoje usługi SEO.
+
+Dla każdego wyniku rozstrzygnij, czy to KONKURENT.
+
+TEST: czym firma NAZYWA SAMĄ SIEBIE w tym opisie? Nie chodzi o to, czy słowo "SEO"
+gdziekolwiek pada, tylko czy pozycjonowanie jest RDZENIEM i właściwie CAŁĄ jej ofertą.
+
+konkurent = true gdy firma sprzedaje przede wszystkim pozycjonowanie / SEO / SEM
+i praktycznie nic poza tym — walczyłaby z nami o ten sam budżet klienta.
+
+konkurent = false gdy firma przedstawia się jako coś innego (agencja e-commerce,
+software house, branding, agencja interaktywna, wdrożeniowiec Shopify/PrestaShop,
+agencja digital marketingu z szerokim zakresem), NAWET JEŚLI:
+- ma "audyt SEO" albo "optymalizację SEO" wśród wielu usług,
+- oferuje SEO jako dodatek do wdrożenia strony lub sklepu,
+- ma SEO w tytule strony obok kilku innych specjalizacji.
+To są wzmianki poboczne — NIE czynią firmy konkurentem. Takie firmy są dla nas
+NAJCENNIEJSZE jako partnerzy, więc błąd w tę stronę kosztuje najwięcej.
+
+konkurent = false także dla wyników, które NIE są firmą: katalogów, rankingów,
+porównywarek, portali z opiniami, artykułów blogowych, uczelni i kursów.
+Nie są konkurentem — odsiewa je inny mechanizm.
+
+W polu "powod" napisz KRÓTKO (do 12 słów), jak firma sama się przedstawia.
+Pole "url" przepisz DOKŁADNIE tak, jak je dostałeś.
+
+W razie wątpliwości wybierz konkurent = false. Lepiej pokazać człowiekowi firmę
+do odrzucenia niż ukryć przed nim dobrego partnera.""",
+    output_type=OcenyKonkurentow,
     model=MODEL_TANI,
 )
 
@@ -684,19 +796,25 @@ async def api_research(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
-def znajdz_firmy(zapytanie: str, wlasna_domena: str = "") -> dict:
-    """Jedno zapytanie -> Tavily -> filtr -> kontrola żywotności."""
+async def znajdz_firmy(zapytanie: str, wlasna_domena: str = "") -> dict:
+    """Jedno zapytanie -> Tavily -> filtr -> ocena konkurentów -> kontrola żywotności."""
+    wyniki = await asyncio.to_thread(tavily_search, zapytanie)
     return {"zapytanie": zapytanie,
-            **znajdz_firmy_z_wynikow(tavily_search(zapytanie), wlasna_domena)}
+            **await znajdz_firmy_z_wynikow(wyniki, wlasna_domena)}
 
 
-def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
-    """Filtr + deduplikacja + kontrola żywotności na gotowej puli wyników.
+async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
+    """Filtr + deduplikacja + ocena konkurentów + kontrola żywotności.
     Osobno od pobierania, bo Tryb B scala wyniki z kilku zapytań naraz."""
-    firmy, odsiani = filtruj_firmy(wyniki, wlasna_domena, limit=18)
+    firmy = filtruj_firmy(wyniki, wlasna_domena, limit=18)
+    firmy, odsiani = await odsiej_konkurentow(firmy)
 
-    with ThreadPoolExecutor(max_workers=12) as pool:
-        stany = list(pool.map(lambda f: sprawdz_zywotnosc(f["url"]), firmy))
+    def sprawdz_wszystkie():
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            return list(pool.map(lambda f: sprawdz_zywotnosc(f["url"]), firmy))
+
+    # do_thread, bo pula wątków blokowałaby pętlę zdarzeń na czas kilkunastu żądań HTTP
+    stany = await asyncio.to_thread(sprawdz_wszystkie)
 
     zostaja = []
     for f, stan in zip(firmy, stany):
@@ -704,6 +822,7 @@ def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
             continue
         if stan == "niepewna":
             f["niepewna"] = True  # front pokaże adnotację, user decyduje
+        f.pop("_do_oceny", None)  # znacznik roboczy — do przeglądarki nie jedzie
         zostaja.append(f)
 
     return {
@@ -740,14 +859,14 @@ async def api_szukaj(request):
             # Ostatnia deska: sama branża od usera. Jego słów nie filtrujemy — gdyby
             # wpisał w to pole miasto, to jego decyzja, a pusty string do Tavily nie idzie.
             warianty = [zapytanie_z_miejscem(branza, miasto)
-                        or f"{branza} {miasto or 'Polska'}".strip()]
+                        or f"{branza} {miasto}".strip()]
 
         # Wszystkie warianty równolegle, potem scalamy w jedną pulę wyników.
         with ThreadPoolExecutor(max_workers=4) as pool:
             partie = list(pool.map(lambda q: tavily_search(q, max_results=10), warianty))
         wszystkie = [w for partia in partie for w in partia]
 
-        wynik = znajdz_firmy_z_wynikow(wszystkie)
+        wynik = await znajdz_firmy_z_wynikow(wszystkie)
         return JSONResponse({"ok": True, "zapytanie": " | ".join(warianty), **wynik})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
@@ -781,7 +900,7 @@ async def api_similar(request):
         zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])
 
         wlasna = urlparse(firma.get("url", "")).netloc.replace("www.", "").lower()
-        return JSONResponse({"ok": True, **znajdz_firmy(zapytanie, wlasna)})
+        return JSONResponse({"ok": True, **await znajdz_firmy(zapytanie, wlasna)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
