@@ -283,6 +283,49 @@ FRAZY_KONKURENTA = (
 USLUGI_KONKURENCYJNE = ("seo", "sem", "pozycjonowanie", "google ads", "meta ads", "adwords", "ppc")
 
 
+# ── Lokalizacja w zapytaniu ───────────────────────────────────────────
+# Doklejanie miasta było wcześniej regułą w promptcie agenta i model łamał ją
+# w 4 na 6 przebiegów: przy pustym polu "miasto" dopisywał Warszawę albo Kraków,
+# raz tak, raz inaczej przy tym samym wejściu. Skutek był cichy — wyszukiwanie
+# ogólnopolskie zawężało się do losowego miasta, a wyniki wyglądały normalnie.
+#
+# To nie jest zadanie dla modelu: nie ma tu nic do zrozumienia, jest sklejenie
+# dwóch stringów. Model odpowiada wyłącznie za frazy branżowe, miejsce dokleja
+# ta funkcja — więc "miasto z powietrza" przestaje być możliwe.
+MIASTA = (
+    "warszawa", "kraków", "krakow", "łódź", "lodz", "wrocław", "wroclaw",
+    "poznań", "poznan", "gdańsk", "gdansk", "szczecin", "bydgoszcz", "lublin",
+    "białystok", "bialystok", "katowice", "gdynia", "częstochowa", "czestochowa",
+    "radom", "sosnowiec", "toruń", "torun", "kielce", "rzeszów", "rzeszow",
+    "gliwice", "zabrze", "olsztyn", "bielsko-biała", "bielsko-biala", "opole",
+    "polska", "polsce", "poland",
+)
+
+
+def bez_lokalizacji(fraza: str) -> str:
+    """Zdejmuje z frazy nazwę miasta lub kraju.
+
+    Pas bezpieczeństwa, nie główny mechanizm: prompt już zabrania lokalizacji,
+    ale prompt to prośba, a nie gwarancja. Gdyby model jednak dopisał miasto,
+    bez tego powstałoby "agencja e-commerce Kraków Poznań".
+    """
+    slowa = [s for s in fraza.split() if s.strip(",.-").lower() not in MIASTA]
+    return " ".join(slowa)
+
+
+def zapytanie_z_miejscem(fraza: str, miasto: str = "", limit_slow: int = 5) -> str:
+    """Fraza branżowa + miejsce wskazane przez USERA (albo "Polska", gdy nie wskazał).
+
+    Kolejność ma znaczenie: najpierw przycinamy FRAZĘ, dopiero potem doklejamy miejsce.
+    Odwrotnie — jak było w pierwszej wersji — długa fraza wypychała lokalizację poza
+    limit słów i zapytanie traciło dokładnie to, co ta funkcja miała zagwarantować.
+    """
+    slowa = bez_lokalizacji(fraza).replace("|", " ").split()[:limit_slow]
+    if not slowa:
+        return ""
+    return " ".join(slowa) + " " + (miasto.strip() or "Polska")
+
+
 def czy_konkurent_w_wyniku(tytul: str, url: str) -> bool:
     t = (tytul or "").lower()
     return any(f in t for f in FRAZY_KONKURENTA)
@@ -460,25 +503,31 @@ class WariantyZapytan(BaseModel):
 
 agent_warianty = Agent(
     name="warianty",
-    instructions="""Dostajesz typ firmy i (opcjonalnie) miasto. Wygeneruj 4 RÓŻNE zapytania
-do wyszukiwarki, które znajdą takie firmy w Polsce.
+    instructions="""Dostajesz typ firmy. Wygeneruj 4 RÓŻNE frazy branżowe, po których
+da się znaleźć takie firmy.
 
 CEL: dotrzeć do firm, które NIE są w TOP10 na najbardziej oczywistą frazę. Jedno zapytanie
 zwraca wciąż tych samych liderów rynku; cztery różne wyciągają mniejsze, słabiej
 wypozycjonowane firmy — a to one są najciekawsze jako partnerzy.
 
 ZASADY:
-- Każde zapytanie MAKSYMALNIE 5 słów.
+- Każda fraza MAKSYMALNIE 4 słowa.
 - Warianty muszą się REALNIE różnić. Użyj kolejno:
   (1) nazwy branży, (2) synonimu / innej nazwy tej samej branży,
   (3) KONKRETNEJ USŁUGI, którą taka firma świadczy, (4) innej konkretnej usługi.
-- Jeśli dostałeś miasto — dodaj je do KAŻDEGO wariantu. Jeśli nie — dodaj "Polska".
+- ŻADNEJ lokalizacji: bez miasta, województwa, kraju, "Polska", "w Polsce".
+  Miejsce dokleja program po Twojej stronie — Twoim zadaniem jest wyłącznie branża.
 - NIGDY fraz typu "ranking", "top 10", "najlepsze", "opinie", "cennik".
 - Nie dodawaj od siebie SEO/SEM/marketing, chyba że to wprost wskazana branża.
 
-Przykład dla "agencja brandingowa" + "Kraków":
-  agencja brandingowa Kraków | studio brandingowe Kraków |
-  projektowanie identyfikacji wizualnej Kraków | tworzenie logo marki Kraków""",
+Zwróć DOKŁADNIE 4 osobne pozycje na liście. Każda to jedna fraza — nie sklejaj
+kilku w jeden ciąg, nie używaj znaku "|" ani przecinków między wariantami.
+
+Przykład dla "agencja brandingowa" — cztery odrębne pozycje:
+  1. agencja brandingowa
+  2. studio brandingowe
+  3. projektowanie identyfikacji wizualnej
+  4. tworzenie logo marki""",
     output_type=WariantyZapytan,
     model=MODEL_TANI,
 )
@@ -667,8 +716,9 @@ def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
 async def api_szukaj(request):
     """TRYB B — szukanie po kryteriach (branża + miasto), bez firmy wejściowej.
 
-    Zapytanie składamy DETERMINISTYCZNIE (zasada z PRD) — user sam podaje branżę i miasto,
-    więc nie ma czego zgadywać przez LLM. Zero kosztu tokenów.
+    Podział pracy: LLM robi to, w czym jest dobry — wymyśla synonimy branży i konkretne
+    usługi. Lokalizację dokleja Python, bo to sklejenie stringów, a nie zrozumienie
+    tekstu. Wcześniej jedno i drugie robił model i mylił się w 4 na 6 przebiegów.
     """
     try:
         if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
@@ -681,11 +731,16 @@ async def api_szukaj(request):
 
         # LLM rozpisuje branżę na kilka RÓŻNYCH fraz — jedno zapytanie zwraca tylko TOP10
         # najlepiej wypozycjonowanych, a szukamy tych mniej widocznych (główny ból z PRD).
-        polecenie = f"Typ firmy: {branza}." + (f" Miasto: {miasto}." if miasto else "")
-        r = await Runner.run(agent_warianty, polecenie)
-        warianty = [" ".join(z.split()[:6]) for z in (r.final_output.zapytania or [])][:4]
+        # Agent dostaje SAMĄ branżę — o mieście nie ma prawa wiedzieć, więc nie ma go
+        # skąd zmyślić. Miejsce doklejamy niżej, już poza modelem.
+        r = await Runner.run(agent_warianty, f"Typ firmy: {branza}.")
+        warianty = [q for q in (zapytanie_z_miejscem(z, miasto)
+                                for z in (r.final_output.zapytania or [])) if q][:4]
         if not warianty:
-            warianty = [f"{branza} {miasto}".strip() or f"{branza} Polska"]
+            # Ostatnia deska: sama branża od usera. Jego słów nie filtrujemy — gdyby
+            # wpisał w to pole miasto, to jego decyzja, a pusty string do Tavily nie idzie.
+            warianty = [zapytanie_z_miejscem(branza, miasto)
+                        or f"{branza} {miasto or 'Polska'}".strip()]
 
         # Wszystkie warianty równolegle, potem scalamy w jedną pulę wyników.
         with ThreadPoolExecutor(max_workers=4) as pool:
