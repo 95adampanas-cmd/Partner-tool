@@ -12,6 +12,9 @@ let kolumny = [];    // definicja kolumn CSV — z backendu (jedno źródło pra
 // sklep ze słabą widocznością to najlepszy trop) i ton maila. Każda zbadana firma
 // pamięta, w której ścieżce powstała, więc „Praca" potrafi je rozdzielić.
 let tryb = "partner";
+// Dla której ścieżki narysowano wspólne sekcje. Bez tego nie da się poznać, że
+// user JUŻ przełączył ścieżkę, a na ekranie wisi jeszcze zawartość poprzedniej.
+let trybPokazany = "partner";
 const TRYBY = {
   partner: { nazwa: "Partnerzy", jeden: "partnera",
              opis: "Firmy, które mogą polecać nas swoim klientom albo odsprzedawać nasze usługi." },
@@ -50,10 +53,31 @@ function pokazSekcje(nazwa) {
   document.querySelectorAll(".nav-item").forEach((b) =>
     b.classList.toggle("aktywny", b.dataset.sekcja === nazwa
       && (!b.dataset.tryb || b.dataset.tryb === tryb)));
+  // Sekcje pozyskiwania są WSPÓLNE dla obu ścieżek — ten sam DOM obsługuje
+  // partnerów i klientów. Przy zmianie ścieżki trzeba więc wyczyścić to, co
+  // zostało po poprzedniej, inaczej firma zbadana jako partner widnieje na
+  // ekranie klientów. Panel researchu filtrował po tryb poprawnie, ale nikt go
+  // nie przerysowywał: pokazSekcje odświeżało eksport, podobne, audyt i firmy,
+  // a research i szukaj pomijało.
+  if (trybPokazany !== tryb) {
+    ["research-wynik", "szukaj-wynik", "podobne-wynik", "podobne-tagi"]
+      .forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = "";
+      });
+    trybPokazany = tryb;
+  }
+
+  if (nazwa === "research") renderResearchPanel();
   if (nazwa === "eksport") renderEksport();
   if (nazwa === "podobne") renderPodobne();
   if (nazwa === "audyt") renderAudyt();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
+
+  // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
+  odswiezBadge("badge-firmy", firmyTrybu().length);
+  odswiezBadge("badge-eksport",
+    koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
   // Sekcje pozyskiwania są wspólne dla obu ścieżek, więc muszą powiedzieć,
   // w której jesteśmy — inaczej nie wiadomo, czy badamy partnera czy klienta.
   document.querySelectorAll("[data-tryb-naglowek] .znacznik-tryb").forEach((e) => e.remove());
