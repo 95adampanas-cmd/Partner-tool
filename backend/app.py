@@ -264,6 +264,33 @@ PODDOMENY_ODPADAJACE = (
 )
 
 
+def powod_odrzucenia(url: str) -> str | None:
+    """Dlaczego adres nie jest stroną firmy-kandydata. None = przechodzi.
+
+    Jedno miejsce prawdy dla reguł odrzucania. normalizuj_url() podejmuje decyzję
+    na podstawie tej funkcji, a test_filtr.py czyta z niej POWÓD — wcześniej test
+    trzymał własną kopię tych warunków i po zmianach w app.py sprawdzał wersję,
+    która już nie istniała (wołał usuniętą czy_konkurent_w_wyniku i nie znał reguł
+    poddomen ani końcówek publicznych).
+    """
+    u = url.lower()
+    domena = urlparse(u).netloc.replace("www.", "")
+    if not domena:
+        return "brak domeny"
+    if any(d in domena for d in DOMENY_ODPADAJACE):
+        return "katalog/rejestr/portal"
+    if domena.startswith(PODDOMENY_ODPADAJACE):
+        return "dokumentacja/pomoc"
+    # porównanie i na równość, bo sama "gov.pl" nie kończy się na ".gov.pl"
+    if any(domena == k.lstrip(".") or domena.endswith(k) for k in KONCOWKI_PUBLICZNE):
+        return "domena publiczna (gov/edu)"
+    if domena.endswith(OBCE_TLD):
+        return "obca domena"
+    if u.split("?")[0].endswith(ROZSZERZENIA):
+        return "plik (jpg/pdf)"
+    return None
+
+
 def normalizuj_url(url: str) -> str | None:
     """Zwraca adres STRONY GŁÓWNEJ firmy albo None, jeśli to nie firma.
 
@@ -271,22 +298,9 @@ def normalizuj_url(url: str) -> str | None:
     Kiedyś takie wyniki odrzucaliśmy — traciliśmy prawdziwych kandydatów (np. Convertis).
     Teraz ucinamy do strony głównej; scraper i tak sam znajdzie podstrony przy researchu.
     """
-    u = url.lower()
-    domena = urlparse(u).netloc.replace("www.", "")
-    if not domena:
+    if powod_odrzucenia(url):
         return None
-    if any(d in domena for d in DOMENY_ODPADAJACE):
-        return None
-    if domena.startswith(PODDOMENY_ODPADAJACE):
-        return None
-    # porównanie i na równość, bo sama "gov.pl" nie kończy się na ".gov.pl"
-    if any(domena == k.lstrip(".") or domena.endswith(k) for k in KONCOWKI_PUBLICZNE):
-        return None
-    if domena.endswith(OBCE_TLD):
-        return None
-    if u.split("?")[0].endswith(ROZSZERZENIA):
-        return None
-    return f"https://{domena}"
+    return f"https://{urlparse(url.lower()).netloc.replace('www.', '')}"
 
 # Tytuły artykułów, poradników i wydarzeń — to nie są firmy, tylko treści o branży.
 FRAZY_NIE_FIRMA = (
