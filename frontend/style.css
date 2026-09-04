@@ -176,7 +176,26 @@ button { font-family: var(--sans); }
   display: flex; align-items: center; gap: 13px;
   background: var(--surface); border: 1px solid var(--border-soft);
   border-radius: var(--r); padding: 16px 18px;
+  /* kafel jest <button>, więc trzeba zdjąć domyślny wygląd przycisku */
+  width: 100%; text-align: left; font: inherit; color: inherit;
+  cursor: pointer; transition: border-color .15s, background .15s;
 }
+.kafel:hover { border-color: var(--border); background: var(--surface-2); }
+.kafel:hover .kafel-strzalka { opacity: 1; transform: translateX(2px); }
+.kafel:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+/* Strzałka pojawia się dopiero pod kursorem — kafel ma być czytelny jako liczba,
+   a nie krzyczeć „kliknij mnie" trzy razy z rzędu. */
+.kafel-strzalka {
+  margin-left: auto; color: var(--muted);
+  opacity: 0; transition: opacity .15s, transform .15s;
+}
+.filtr-info {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 12px; padding: 10px 14px;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+  border-radius: var(--r);
+}
+.filtr-info .mono { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .kafel .ico { color: var(--faint); }
 .kafel div { display: flex; flex-direction: column; line-height: 1.25; }
 .kafel b { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }

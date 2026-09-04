@@ -15,6 +15,10 @@ let tryb = "partner";
 // Dla której ścieżki narysowano wspólne sekcje. Bez tego nie da się poznać, że
 // user JUŻ przełączył ścieżkę, a na ekranie wisi jeszcze zawartość poprzedniej.
 let trybPokazany = "partner";
+// Zawężenie listy firm ustawiane przez kafel „z SEO w ofercie". null = pełna lista.
+// Świadomie NIE jest trwałe: wejście do Firm z menu i zmiana ścieżki je zdejmują,
+// żeby nikt nie oglądał niepełnej listy, nie wiedząc dlaczego.
+let filtrFirm = null;
 const TRYBY = {
   partner: { nazwa: "Partnerzy", jeden: "partnera",
              opis: "Firmy, które mogą polecać nas swoim klientom albo odsprzedawać nasze usługi." },
@@ -89,6 +93,7 @@ function pokazSekcje(nazwa) {
 document.querySelectorAll(".nav-item").forEach((b) =>
   b.addEventListener("click", () => {
     if (b.dataset.tryb) tryb = b.dataset.tryb;
+    filtrFirm = null;   // wejscie z menu to zawsze pelna lista
     pokazSekcje(b.dataset.sekcja);
   }));
 
@@ -164,9 +169,9 @@ function renderResearchPanel() {
   const ostatnie = moje.slice(-4).reverse();
   box.innerHTML = `
     <div class="kafle">
-      ${kafel(moje.length, "zbadane firmy", "building")}
-      ${kafel(koszyk.filter((f) => (f.tryb || "partner") === tryb).length, "w eksporcie", "table")}
-      ${kafel(zSeo, "z SEO w ofercie", "alert")}
+      ${kafel(moje.length, "zbadane firmy", "building", "firmy")}
+      ${kafel(koszyk.filter((f) => (f.tryb || "partner") === tryb).length, "w eksporcie", "table", "eksport")}
+      ${kafel(zSeo, "z SEO w ofercie", "search", "seo")}
     </div>
     <div class="card">
       <div class="mono"><i class="sq"></i>Ostatnio zbadane</div>
@@ -181,11 +186,16 @@ function renderResearchPanel() {
     </div>`;
 }
 
-function kafel(liczba, etykieta, ikona) {
-  return `<div class="kafel">
+// Kafel jest przyciskiem, nie divem — liczba bez dojścia do tego, co liczy,
+// zmusza użytkownika do szukania tych firm ręcznie w menu.
+// <button> zamiast diva z onclickiem daje przy okazji obsługę klawiatury i focus.
+function kafel(liczba, etykieta, ikona, cel) {
+  return `<button class="kafel" type="button" data-kafel="${cel}"
+      title="Pokaż: ${esc(etykieta)}">
     <svg class="ico"><use href="#i-${ikona}"/></svg>
     <div><b>${liczba}</b><span>${esc(etykieta)}</span></div>
-  </div>`;
+    <svg class="ico xs kafel-strzalka"><use href="#i-arrow"/></svg>
+  </button>`;
 }
 
 // ══ SEKCJA: Szukaj po branży ══
@@ -245,7 +255,7 @@ function pokazListe() {
   activeId = null;
   document.getElementById("firmy-detal").hidden = true;
   document.getElementById("firmy-lista").hidden = false;
-  document.getElementById("firmy-pusto").hidden = firmyTrybu().length > 0;
+  document.getElementById("firmy-pusto").hidden = firmyTrybu().length > 0 || !!filtrFirm;
   document.getElementById("firmy-head").hidden = false;
   renderListeFirm();
 }
@@ -289,8 +299,25 @@ function przelacznikTrybu(liczOd = tabs) {
 }
 
 function renderListeFirm() {
-  const lista = firmyTrybu();
-  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + lista.map((t) => {
+  const wszystkie = firmyTrybu();
+  const lista = filtrFirm === "ma_seo" ? wszystkie.filter((t) => t.firma.ma_seo) : wszystkie;
+
+  // Filtr musi być WIDOCZNY i odwracalny jednym kliknięciem. Skrócona lista bez
+  // wyjaśnienia wygląda jak zgubione firmy.
+  const znacznik = filtrFirm === "ma_seo" ? `
+    <div class="filtr-info">
+      <span class="mono">Pokazuję ${lista.length} z ${wszystkie.length} — tylko z SEO w ofercie</span>
+      <button class="btn-lekki" type="button" data-zdejmij-filtr>
+        <svg class="ico xs"><use href="#i-x"/></svg>Pokaż wszystkie</button>
+    </div>` : "";
+
+  if (filtrFirm && !lista.length) {
+    document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + znacznik +
+      `<div class="pusto"><p>Żadna firma w tej ścieżce nie ma SEO w ofercie.</p></div>`;
+    return;
+  }
+
+  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + znacznik + lista.map((t) => {
     const f = t.firma;
     const wKoszyku = koszyk.some((k) => k.url === f.url);
     return `<div class="firma-row" data-id="${t.id}">
@@ -413,6 +440,18 @@ function lista(etykieta, elementy) {
 document.addEventListener("click", (e) => {
   const usun = e.target.closest("[data-usun]");
   if (usun) { e.stopPropagation(); return usunFirme(usun.dataset.usun); }
+
+  // Kafle statystyk prowadzą tam, gdzie te firmy naprawdę są.
+  const kaf = e.target.closest("[data-kafel]");
+  if (kaf) {
+    const cel = kaf.dataset.kafel;
+    if (cel === "eksport") { filtrFirm = null; return pokazSekcje("eksport"); }
+    // „z SEO w ofercie" nie ma własnej sekcji — otwiera listę firm zawężoną
+    // do tych z SEO, z widocznym znacznikiem i możliwością zdjęcia filtra.
+    filtrFirm = cel === "seo" ? "ma_seo" : null;
+    return pokazSekcje("firmy");
+  }
+  if (e.target.closest("[data-zdejmij-filtr]")) { filtrFirm = null; return renderListeFirm(); }
   const wiersz = e.target.closest(".firma-row");
   if (wiersz) { pokazSekcje("firmy"); return pokazDetal(wiersz.dataset.id); }
   if (e.target.classList.contains("wroc")) return pokazListe();
@@ -467,6 +506,7 @@ document.addEventListener("change", (e) => {
   const btnTryb = e.target.closest("[data-ustaw-tryb]");
   if (btnTryb) {
     tryb = btnTryb.dataset.ustawTryb;
+    filtrFirm = null;   // filtr liczony byl dla poprzedniej sciezki
     const sekcja = document.querySelector(".sekcja.aktywna")?.dataset.sekcja;
     return pokazSekcje(sekcja || "firmy");
   }
