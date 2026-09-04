@@ -148,16 +148,41 @@ button { font-family: var(--sans); }
 
 .presety { margin-top: 20px; }
 .presety .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
-/* Presety są pogrupowane, bo przy ~26 kategoriach płaska ściana tagów przestaje
-   się skanować wzrokiem. Etykieta grupy mówi, w jakiej relacji do nas jest
-   ta firma — nie jest ozdobą. */
-.preset-grupa { margin-bottom: 12px; }
-.preset-grupa:last-child { margin-bottom: 0; }
-.preset-etykieta {
-  display: block; margin-bottom: 6px;
-  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--faint);
+/* Akordeon kategorii. Przy 78 pozycjach płaska lista tagów była ścianą, w której
+   nic nie dało się znaleźć. Zwinięte grupy dają dziesięć czytelnych wierszy
+   i od razu pokazują, ile czego jest. Rozwinięta jest jedna naraz. */
+.preset-grupa { border-bottom: 1px solid var(--border-soft); }
+.preset-grupa:last-child { border-bottom: none; }
+
+.preset-naglowek {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 11px 4px; background: none; border: none; cursor: pointer;
+  font: inherit; color: inherit; text-align: left;
+  transition: color .14s;
 }
+.preset-naglowek:hover { color: var(--orange); }
+.preset-naglowek:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+.preset-nazwa {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.preset-licznik {
+  margin-left: auto; font-family: var(--mono); font-size: 10px;
+  font-style: normal; color: var(--faint);
+}
+/* Strzałka w prawo, po rozwinięciu obraca się w dół — kierunek mówi, co się stanie. */
+.preset-strzalka { color: var(--faint); transition: transform .18s; flex-shrink: 0; }
+.preset-grupa.otwarta .preset-strzalka { transform: rotate(90deg); color: var(--orange); }
+
+.preset-tresc { padding: 2px 0 14px 26px; }
+/* Wyszukanie CAŁEJ kategorii — szerszy zasięg niż pojedyncza usługa, więc
+   odróżnione wizualnie i postawione nad listą, a nie w jej środku. */
+.tag-glowny {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 9px;
+  background: rgba(240,78,42,.1); border-color: rgba(240,78,42,.4);
+  color: var(--orange); cursor: pointer;
+}
+.tag-glowny:hover { background: rgba(240,78,42,.16); }
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */

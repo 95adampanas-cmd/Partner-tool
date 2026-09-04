@@ -69,6 +69,7 @@ function pokazSekcje(nazwa) {
         const el = document.getElementById(id);
         if (el) el.innerHTML = "";
       });
+    otwartaGrupa = null;   // numery grup należą do poprzedniej ścieżki
     trybPokazany = tryb;
   }
 
@@ -225,7 +226,7 @@ const PRESETY = {
   // są dobrymi partnerami. Dlatego odsiew konkurentów został usunięty, a SEO jest
   // tylko tagiem — patrz DECISIONS 2026-09-04.
   partner: [
-    ["Budowa stron i sklepów", [
+    ["Budowa stron i sklepów", "agencja e-commerce", [
       "wdrożenia Shopify", "wdrożenia PrestaShop", "wdrożenia WooCommerce",
       "wdrożenia IdoSell", "tworzenie sklepów internetowych",
       "projektowanie stron internetowych", "software house", "agencja interaktywna",
@@ -236,20 +237,20 @@ const PRESETY = {
       // moment na rozmowę o SEO.
       "platforma B2B", "migracja sklepu internetowego", "aplikacje mobilne",
     ]],
-    ["Utrzymanie i administracja", [
+    ["Utrzymanie i administracja", "opieka nad stroną internetową", [
       // webinity.pl: opieka nad dziesiątkami serwisów naraz, bez budowania nowych.
       // Kategorie white-label ("white label WordPress", "podwykonawca dla agencji")
       // usunięte na wyraźną decyzję Adama 04.09.2026 — mimo że bravenew.agency
       // z jego listy tak się opisuje.
       "opieka nad stroną WordPress", "administracja sklepem internetowym",
     ]],
-    ["Strategia i doradztwo", [
+    ["Strategia i doradztwo", "konsulting e-commerce", [
       "doradztwo e-commerce", "digital advisory", "interim management e-commerce",
       "konsulting wzrostu e-commerce", "doradztwo strategiczne", "audyt e-commerce",
       "doradztwo marketingowe", "doradztwo biznesowe",
       "zarządzanie projektami IT", "analityka internetowa",
     ]],
-    ["Branding i kreacja", [
+    ["Branding i kreacja", "agencja brandingowa", [
       "agencja brandingowa", "agencja kreatywna", "branding produktowy",
       // brantt ma w usługach „opracowanie strategii marki" i „budowa marki",
       // adream „strategia komunikacji marki" — a żaden preset tego nie łapał.
@@ -259,7 +260,7 @@ const PRESETY = {
       "agencja UX/UI", "optymalizacja konwersji CRO", "produkcja wideo",
       "fotografia produktowa",
     ]],
-    ["Marketing poza SEO", [
+    ["Marketing poza SEO", "agencja marketingowa", [
       // "zewnętrzny dyrektor marketingu" to przepisana pozycja Adama "Zew. Dyrektor
       // Marketingu" — z OSOBY na USŁUGĘ. Narzędzie czyta strony firm, więc szuka
       // firmy oferującej taką rolę, nie człowieka na stanowisku.
@@ -268,7 +269,7 @@ const PRESETY = {
       "influencer marketing", "e-mail marketing", "zewnętrzny dyrektor marketingu",
       "content marketing",   // widoczni i brantt — oni piszą, my optymalizujemy
     ]],
-    ["Sprzedaż i marketplace", [
+    ["Sprzedaż i marketplace", "wsparcie sprzedaży e-commerce", [
       // "outsourcing sprzedaży" — przepisany "Dyrektor sprzedaży", ta sama zasada.
       // "porównywarka cen" ma tysiące podpiętych sklepów: jeden partner = dostęp
       // do całego portfela sprzedawców.
@@ -276,7 +277,7 @@ const PRESETY = {
       "doradztwo sprzedaży B2B", "outsourcing sprzedaży", "porównywarka cen",
       "ekspansja zagraniczna e-commerce",   // widoczni i Sellision
     ]],
-    ["Technologia, integracje i resellerzy", [
+    ["Technologia, integracje i resellerzy", "wdrożenia systemów IT", [
       // Resellerzy z listy Adama. Nie ma ich wśród jego 35 najlepszych partnerów,
       // więc profil jest nieprzetestowany — ale mocny: taka firma ma bazę klientów
       // z wdrożonym systemem i nie ma czym zrobić im SEO.
@@ -291,17 +292,17 @@ const PRESETY = {
       "autoryzowany partner CRM", "partner wdrożeniowy", "integrator systemów IT",
       "automatyzacja procesów",   // Growthmatic i Tribe47
     ]],
-    ["AI i automatyzacja", [
+    ["AI i automatyzacja", "wdrożenia AI dla firm", [
       "agencja AI", "wdrożenia chatbotów", "narzędzia AI dla firm",
     ]],
-    ["Wiedza i usługi prawne", [
+    ["Wiedza i usługi prawne", "obsługa prawna e-commerce", [
       // "kancelaria prawa nowych technologii" to polska nazwa tego, co Adam
       // zapisał jako "kancelarie ai" — pod hasłem "kancelaria AI" wyszukiwarka
       // zwraca narzędzia AI dla prawników, nie kancelarie.
       "kancelaria prawna e-commerce", "kancelaria prawa nowych technologii",
       "regulaminy i RODO", "szkolenia e-commerce", "ekspert e-commerce",
     ]],
-    ["Sieci i społeczności biznesowe", [
+    ["Sieci i społeczności biznesowe", "organizacja zrzeszająca przedsiębiorców", [
       // Inny mechanizm niż reszta: do tych organizacji się WSTĘPUJE, a nie pisze
       // do nich z ofertą partnerstwa. Narzędzie pomaga je znaleźć i porównać,
       // decyzja o członkostwie zapada poza nim (BNI, kluby biznesu, grupy zakupowe).
@@ -312,32 +313,51 @@ const PRESETY = {
   // ⚠️ Zestaw startowy, do potwierdzenia z Adamem — kogo dokładnie chcemy
   // pozyskiwać jako klientów, nie jest jeszcze ustalone (otwarte w ROADMAP).
   klient: [
-    ["Handel", [
+    ["Handel", "sklep internetowy", [
       "sklep internetowy", "hurtownia", "producent mebli", "producent odzieży",
       "sklep z elektroniką",
     ]],
-    ["Usługi lokalne", [
+    ["Usługi lokalne", "firma usługowa", [
       "klinika stomatologiczna", "gabinet medycyny estetycznej", "kancelaria prawna",
       "biuro rachunkowe", "szkoła językowa",
     ]],
-    ["B2B i technologie", [
+    ["B2B i technologie", "firma B2B", [
       "firma produkcyjna", "SaaS", "firma logistyczna", "firma budowlana",
     ]],
-    ["Turystyka i HoReCa", [
+    ["Turystyka i HoReCa", "hotel restauracja", [
       "hotel", "restauracja", "biuro podróży",
     ]],
   ],
 };
 
+// Która kategoria jest rozwinięta. null = wszystkie zwinięte.
+// Osiemdziesiąt tagów naraz to ściana, w której nic nie widać — zwinięte grupy
+// dają dziesięć czytelnych wierszy i pokazują, ile czego jest.
+let otwartaGrupa = null;
+
 function renderPresety() {
-  document.getElementById("presety-branz").innerHTML =
-    (PRESETY[tryb] || PRESETY.partner).map(([grupa, pozycje]) => `
-      <div class="preset-grupa">
-        <span class="preset-etykieta">${esc(grupa)}</span>
-        <div class="tagi wybieralne">${pozycje.map((p) =>
-          `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`
-        ).join("")}</div>
-      </div>`).join("");
+  const grupy = PRESETY[tryb] || PRESETY.partner;
+  document.getElementById("presety-branz").innerHTML = grupy.map(([grupa, fraza, pozycje], i) => {
+    const otwarta = otwartaGrupa === i;
+    return `
+      <div class="preset-grupa${otwarta ? " otwarta" : ""}">
+        <button class="preset-naglowek" type="button" data-grupa="${i}" aria-expanded="${otwarta}">
+          <svg class="ico xs preset-strzalka"><use href="#i-arrow"/></svg>
+          <span class="preset-nazwa">${esc(grupa)}</span>
+          <em class="preset-licznik">${pozycje.length}</em>
+        </button>
+        ${otwarta ? `
+          <div class="preset-tresc">
+            <button class="tag tag-glowny" data-preset="${escAttr(fraza)}" type="button"
+                    title="Szuka szeroko w całej kategorii, zamiast jednej usługi">
+              <svg class="ico xs"><use href="#i-target"/></svg>Cała kategoria: ${esc(fraza)}
+            </button>
+            <div class="tagi wybieralne">${pozycje.map((p) =>
+              `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`
+            ).join("")}</div>
+          </div>` : ""}
+      </div>`;
+  }).join("");
 }
 renderPresety();
 
@@ -596,6 +616,13 @@ document.addEventListener("click", (e) => {
   if (preset) {
     document.getElementById("branza").value = preset.dataset.preset;
     return document.getElementById("miasto").focus();
+  }
+  // Rozwinięcie kategorii. Jedna naraz — dwie otwarte i znowu robi się ściana.
+  const naglowekGrupy = e.target.closest("[data-grupa]");
+  if (naglowekGrupy) {
+    const i = Number(naglowekGrupy.dataset.grupa);
+    otwartaGrupa = otwartaGrupa === i ? null : i;
+    return renderPresety();
   }
   const tag = e.target.closest("[data-tag]");
   if (tag) {
