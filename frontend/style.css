@@ -151,14 +151,17 @@ button { font-family: var(--sans); }
 /* Kategorie jako chipy — ten sam wygląd, co filtr w „Szukaj podobnych".
    Kafle zajmowały pół ekranu, zanim cokolwiek wybrałeś. Jeden rząd chipów
    zostawia miejsce na to, po co się tu przyszło. */
-.presety > div > .tagi.wybieralne:first-child { margin-bottom: 12px; }
+/* Chipy pod nagłówkiem karty; odstęp taki sam jak przy filtrze kategorii
+   w „Szukaj podobnych", żeby oba miejsca oddychały identycznie. */
+.presety .card > .tagi.wybieralne { margin: 11px 0 0; }
 
 /* Panel z usługami stoi POD rzędem chipów, nie między nimi: rozwijanie
-   w miejscu przesuwałoby pozostałe chipy przy każdym kliknięciu. */
+   w miejscu przesuwałoby pozostałe chipy przy każdym kliknięciu.
+   Siedzi wewnątrz karty, więc zamiast własnej ramki ma tylko kreskę u góry —
+   druga ramka w ramce robiłaby wrażenie osobnego elementu. */
 .preset-panel {
-  margin-top: 4px; padding: 15px 17px;
-  background: var(--surface); border: 1px solid var(--border-soft);
-  border-radius: var(--r);
+  margin-top: 15px; padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
 }
 .preset-panel-head {
   display: flex; align-items: center; justify-content: space-between;

@@ -372,8 +372,14 @@ function renderPresety() {
       </div>`;
   })();
 
-  document.getElementById("presety-branz").innerHTML =
-    `${kafle}${panel}`;
+  // Całość w karcie z nagłówkiem — tak samo jak „1. Wybierz firmę wzorcową"
+  // w „Szukaj podobnych". Chipy bez ramki wisiały luzem pod polem wyszukiwania
+  // i nie było widać, że są jednym narzędziem wyboru.
+  document.getElementById("presety-branz").innerHTML = `
+    <div class="card">
+      <div class="mono"><span class="sq"></span> Wybierz kategorię partnera</div>
+      ${kafle}${panel}
+    </div>`;
 }
 renderPresety();
 
