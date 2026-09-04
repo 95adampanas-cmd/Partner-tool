@@ -71,6 +71,7 @@ function pokazSekcje(nazwa) {
       });
     otwartaGrupa = null;   // numery grup należą do poprzedniej ścieżki
     podobneKategoria = null;
+    filtrKategorii = null;
     trybPokazany = tryb;
   }
 
@@ -336,6 +337,8 @@ const PRESETY = {
 let otwartaGrupa = null;
 // Kategoria wybrana w "Szukaj podobnych". null = wszystkie firmy ścieżki.
 let podobneKategoria = null;
+// Kategoria wybrana na liscie Firm. null = wszystkie.
+let filtrKategorii = null;
 
 // Ikona per kategoria. Trzymana osobno od PRESETY, bo to warstwa prezentacji —
 // lista kategorii ma zostać czytelna jako dane, bez domieszki wyglądu.
@@ -498,13 +501,34 @@ function renderListeFirm() {
     return;
   }
 
-  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + znacznik + lista.map((t) => {
+  // Filtr kategorii — ten sam mechanizm co w „Szukaj podobnych". Przy dziesięciu
+  // firmach lista jeszcze się skanuje, przy pięćdziesięciu już nie.
+  const kat = (t) => t.firma.kategoria && t.firma.kategoria !== BRAK
+    ? t.firma.kategoria : "Bez kategorii";
+  const liczby = new Map();
+  lista.forEach((t) => liczby.set(kat(t), (liczby.get(kat(t)) || 0) + 1));
+  const widoczne = filtrKategorii ? lista.filter((t) => kat(t) === filtrKategorii) : lista;
+
+  const filtrKat = liczby.size <= 1 ? "" : `
+    <div class="filtr-kategorii tagi wybieralne">
+      <button class="tag${filtrKategorii ? "" : " zaznaczony"}" type="button"
+              data-kat-firmy="">Wszystkie <em class="chip-licznik">${lista.length}</em></button>
+      ${[...liczby.entries()].map(([nazwa, ile]) => `
+        <button class="tag${filtrKategorii === nazwa ? " zaznaczony" : ""}" type="button"
+                data-kat-firmy="${escAttr(nazwa)}">
+          ${esc(nazwa)} <em class="chip-licznik">${ile}</em>
+        </button>`).join("")}
+    </div>`;
+
+  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + znacznik + filtrKat + widoczne.map((t) => {
     const f = t.firma;
     const wKoszyku = koszyk.some((k) => k.url === f.url);
     return `<div class="firma-row" data-id="${t.id}">
       <div class="firma-row-info">
         <div class="firma-row-top">
           <span class="firma-row-nazwa">${esc(f.nazwa)}</span>
+          ${f.kategoria && f.kategoria !== BRAK
+            ? `<span class="tag-kat">${esc(f.kategoria)}</span>` : ""}
           ${f.ma_seo
             ? `<span class="flaga mini ma-seo"><svg class="ico xs"><use href="#i-search"/></svg>Ma SEO</span>`
             : `<span class="flaga mini bez-seo">Bez SEO</span>`}
@@ -637,6 +661,11 @@ document.addEventListener("click", (e) => {
   if (wiersz) { pokazSekcje("firmy"); return pokazDetal(wiersz.dataset.id); }
   if (e.target.classList.contains("wroc")) return pokazListe();
 
+  const katFirmy = e.target.closest("[data-kat-firmy]");
+  if (katFirmy) {
+    filtrKategorii = katFirmy.dataset.katFirmy || null;
+    return renderListeFirm();
+  }
   const katPodobne = e.target.closest("[data-kat-podobne]");
   if (katPodobne) {
     podobneKategoria = katPodobne.dataset.katPodobne || null;
