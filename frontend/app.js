@@ -216,30 +216,54 @@ const szukajWynik = document.getElementById("szukaj-wynik");
 // KLIENT: firma, która sama mogłaby kupić SEO/GEO. Kryterium jest odwrotne —
 // tu słaba widoczność jest zaletą, bo znaczy potencjał.
 const PRESETY = {
+  // Kategorie WYWIEDZIONE z listy 35 realnych partnerów Adama (04.09.2026) — nie
+  // z burzy mózgów. Każda ma za sobą co najmniej jedną firmę, która się broni.
+  // Rozkład tej listy: 11 firm buduje strony i sklepy, 7 to marketing, 6 doradztwo,
+  // 4 branding, 3 narzędzia. Presety odwzorowują te proporcje.
+  //
+  // Dwie firmy z listy (webmetric.com, stonehengeagency.com) SPRZEDAJĄ SEO i mimo to
+  // są dobrymi partnerami. Dlatego odsiew konkurentów został usunięty, a SEO jest
+  // tylko tagiem — patrz DECISIONS 2026-09-04.
   partner: [
     ["Budowa stron i sklepów", [
-      "software house", "agencja interaktywna", "wdrożenia Shopify",
-      "wdrożenia PrestaShop", "wdrożenia WooCommerce", "agencja Magento",
-      "tworzenie stron WordPress",
+      "wdrożenia Shopify", "wdrożenia PrestaShop", "wdrożenia WooCommerce",
+      "wdrożenia IdoSell", "tworzenie sklepów internetowych",
+      "projektowanie stron internetowych", "software house", "agencja interaktywna",
     ]],
-    ["Kreacja i marka", [
-      "agencja brandingowa", "agencja kreatywna", "studio graficzne",
+    ["Utrzymanie i white label", [
+      // bravenew.agency: "white label WordPress development FOR AGENCIES" —
+      // partner, którego klientem jest inna agencja. webinity.pl: opieka nad
+      // dziesiątkami serwisów naraz, bez budowania nowych.
+      "white label WordPress", "opieka nad stroną WordPress",
+      "administracja sklepem internetowym", "podwykonawca dla agencji",
+    ]],
+    ["Strategia i doradztwo", [
+      "doradztwo e-commerce", "digital advisory", "interim management e-commerce",
+      "konsulting wzrostu e-commerce", "doradztwo strategiczne", "audyt e-commerce",
+      "transformacja cyfrowa",
+    ]],
+    ["Branding i kreacja", [
+      "agencja brandingowa", "agencja kreatywna", "branding produktowy",
+      "projektowanie opakowań", "identyfikacja wizualna", "studio graficzne",
       "agencja UX/UI", "produkcja wideo", "fotografia produktowa",
     ]],
     ["Marketing poza SEO", [
-      "agencja social media", "marketing automation", "agencja PR",
+      "agencja performance marketing", "agencja Google Ads", "agencja social media",
+      "agencja digital marketingu", "agencja PR", "marketing automation",
       "influencer marketing", "e-mail marketing",
     ]],
-    // Nazwy presetów celowo po POLSKU. „fulfillment e-commerce" sprawdzone na żywo:
-    // zwracało shipbob.com, flow.space i scayle.com, bo angielskie hasło trafia
-    // w angielskie strony. „logistyka e-commerce" — polskie firmy.
-    ["Obsługa e-commerce", [
-      "doradztwo e-commerce", "integrator ERP", "logistyka e-commerce",
-      "agencja marketplace", "integracje płatności",
+    ["Sprzedaż i marketplace", [
+      "agencja marketplace", "sprzedaż na Amazon", "integracje marketplace",
+      "doradztwo sprzedaży B2B",
     ]],
-    ["Usługi okołobiznesowe", [
-      "kancelaria prawna e-commerce", "wdrożenia CRM", "firma hostingowa",
-      "agencja badawcza",
+    ["Technologia i integracje", [
+      "oprogramowanie dla sklepów", "SaaS e-commerce", "headless commerce",
+      "integrator ERP", "wdrożenia CRM", "integracje płatności",
+      "logistyka e-commerce",
+    ]],
+    ["Wiedza i usługi prawne", [
+      "kancelaria prawna e-commerce", "regulaminy i RODO", "szkolenia e-commerce",
+      "ekspert e-commerce", "agencja badawcza",
     ]],
   ],
   // ⚠️ Zestaw startowy, do potwierdzenia z Adamem — kogo dokładnie chcemy
