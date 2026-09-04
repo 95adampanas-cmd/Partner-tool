@@ -71,8 +71,12 @@ class Firma(BaseModel):
     persona_stanowisko: str      # jej rola (CEO, właściciel, dyrektor...)
     persona_email: str           # jej bezpośredni mail, jeśli podany przy osobie
     persona_telefon: str         # jej bezpośredni telefon, jeśli podany przy osobie
-    konkurent: bool              # czy GŁÓWNA oferta to SEO/SEM/GEO
-    konkurent_uzasadnienie: str
+    # FAKT, nie osąd: czy firma sprzedaje SEO/SEM/pozycjonowanie. Wcześniej było tu
+    # `konkurent: bool` — czyli narzędzie orzekało, kto jest konkurentem. To decyzja
+    # zespołu, nie modelu: agencja z SEO w ofercie bywa i konkurentem, i najlepszym
+    # partnerem, zależnie od tego, po co do niej piszemy.
+    ma_seo: bool
+    seo_zakres: str              # co dokładnie oferuje i jak duża część oferty
     opis: str                    # 2-3 zdania, czym firma się zajmuje
 
 
@@ -486,8 +490,8 @@ KOLUMNY = [
     ("Person position", "persona_stanowisko"),
     ("Person email", "persona_email"),
     ("Person phone", "persona_telefon"),
-    ("Konkurent", "konkurent"),
-    ("Konkurent - uzasadnienie", "konkurent_uzasadnienie"),
+    ("Ma SEO w ofercie", "ma_seo"),
+    ("Zakres SEO", "seo_zakres"),
 ]
 
 
@@ -549,29 +553,24 @@ Kogo wybrać: osobę NAJWYŻEJ w hierarchii (właściciel/CEO/founder przed mana
 Szukaj w sekcjach "o nas", "zespół", "kontakt". Jeśli nikt nie jest wymieniony z nazwiska
 — wszystkie pola persona_* to "{BRAK}". NIE zgaduj i NIE wymyślaj nazwisk.
 
-KONKURENT (SEO/SEM/GEO) — to samo oznaczenie, NIE ocena wartości firmy.
+SEO W OFERCIE — ustalasz FAKT, nie wydajesz osądu.
 
-TEST: czym firma NAZYWA SAMĄ SIEBIE? Patrz na pozycjonowanie marki (nagłówek, "kim jesteśmy",
-jak się przedstawia), a NIE na to, czy słowo "SEO" pada gdziekolwiek na stronie.
+ma_seo = true, gdy firma SPRZEDAJE KLIENTOM pozycjonowanie / SEO / SEM / Google Ads
+jako usługę — obojętne, czy to rdzeń oferty, czy jedna z kilkunastu pozycji.
 
-konkurent = true TYLKO gdy firma przedstawia się jako agencja SEO / SEM / GEO / pozycjonowania,
-czyli walczyłaby z nami o ten sam budżet klienta.
+ma_seo = false, gdy takiej usługi w ofercie NIE MA. Nie liczą się:
+- "strona zoptymalizowana pod SEO" jako cecha produktu, który sprzedają,
+- wpis na blogu o SEO,
+- słowo "SEO" w stopce, w tagach albo w opisie technologii.
+To są wzmianki, nie usługa na sprzedaż.
 
-konkurent = false gdy firma przedstawia się jako coś innego (agencja e-commerce, software house,
-branding, social media), NAWET JEŚLI:
-- ma "optymalizację SEO" na liście usług obok kilkunastu innych,
-- oferuje SEO jako dodatek do wdrożenia strony/sklepu,
-- ma "Pozycjonowanie" w formularzu kontaktowym lub w menu,
-- pisze "strona zoptymalizowana pod SEO".
-To są wzmianki poboczne — NIE czynią firmy konkurentem.
+W seo_zakres napisz KRÓTKO dwie rzeczy: jakie dokładnie usługi SEO/SEM widać w ofercie
+i jak dużą jej część stanowią — czy to rdzeń działalności, czy dodatek obok wdrożeń,
+brandingu albo software'u. Gdy ma_seo = false, wpisz "{BRAK}".
 
-PRZYKŁAD: firma opisująca się jako "agencja PrestaShop", z wdrożeniami sklepów jako rdzeniem
-oferty, która ma też "optymalizację SEO" wśród kilkunastu usług => konkurent = FALSE
-(rdzeniem są wdrożenia e-commerce, nie sprzedaż SEO).
-
-W konkurent_uzasadnienie napisz, JAK firma sama się przedstawia i dlaczego to (nie) czyni jej konkurentem.
-
-NIE oceniaj, czy firma jest dobrym partnerem. Dostarczasz dane — ocenia człowiek."""
+NIE orzekaj, czy firma jest konkurentem ani czy jest dobrym partnerem. Ta sama agencja
+z SEO w ofercie bywa jednym i drugim, zależnie od tego, po co do niej piszemy.
+Dostarczasz fakty — decyduje człowiek."""
 
 agent_ekstrakcja = Agent(
     name="ekstrakcja",

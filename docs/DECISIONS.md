@@ -139,3 +139,29 @@ Jakie dokładnie pola przyjmuje import? Bez tego mapowanie w F4 to zgadywanie.
 ### 4. Model LLM + budżet
 Który model do ekstrakcji? Przy ~500 zł/mies. i wielostronicowym scrapowaniu warto policzyć
 koszt na 1 research × zakładany wolumen.
+
+## 2026-09-04 — Flaga konkurenta zastąpiona faktem „ma SEO w ofercie"
+
+**Było:** model orzekał `konkurent: true/false` na podstawie testu „czym firma nazywa
+samą siebie". W wyszukiwaniu taką firmę dodatkowo USUWANO z listy — czyli narzędzie
+podejmowało decyzję zespołu, a odrzuconych nikt nie widział.
+
+**Jest:** `ma_seo: bool` + `seo_zakres: str`. Fakt: czy firma sprzedaje SEO/SEM jako
+usługę, jakie dokładnie i jak dużą część oferty stanowią. Nikt przez to nie wypada
+z listy, a kolory flagi są neutralne — wcześniej czerwień przy „Konkurent" podpowiadała
+„odpuść", zanim człowiek zdążył spojrzeć.
+
+**Dlaczego:** decyzja Adama — ocenia zespół, nie narzędzie. Ta sama agencja bywa
+konkurentem i najlepszym partnerem, zależnie od tego, po co do niej piszemy.
+Sam `true/false` tego nie rozstrzyga: widoczni.com i Sellision mają oba `ma_seo = true`,
+ale u pierwszych SEO to „jeden z głównych filarów", a u drugich „dodatek obok wdrożeń
+e-commerce". Stary system pokazałby je jako czerwone i zielone.
+
+**Zgodność z PRD:** PRD mówi „oznacza konkurenta", czyli TAG, nie filtr. Usuwanie firm
+z wyników nigdy nie było wymagane — ta zmiana przybliża nas do PRD, nie oddala.
+
+**Migracja:** `baza._przenies_konkurent_na_ma_seo()` przepisuje stare rekordy przy
+starcie. Zachowawczo: `konkurent = true` znaczyło „SEO jest rdzeniem", więc firma SEO
+na pewno ma. Ale `konkurent = false` NIE znaczyło „nie ma SEO" — tylko „to nie rdzeń".
+Takich firm nie da się zaklasyfikować ze starych danych, więc `seo_zakres` mówi wprost,
+że trzeba je zbadać ponownie, zamiast zmyślać odpowiedź.

@@ -19,7 +19,7 @@
 | liczba projektów | ✅ | ❌ |
 | dane kontaktowe | ✅ | ✅ |
 | persona | ✅ | ✅ |
-| konkurent SEO/GEO | ✅ | ✅ |
+| ma SEO w ofercie | ✅ | ✅ |
 
 ➡️ **Decyzja do podjęcia:** czy eksport ma węższy zakres niż research (świadomie), czy to przeoczenie?
 
@@ -37,7 +37,7 @@
 | `telefon` | str \| "nie do ustalenia" | LLM (tylko ze strony) | nie | Phone |
 | `email` | str \| "nie do ustalenia" | LLM (tylko ze strony) | nie | Email |
 | `persona` | ? **(definicja niejasna)** | LLM | ? | ? |
-| `konkurent` | bool + uzasadnienie | LLM | tak | ? |
+| `ma_seo` | bool + `seo_zakres` | LLM | tak | ? |
 | `zrodlo_danych` | str (które podstrony) | scraper | tak | — |
 
 ## ✅ Rozstrzygnięte
@@ -57,7 +57,13 @@ Szukamy w sekcjach „o nas", „zespół", „kontakt". Brak nazwiska → wszys
 
 **Braki danych** = literalny string `"nie do ustalenia"` (spójny, filtrowalny w arkuszu), nie puste pole.
 
-**Konkurent** = flaga `true/false` + `konkurent_uzasadnienie` (na jakiej podstawie).
+**Ma SEO** = flaga `true/false` + `seo_zakres` (jakie usługi i jak duża część oferty).
+
+Do 04.09.2026 było tu pole `konkurent` — narzędzie orzekało, kto jest konkurentem.
+Zmienione na FAKT, bo osąd należy do zespołu: agencja z SEO w ofercie bywa i konkurentem,
+i najlepszym partnerem, zależnie od tego, po co do niej piszemy. Sam `true/false` tego nie
+rozstrzyga — widoczni.com i Sellision mają oba `ma_seo = true`, ale u pierwszych to „jeden
+z głównych filarów", a u drugich „dodatek obok wdrożeń". Tę różnicę niesie `seo_zakres`.
 
 ## Otwarte pytania
 

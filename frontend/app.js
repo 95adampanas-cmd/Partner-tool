@@ -8,7 +8,7 @@ let koszyk = [];     // firmy zaznaczone do eksportu
 let kolumny = [];    // definicja kolumn CSV — z backendu (jedno źródło prawdy)
 
 // Dwie ścieżki pozyskiwania: partnerzy i klienci. To NIE jest tylko etykieta —
-// zmienia kryteria oceny (dla partnera agencja SEO to konkurent, dla klienta
+// zmienia to, czego szukamy (dla partnera liczy sie komplementarnosc, dla klienta
 // sklep ze słabą widocznością to najlepszy trop) i ton maila. Każda zbadana firma
 // pamięta, w której ścieżce powstała, więc „Praca" potrafi je rozdzielić.
 let tryb = "partner";
@@ -139,7 +139,7 @@ const ZBIERAMY = [
   ["user", "Osoba decyzyjna", "imię, stanowisko, bezpośredni kontakt"],
   ["mail", "Kontakt firmowy", "telefon i e-mail ze strony"],
   ["building", "Dane spółki", "nazwa prawna, NIP, adres, miasto"],
-  ["alert", "Flaga konkurenta", "czy rdzeniem oferty jest SEO/SEM"],
+  ["alert", "SEO w ofercie", "czy firma sprzedaje pozycjonowanie"],
   ["pin", "Źródło danych", "które podstrony odwiedziliśmy"],
 ];
 
@@ -160,13 +160,13 @@ function renderResearchPanel() {
   }
 
   const moje = firmyTrybu();
-  const konkurenci = moje.filter((t) => t.firma.konkurent).length;
+  const zSeo = moje.filter((t) => t.firma.ma_seo).length;
   const ostatnie = moje.slice(-4).reverse();
   box.innerHTML = `
     <div class="kafle">
       ${kafel(moje.length, "zbadane firmy", "building")}
       ${kafel(koszyk.filter((f) => (f.tryb || "partner") === tryb).length, "w eksporcie", "table")}
-      ${kafel(konkurenci, konkurenci === 1 ? "konkurent" : "konkurenci", "alert")}
+      ${kafel(zSeo, "z SEO w ofercie", "alert")}
     </div>
     <div class="card">
       <div class="mono"><i class="sq"></i>Ostatnio zbadane</div>
@@ -297,9 +297,9 @@ function renderListeFirm() {
       <div class="firma-row-info">
         <div class="firma-row-top">
           <span class="firma-row-nazwa">${esc(f.nazwa)}</span>
-          ${f.konkurent
-            ? `<span class="flaga mini konkurent"><svg class="ico xs"><use href="#i-alert"/></svg>Konkurent</span>`
-            : `<span class="flaga mini partner"><svg class="ico xs"><use href="#i-check"/></svg>Nie konkurent</span>`}
+          ${f.ma_seo
+            ? `<span class="flaga mini ma-seo"><svg class="ico xs"><use href="#i-search"/></svg>Ma SEO</span>`
+            : `<span class="flaga mini bez-seo">Bez SEO</span>`}
           ${wKoszyku ? `<span class="flaga mini w-eksporcie"><svg class="ico xs"><use href="#i-table"/></svg>W eksporcie</span>` : ""}
         </div>
         <span class="firma-row-meta">${esc(hostname(f.url))} · ${esc(f.branza)}</span>
@@ -346,9 +346,10 @@ function panelHTML(id, f) {
 }
 
 function kartaHTML(f) {
-  const badge = f.konkurent
-    ? `<div class="flaga konkurent"><svg class="ico xs"><use href="#i-alert"/></svg>Konkurent</div>`
-    : `<div class="flaga partner"><svg class="ico xs"><use href="#i-check"/></svg>Nie konkurent</div>`;
+  // Fakt, nie werdykt. Czy to konkurent, czy partner — ocenia zespół.
+  const badge = f.ma_seo
+    ? `<div class="flaga ma-seo"><svg class="ico xs"><use href="#i-search"/></svg>Ma SEO w ofercie</div>`
+    : `<div class="flaga bez-seo"><svg class="ico xs"><use href="#i-check"/></svg>Bez SEO w ofercie</div>`;
   return `<div class="card firma">
     <div class="firma-head">
       <div>
@@ -358,7 +359,7 @@ function kartaHTML(f) {
       ${badge}
     </div>
     <p class="firma-opis">${esc(f.opis)}</p>
-    <p class="uzasadnienie"><span class="etyk">Flaga</span> ${esc(f.konkurent_uzasadnienie)}</p>
+    <p class="uzasadnienie"><span class="etyk">Zakres SEO</span> ${esc(f.seo_zakres)}</p>
 
     <div class="pola">
       ${pole("Branża", f.branza)}

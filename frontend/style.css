@@ -265,8 +265,12 @@ button { font-family: var(--sans); }
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase;
   padding: 6px 11px; border-radius: 7px; white-space: nowrap; flex-shrink: 0;
 }
-.flaga.konkurent { background: rgba(240,78,42,.12); color: var(--orange); border: 1px solid rgba(240,78,42,.35); }
-.flaga.partner { background: rgba(111,191,135,.09); color: var(--zielony); border: 1px solid rgba(111,191,135,.25); }
+/* Fakt, nie ocena — dlatego oba warianty są neutralne. Wcześniej „Konkurent"
+   świecił na czerwono, a „Nie konkurent" na zielono, czyli kolor podpowiadał
+   decyzję: czerwony = odpuść, zielony = pisz. Tę decyzję podejmuje zespół,
+   a agencja z SEO w ofercie bywa i konkurentem, i najlepszym partnerem. */
+.flaga.ma-seo { background: var(--surface-2); color: var(--tekst); border: 1px solid var(--border); }
+.flaga.bez-seo { background: transparent; color: var(--muted); border: 1px solid var(--border); }
 .flaga.w-eksporcie { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
 .flaga.mini { font-size: 9px; padding: 4px 8px; }
 

@@ -37,7 +37,40 @@ def _polacz() -> sqlite3.Connection:
         _polaczenie.row_factory = sqlite3.Row
         _polaczenie.execute("PRAGMA journal_mode=WAL")
         _utworz(_polaczenie)
+        _przenies_konkurent_na_ma_seo(_polaczenie)
     return _polaczenie
+
+
+def _przenies_konkurent_na_ma_seo(db: sqlite3.Connection) -> None:
+    """Migracja: pole `konkurent` (osąd) → `ma_seo` (fakt).
+
+    Firmy zbadane przed zmianą mają w JSON-ie `konkurent` i `konkurent_uzasadnienie`.
+    Bez tego karta takiej firmy pokazywałaby pustą flagę, a eksport CSV pustą kolumnę.
+
+    Przepisanie jest zachowawcze: `konkurent = true` znaczyło „SEO jest rdzeniem
+    oferty", więc firma na pewno SEO ma. Ale `konkurent = false` NIE znaczyło „nie ma
+    SEO" — znaczyło „SEO nie jest rdzeniem". Takiej firmy nie umiemy zaklasyfikować
+    ze starych danych, więc zostawiamy ma_seo = false i mówimy o tym w seo_zakres,
+    zamiast zmyślać. Ponowny research nadpisze to prawdziwą odpowiedzią.
+    """
+    do_zmiany = []
+    for r in db.execute("SELECT url, dane FROM firmy"):
+        d = json.loads(r["dane"])
+        if "ma_seo" in d or "konkurent" not in d:
+            continue
+        byl_konkurentem = bool(d.pop("konkurent"))
+        stare = (d.pop("konkurent_uzasadnienie", "") or "").strip()
+        d["ma_seo"] = byl_konkurentem
+        d["seo_zakres"] = (stare if byl_konkurentem else
+                           "Dane sprzed zmiany pola — zbadaj firmę ponownie, "
+                           "żeby ustalić, czy ma SEO w ofercie."
+                           + (f" Wcześniejsza notatka: {stare}" if stare else ""))
+        do_zmiany.append((json.dumps(d, ensure_ascii=False), r["url"]))
+
+    if do_zmiany:
+        db.executemany("UPDATE firmy SET dane = ? WHERE url = ?", do_zmiany)
+        db.commit()
+        print(f"[baza] migracja konkurent -> ma_seo: {len(do_zmiany)} firm")
 
 
 def _utworz(db: sqlite3.Connection) -> None:
