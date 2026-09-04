@@ -148,25 +148,13 @@ button { font-family: var(--sans); }
 
 .presety { margin-top: 20px; }
 .presety .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
-/* Kategorie jako kafle — ten sam język, co statystyki nad listą firm.
-   Przy 78 pozycjach płaska lista tagów była ścianą, w której nic nie dało się
-   znaleźć. Dziesięć kafli pokazuje od razu, ile czego jest. */
-/* Selektor podwójny celowo: .kafle jest zdefiniowane NIŻEJ w pliku i przy równej
-   specyficzności wygrałoby swoim repeat(3, 1fr). */
-.kafle.kafle-kategorie { grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
-.kafel.kafel-kat b {
-  font-size: 11px; font-weight: 600; letter-spacing: .04em;
-  text-transform: uppercase; font-family: var(--mono); line-height: 1.35;
-}
-.kafel.kafel-kat span { margin-top: 4px; text-transform: none; letter-spacing: .04em; }
-.kafel.kafel-kat.aktywny {
-  border-color: rgba(240,78,42,.45); background: rgba(240,78,42,.07);
-}
-.kafel.kafel-kat.aktywny .ico { color: var(--orange); }
-.kafel-kat.aktywny .kafel-strzalka { display: none; }
+/* Kategorie jako chipy — ten sam wygląd, co filtr w „Szukaj podobnych".
+   Kafle zajmowały pół ekranu, zanim cokolwiek wybrałeś. Jeden rząd chipów
+   zostawia miejsce na to, po co się tu przyszło. */
+.presety > div > .tagi.wybieralne:first-child { margin-bottom: 12px; }
 
-/* Panel z usługami stoi POD siatką, nie w jej środku: rozwijanie w miejscu
-   przesuwałoby pozostałe kafle przy każdym kliknięciu. */
+/* Panel z usługami stoi POD rzędem chipów, nie między nimi: rozwijanie
+   w miejscu przesuwałoby pozostałe chipy przy każdym kliknięciu. */
 .preset-panel {
   margin-top: 4px; padding: 15px 17px;
   background: var(--surface); border: 1px solid var(--border-soft);

@@ -340,37 +340,18 @@ let podobneKategoria = null;
 // Kategoria wybrana na liscie Firm. null = wszystkie.
 let filtrKategorii = null;
 
-// Ikona per kategoria. Trzymana osobno od PRESETY, bo to warstwa prezentacji —
-// lista kategorii ma zostać czytelna jako dane, bez domieszki wyglądu.
-const IKONY_GRUP = {
-  "Budowa stron i sklepów": "layers",
-  "Utrzymanie i administracja": "clock",
-  "Strategia i doradztwo": "target",
-  "Branding i kreacja": "tag",
-  "Marketing poza SEO": "chart",
-  "Sprzedaż i marketplace": "table",
-  "Technologia, integracje i resellerzy": "link",
-  "AI i automatyzacja": "search",
-  "Wiedza i usługi prawne": "file",
-  "Sieci i społeczności biznesowe": "users",
-  "Handel": "table",
-  "Usługi lokalne": "pin",
-  "B2B i technologie": "building",
-  "Turystyka i HoReCa": "user",
-};
-
 function renderPresety() {
   const grupy = PRESETY[tryb] || PRESETY.partner;
   const wybrana = otwartaGrupa !== null ? grupy[otwartaGrupa] : null;
 
-  // Siatka kafli zostaje na miejscu po wybraniu, a usługi pokazują się POD nią.
-  // Rozwijanie w miejscu przesuwałoby pozostałe kafle przy każdym kliknięciu.
-  const kafle = grupy.map(([grupa, , pozycje], i) => `
-    <button class="kafel kafel-kat${otwartaGrupa === i ? " aktywny" : ""}"
+  // Chipy, nie kafle — ten sam wygląd, co filtr kategorii w „Szukaj podobnych".
+  // Kafle zajmowały pół ekranu, zanim cokolwiek wybrałeś; tu wybór jest jednym
+  // rzędem, a miejsce zostaje na to, po co się tu przyszło.
+  const kafle = `<div class="tagi wybieralne">${grupy.map(([grupa, , pozycje], i) => `
+    <button class="tag${otwartaGrupa === i ? " zaznaczony" : ""}"
             type="button" data-grupa="${i}" aria-pressed="${otwartaGrupa === i}">
-      <svg class="ico"><use href="#i-${IKONY_GRUP[grupa] || "tag"}"/></svg>
-      <div><b>${esc(grupa)}</b><span>${pozycje.length} kategorii</span></div>
-    </button>`).join("");
+      ${esc(grupa)} <em class="chip-licznik">${pozycje.length}</em>
+    </button>`).join("")}</div>`;
 
   const panel = !wybrana ? "" : (() => {
     const [grupa, fraza, pozycje] = wybrana;
@@ -392,7 +373,7 @@ function renderPresety() {
   })();
 
   document.getElementById("presety-branz").innerHTML =
-    `<div class="kafle kafle-kategorie">${kafle}</div>${panel}`;
+    `${kafle}${panel}`;
 }
 renderPresety();
 
