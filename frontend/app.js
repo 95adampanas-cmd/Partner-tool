@@ -230,12 +230,12 @@ const PRESETY = {
       "wdrożenia IdoSell", "tworzenie sklepów internetowych",
       "projektowanie stron internetowych", "software house", "agencja interaktywna",
     ]],
-    ["Utrzymanie i white label", [
-      // bravenew.agency: "white label WordPress development FOR AGENCIES" —
-      // partner, którego klientem jest inna agencja. webinity.pl: opieka nad
-      // dziesiątkami serwisów naraz, bez budowania nowych.
-      "white label WordPress", "opieka nad stroną WordPress",
-      "administracja sklepem internetowym", "podwykonawca dla agencji",
+    ["Utrzymanie i administracja", [
+      // webinity.pl: opieka nad dziesiątkami serwisów naraz, bez budowania nowych.
+      // Kategorie white-label ("white label WordPress", "podwykonawca dla agencji")
+      // usunięte na wyraźną decyzję Adama 04.09.2026 — mimo że bravenew.agency
+      // z jego listy tak się opisuje.
+      "opieka nad stroną WordPress", "administracja sklepem internetowym",
     ]],
     ["Strategia i doradztwo", [
       "doradztwo e-commerce", "digital advisory", "interim management e-commerce",
