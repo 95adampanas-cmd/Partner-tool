@@ -251,6 +251,10 @@ const PRESETY = {
     ]],
     ["Branding i kreacja", [
       "agencja brandingowa", "agencja kreatywna", "branding produktowy",
+      // brantt ma w usługach „opracowanie strategii marki" i „budowa marki",
+      // adream „strategia komunikacji marki" — a żaden preset tego nie łapał.
+      // To praca sprzed identyfikacji wizualnej, robią ją inne firmy.
+      "strategia marki",
       "projektowanie opakowań", "identyfikacja wizualna", "studio graficzne",
       "agencja UX/UI", "optymalizacja konwersji CRO", "produkcja wideo",
       "fotografia produktowa",
