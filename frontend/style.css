@@ -146,6 +146,13 @@ button { font-family: var(--sans); }
 .pasek button:hover { background: var(--orange-2); }
 .pasek button:disabled { opacity: .5; cursor: default; }
 
+/* Wybór źródła firm. Stoi NAD kategoriami, bo to decyzja wcześniejsza:
+   najpierw skąd bierzemy firmy, potem jakich. */
+.zrodla:not(:empty) { margin-top: 20px; }
+.zrodla .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
+.zrodla .tag { display: inline-flex; align-items: center; gap: 6px; }
+.zrodla .hint { margin: 9px 0 0; color: var(--faint); font-size: 12.5px; }
+
 .presety { margin-top: 20px; }
 .presety .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
 /* Kategorie jako chipy — ten sam wygląd, co filtr w „Szukaj podobnych".

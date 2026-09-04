@@ -117,6 +117,11 @@
       <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
       <button id="btn-kryteria" type="submit">Szukaj firm <svg class="ico sm"><use href="#i-arrow"/></svg></button>
     </form>
+    <!-- Źródło firm. Wyszukiwarka pokazuje wypozycjonowanych, Mapy — wszystkich,
+         którzy mają wizytówkę. Przełącznik pojawia się dopiero, gdy podłączony
+         jest więcej niż jeden klucz (renderZrodla w app.js). -->
+    <div id="zrodla-wyboru" class="zrodla"></div>
+
     <div class="presety">
       <!-- nagłówek jest teraz w karcie renderowanej przez renderPresety(),
            żeby wybór kategorii wyglądał tak samo jak w „Szukaj podobnych" -->

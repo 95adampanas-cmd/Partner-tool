@@ -37,6 +37,7 @@ from agents import Agent, Runner, WebSearchTool
 
 import audyt
 import baza
+import mapy
 import dfs
 import geo
 import seranking
@@ -954,13 +955,40 @@ async def api_szukaj(request):
     tekstu. Wcześniej jedno i drugie robił model i mylił się w 4 na 6 przebiegów.
     """
     try:
-        if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
-            return JSONResponse({"ok": False, "error": "Brak klucza Tavily w środowisku."})
         body = await request.json()
         branza = (body.get("branza") or "").strip()
         miasto = (body.get("miasto") or "").strip()
+        zrodlo = (body.get("zrodlo") or "wyszukiwarka").lower()
         if not branza:
             return JSONResponse({"ok": False, "error": "Podaj branżę lub typ firmy."})
+
+        # ── ŹRÓDŁO: MAPY GOOGLE ─────────────────────────────────────────────
+        # Wyszukiwarka pokazuje to, co wypozycjonowane. Firma bez SEO tam nie
+        # wychodzi — a przy ścieżce KLIENTÓW to właśnie ona jest najlepszym
+        # tropem. Na Mapach jest każdy, kto ma wizytówkę.
+        # Z Map bierzemy WYŁĄCZNIE adres strony; dane zbiera potem nasz scraper
+        # z serwisu firmy. Powód regulaminowy — patrz mapy.py.
+        if zrodlo == "mapy":
+            if not mapy.dostepne():
+                return JSONResponse({"ok": False, "error":
+                    "Brak GOOGLE_MAPS_API_KEY w .env — wyszukiwanie po Mapach wyłączone."})
+            try:
+                z_map = await asyncio.to_thread(mapy.szukaj, branza, miasto)
+            except mapy.BladMap as e:
+                return JSONResponse({"ok": False, "error": str(e)})
+
+            # Mapy nie dają opisu firmy, więc filtr dostaje sam adres. Tytuł
+            # spadnie do domeny, a tag SEO będzie pusty — do czasu researchu
+            # naprawdę nie wiemy, czym firma się zajmuje. To uczciwy stan,
+            # nie brak funkcji.
+            wyniki = [{"url": u, "title": "", "content": ""} for u in z_map["adresy"]]
+            wynik = await znajdz_firmy_z_wynikow(wyniki)
+            return JSONResponse({"ok": True, "zapytanie": z_map["zapytanie"],
+                                 "zrodlo": "mapy", "bez_strony": z_map["bez_strony"],
+                                 "zapytan_do_map": z_map["zapytan"], **wynik})
+
+        if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
+            return JSONResponse({"ok": False, "error": "Brak klucza Tavily w środowisku."})
 
         # LLM rozpisuje branżę na kilka RÓŻNYCH fraz — jedno zapytanie zwraca tylko TOP10
         # najlepiej wypozycjonowanych, a szukamy tych mniej widocznych (główny ból z PRD).
@@ -1293,6 +1321,15 @@ async def api_audyty(request):
     return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
 
 
+async def api_zrodla(request):
+    """Które źródła firm są podłączone. Front pyta, zanim pokaże przełącznik —
+    opcja, która na pewno zwróci błąd, nie powinna być klikalna."""
+    return JSONResponse({"ok": True, "zrodla": {
+        "wyszukiwarka": bool(os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")),
+        "mapy": mapy.dostepne(),
+    }})
+
+
 async def api_kategorie(request):
     """Kategorie partnerskie dla frontu. Backend jest tu źródłem prawdy — front
     ma je tylko wyświetlić, a nie trzymać własną kopię."""
@@ -1330,6 +1367,7 @@ app = Starlette(routes=[
     Route("/api/email", api_email, methods=["POST"]),
     Route("/api/columns", api_columns, methods=["GET"]),
     Route("/api/kategorie", api_kategorie, methods=["GET"]),
+    Route("/api/zrodla", api_zrodla, methods=["GET"]),
     # pamięć — bez tego cała praca ginęła po odświeżeniu strony
     Route("/api/firmy", api_firmy, methods=["GET"]),
     Route("/api/firmy/usun", api_firma_usun, methods=["POST"]),

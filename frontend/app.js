@@ -340,6 +340,37 @@ let podobneKategoria = null;
 // Kategoria wybrana na liscie Firm. null = wszystkie.
 let filtrKategorii = null;
 
+// Źródło firm. "wyszukiwarka" = Tavily (kto jest wypozycjonowany),
+// "mapy" = Google Maps (kto ma wizytówkę, niezależnie od SEO).
+let zrodlo = "wyszukiwarka";
+let zrodlaDostepne = { wyszukiwarka: true, mapy: false };
+
+const ZRODLA = {
+  wyszukiwarka: { nazwa: "Wyszukiwarka", ikona: "search",
+                  opis: "Znajduje firmy widoczne w Google — czyli te, które już inwestują w SEO." },
+  mapy:         { nazwa: "Mapy Google", ikona: "pin",
+                  opis: "Znajduje każdą firmę z wizytówką, także bez SEO. Opis firmy pojawia się dopiero po researchu." },
+};
+
+fetch("/api/zrodla").then((r) => r.json()).then((d) => {
+  if (d.ok) { zrodlaDostepne = d.zrodla; renderZrodla(); }
+}).catch(() => {});
+
+function renderZrodla() {
+  const box = document.getElementById("zrodla-wyboru");
+  if (!box) return;
+  // Przy jednym podłączonym źródle przełącznik byłby przyciskiem bez wyboru.
+  if (!zrodlaDostepne.mapy) { box.innerHTML = ""; zrodlo = "wyszukiwarka"; return; }
+  box.innerHTML = `
+    <div class="mono"><i class="sq"></i>Skąd bierzemy firmy</div>
+    <div class="tagi wybieralne">${Object.entries(ZRODLA).map(([k, z]) => `
+      <button class="tag${zrodlo === k ? " zaznaczony" : ""}" type="button"
+              data-zrodlo="${k}" title="${escAttr(z.opis)}">
+        <svg class="ico xs"><use href="#i-${z.ikona}"/></svg> ${esc(z.nazwa)}
+      </button>`).join("")}</div>
+    <p class="hint">${esc(ZRODLA[zrodlo].opis)}</p>`;
+}
+
 function renderPresety() {
   const grupy = PRESETY[tryb] || PRESETY.partner;
   const wybrana = otwartaGrupa !== null ? grupy[otwartaGrupa] : null;
@@ -395,7 +426,7 @@ formKryteria.addEventListener("submit", async (e) => {
     const res = await fetch("/api/szukaj", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branza, miasto, tryb }),
+      body: JSON.stringify({ branza, miasto, tryb, zrodlo }),
     });
     const data = await res.json();
     szukajWynik.innerHTML = data.ok ? listaFirmHTML(data, "Znalezione firmy") : errorHTML(data.error);
@@ -677,6 +708,8 @@ document.addEventListener("click", (e) => {
     document.getElementById("podobne-wynik").innerHTML = "";
     return renderPodobne();
   }
+  const btnZrodlo = e.target.closest("[data-zrodlo]");
+  if (btnZrodlo) { zrodlo = btnZrodlo.dataset.zrodlo; return renderZrodla(); }
   const preset = e.target.closest("[data-preset]");
   if (preset) {
     document.getElementById("branza").value = preset.dataset.preset;
@@ -884,7 +917,8 @@ function listaFirmHTML(data, naglowek) {
     <div class="mono"><span class="sq"></span> ${esc(naglowek)} (${data.firmy.length})</div>
     <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
       data.z_seo ? ` · ${data.z_seo} z SEO w ofercie` : ""
-    }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""}</p>
+    }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
+    }${data.bez_strony ? ` · ${data.bez_strony} firm z Map bez strony WWW (pomijamy — nie ma czego zbadać)` : ""}</p>
     <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
   </div>`;
 }
