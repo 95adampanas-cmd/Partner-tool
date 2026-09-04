@@ -643,6 +643,18 @@ function lista(etykieta, elementy) {
 
 // ══ Kliknięcia (delegacja na całym dokumencie) ══
 document.addEventListener("click", (e) => {
+  // Przełącznik ścieżki Partnerzy/Klienci. Był w nasłuchu "change", a <button>
+  // NIGDY nie wywołuje tego zdarzenia — zakładki nie działały od początku,
+  // w żadnej sekcji. Ścieżkę dało się zmienić tylko z menu bocznego.
+  const btnTryb = e.target.closest("[data-ustaw-tryb]");
+  if (btnTryb) {
+    tryb = btnTryb.dataset.ustawTryb;
+    filtrFirm = null;        // filtry liczone były dla poprzedniej ścieżki
+    filtrKategorii = null;
+    podobneKategoria = null;
+    const sekcja = document.querySelector(".sekcja.aktywna")?.dataset.sekcja;
+    return pokazSekcje(sekcja || "firmy");
+  }
   const usun = e.target.closest("[data-usun]");
   if (usun) { e.stopPropagation(); return usunFirme(usun.dataset.usun); }
 
@@ -724,13 +736,6 @@ document.addEventListener("change", (e) => {
       if (!audytSilniki.length) audytSilniki = ["chatgpt_wprost"];
     }
     return renderAudyt();
-  }
-  const btnTryb = e.target.closest("[data-ustaw-tryb]");
-  if (btnTryb) {
-    tryb = btnTryb.dataset.ustawTryb;
-    filtrFirm = null;   // filtr liczony byl dla poprzedniej sciezki
-    const sekcja = document.querySelector(".sekcja.aktywna")?.dataset.sekcja;
-    return pokazSekcje(sekcja || "firmy");
   }
   if (e.target.name === "platforma") {
     const v = e.target.value;

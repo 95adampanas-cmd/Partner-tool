@@ -19,9 +19,11 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Node
+# Node — jsdom potrzebny tylko do frontend/test_ui.js
 node_modules/
 dist/
+package-lock.json
+frontend/package.json
 
 # raport z testu filtra (generowany)
 raport_filtr.txt
