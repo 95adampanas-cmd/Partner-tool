@@ -148,6 +148,16 @@ button { font-family: var(--sans); }
 
 .presety { margin-top: 20px; }
 .presety .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
+/* Presety są pogrupowane, bo przy ~26 kategoriach płaska ściana tagów przestaje
+   się skanować wzrokiem. Etykieta grupy mówi, w jakiej relacji do nas jest
+   ta firma — nie jest ozdobą. */
+.preset-grupa { margin-bottom: 12px; }
+.preset-grupa:last-child { margin-bottom: 0; }
+.preset-etykieta {
+  display: block; margin-bottom: 6px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+}
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */

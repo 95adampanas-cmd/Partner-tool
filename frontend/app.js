@@ -73,6 +73,7 @@ function pokazSekcje(nazwa) {
   }
 
   if (nazwa === "research") renderResearchPanel();
+  if (nazwa === "szukaj") renderPresety();   // inne kategorie dla partnera, inne dla klienta
   if (nazwa === "eksport") renderEksport();
   if (nazwa === "podobne") renderPodobne();
   if (nazwa === "audyt") renderAudyt();
@@ -203,14 +204,75 @@ const formKryteria = document.getElementById("form-kryteria");
 const btnKryteria = document.getElementById("btn-kryteria");
 const szukajWynik = document.getElementById("szukaj-wynik");
 
-// presety branż — kategorie partnerskie Last Agency (PRD: dobre kategorie partnerów)
-const PRESETY = [
-  "agencja brandingowa", "agencja kreatywna", "software house", "agencja e-commerce",
-  "agencja social media", "marketing automation", "doradztwo e-commerce",
-  "agencja UX/UI", "kancelaria prawna e-commerce", "integrator ERP",
-];
-document.getElementById("presety-branz").innerHTML =
-  PRESETY.map((p) => `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`).join("");
+// Presety branż — OSOBNE dla każdej ścieżki. Wcześniej była jedna płaska lista,
+// renderowana raz przy starcie, więc w Klientach wyświetlały się kategorie
+// partnerskie („agencja brandingowa"), co jest odwrotnością tego, kogo tam szukamy.
+//
+// PARTNER: firma, która obsługuje TYCH SAMYCH klientów co my, ale robi coś innego —
+// buduje sklep, projektuje markę, prowadzi social media. Ma bazę klientów
+// potrzebujących SEO i nie ma czym tego obsłużyć, więc może nas polecić.
+// Dlatego na liście nie ma nikogo, kto sprzedaje pozycjonowanie.
+//
+// KLIENT: firma, która sama mogłaby kupić SEO/GEO. Kryterium jest odwrotne —
+// tu słaba widoczność jest zaletą, bo znaczy potencjał.
+const PRESETY = {
+  partner: [
+    ["Budowa stron i sklepów", [
+      "software house", "agencja interaktywna", "wdrożenia Shopify",
+      "wdrożenia PrestaShop", "wdrożenia WooCommerce", "agencja Magento",
+      "tworzenie stron WordPress",
+    ]],
+    ["Kreacja i marka", [
+      "agencja brandingowa", "agencja kreatywna", "studio graficzne",
+      "agencja UX/UI", "produkcja wideo", "fotografia produktowa",
+    ]],
+    ["Marketing poza SEO", [
+      "agencja social media", "marketing automation", "agencja PR",
+      "influencer marketing", "e-mail marketing",
+    ]],
+    // Nazwy presetów celowo po POLSKU. „fulfillment e-commerce" sprawdzone na żywo:
+    // zwracało shipbob.com, flow.space i scayle.com, bo angielskie hasło trafia
+    // w angielskie strony. „logistyka e-commerce" — polskie firmy.
+    ["Obsługa e-commerce", [
+      "doradztwo e-commerce", "integrator ERP", "logistyka e-commerce",
+      "agencja marketplace", "integracje płatności",
+    ]],
+    ["Usługi okołobiznesowe", [
+      "kancelaria prawna e-commerce", "wdrożenia CRM", "firma hostingowa",
+      "agencja badawcza",
+    ]],
+  ],
+  // ⚠️ Zestaw startowy, do potwierdzenia z Adamem — kogo dokładnie chcemy
+  // pozyskiwać jako klientów, nie jest jeszcze ustalone (otwarte w ROADMAP).
+  klient: [
+    ["Handel", [
+      "sklep internetowy", "hurtownia", "producent mebli", "producent odzieży",
+      "sklep z elektroniką",
+    ]],
+    ["Usługi lokalne", [
+      "klinika stomatologiczna", "gabinet medycyny estetycznej", "kancelaria prawna",
+      "biuro rachunkowe", "szkoła językowa",
+    ]],
+    ["B2B i technologie", [
+      "firma produkcyjna", "SaaS", "firma logistyczna", "firma budowlana",
+    ]],
+    ["Turystyka i HoReCa", [
+      "hotel", "restauracja", "biuro podróży",
+    ]],
+  ],
+};
+
+function renderPresety() {
+  document.getElementById("presety-branz").innerHTML =
+    (PRESETY[tryb] || PRESETY.partner).map(([grupa, pozycje]) => `
+      <div class="preset-grupa">
+        <span class="preset-etykieta">${esc(grupa)}</span>
+        <div class="tagi wybieralne">${pozycje.map((p) =>
+          `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`
+        ).join("")}</div>
+      </div>`).join("");
+}
+renderPresety();
 
 formKryteria.addEventListener("submit", async (e) => {
   e.preventDefault();
