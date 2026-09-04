@@ -333,6 +333,12 @@ button { font-family: var(--sans); }
 .firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: #3a3a42; background: var(--surface-2); }
 .sim-info, .firma-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sim-name { font-weight: 550; font-size: 14px; }
+/* Tag faktu, nie oceny — dlatego neutralny, a nie ostrzegawczy jak .niepewna.
+   Mówi „w opisie pada SEO", a nie „to konkurent". Decyzję podejmuje zespół. */
+.tag-seo { display: inline-block; margin-left: 7px; padding: 1px 6px; border-radius: 3px;
+  border: 1px solid var(--linia); color: var(--muted); background: var(--tlo-2);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; vertical-align: 1px; }
+.sim-opis { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 4px; }
 .sim-url { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; text-decoration: none; word-break: break-all; }
 .sim-url:hover { color: var(--orange); }
 .firma-row-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }

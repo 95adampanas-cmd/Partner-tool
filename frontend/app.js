@@ -601,17 +601,22 @@ function listaFirmHTML(data, naglowek) {
   return `<div class="card">
     <div class="mono"><span class="sq"></span> ${esc(naglowek)} (${data.firmy.length})</div>
     <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
-      data.odsiani_konkurenci ? ` · odsiano ${data.odsiani_konkurenci} agencji SEO` : ""
+      data.z_seo ? ` · ${data.z_seo} z SEO w ofercie` : ""
     }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""}</p>
     <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
   </div>`;
 }
 
 function wierszHTML(f) {
+  // Tag, nie werdykt: mówi tylko, czy w opisie firmy pada SEO/SEM/pozycjonowanie.
+  // Czy to konkurent, czy partner — ocenia zespół, nie narzędzie.
   return `<div class="sim-row" data-url="${escAttr(f.url)}">
     <div class="sim-info">
-      <span class="sim-name">${esc(f.nazwa)}</span>
+      <span class="sim-name">${esc(f.nazwa)}${
+        f.ma_seo ? `<span class="tag-seo" title="W opisie firmy pada SEO / SEM / pozycjonowanie">SEO</span>` : ""
+      }</span>
       <a class="sim-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)}<svg class="ico xs"><use href="#i-external"/></svg></a>
+      ${f.opis ? `<span class="sim-opis">${esc(f.opis.slice(0, 150))}${f.opis.length > 150 ? "…" : ""}</span>` : ""}
       ${f.niepewna ? `<span class="niepewna"><svg class="ico xs"><use href="#i-alert"/></svg>nie udało się zweryfikować strony (blokada bota?)</span>` : ""}
     </div>
     <button class="researchuj" type="button">Researchuj<svg class="ico xs"><use href="#i-arrow"/></svg></button>

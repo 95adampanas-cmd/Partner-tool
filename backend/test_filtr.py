@@ -85,8 +85,8 @@ TYTULY = [
     ("Laptop 4 You",                                            False, "PUŁAPKA: 'top' + liczba"),
 ]
 
-# Firmy z sygnałem SEO. Etap 1 tylko ZAWĘŻA pole — ma je przepuścić do oceny
-# modelu, a nie rozstrzygać. Werdykt zapada dopiero w odsiej_konkurentow().
+# Tag „ma SEO w opisie". To FAKT, nie ocena — żadna firma przez niego nie wypada
+# z listy. Czy agencja z SEO jest konkurentem, czy partnerem, rozstrzyga zespół.
 SYGNALY = [
     ("Grupa iCEA - Skuteczne pozycjonowanie i SEO", "Pozycjonowanie stron, audyty SEO.", True),
     ("Delante - SEO & SEM Agency",                  "Agencja SEO/SEM, Google Ads.",      True),
@@ -129,13 +129,13 @@ def sprawdz_regresje() -> int:
 
     print()
     print("=" * 74)
-    print("SYGNAŁ SEO — kogo etap 1 kieruje do oceny modelu (to NIE jest werdykt)")
+    print("TAG SEO — czy w opisie pada SEO. Fakt do pokazania, nie powód odrzucenia")
     print("=" * 74)
     for tytul, opis_firmy, ma_isc in SYGNALY:
         idzie = app.ma_sygnal_seo(tytul, opis_firmy)
         ok = idzie == ma_isc
         bledy += not ok
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'do oceny' if idzie else 'pomijamy':8} | {tytul[:52]}")
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'tag SEO ' if idzie else 'bez tagu':8} | {tytul[:52]}")
 
     print()
     print("=" * 74)
