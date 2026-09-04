@@ -62,6 +62,22 @@ ADRESY = [
     ("https://govtech-polska.pl",                   False, "PUŁAPKA: 'gov' w nazwie firmy"),
     ("https://edukacja-firma.pl",                   False, "PUŁAPKA: 'edu' w nazwie firmy"),
     ("https://softwarestudio.com.pl",               False, "firma, nie dokumentacja"),
+    ("https://seo-www.pl/blog/x",                    False, "PUŁAPKA: 'www.' w ŚRODKU nazwy"),
+    ("https://wwwtest.pl",                           False, "PUŁAPKA: 'www' bez kropki"),
+]
+
+# Domena bez przedrostka www. Osobno od odrzucania, bo tu chodzi o POPRAWNOŚĆ
+# adresu, a nie o to, czy w ogóle przechodzi. `netloc.replace("www.", "")` wycinało
+# "www." także ze środka: seo-www.pl stawało się nieistniejącym "seo-pl" i pod takim
+# adresem szło zarówno na listę firm, jak i do PŁATNEGO API audytu.
+DOMENY = [
+    ("https://seo-www.pl/blog/x",  "seo-www.pl"),
+    ("https://www.seo-www.pl/x",   "seo-www.pl"),
+    ("https://www.empressia.pl",   "empressia.pl"),
+    ("https://empressia.pl",       "empressia.pl"),
+    ("https://wwwtest.pl",         "wwwtest.pl"),
+    ("https://firma.www.pl",       "firma.www.pl"),
+    ("HTTPS://WWW.Tebim.PRO/a",    "tebim.pro"),
 ]
 
 TYTULY = [
@@ -118,6 +134,17 @@ def sprawdz_regresje() -> int:
 
     print()
     print("=" * 74)
+    print("DOMENY — czy 'www.' znika TYLKO z przedrostka, nie ze środka nazwy")
+    print("=" * 74)
+    for url, oczekiwana in DOMENY:
+        wyszlo = app.domena_z_url(url)
+        ok = wyszlo == oczekiwana
+        bledy += not ok
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {url:32} -> {wyszlo}"
+              f"{'' if ok else f'  (oczekiwano {oczekiwana})'}")
+
+    print()
+    print("=" * 74)
     print("TYTUŁY — czy LISTICLE rozpoznaje zestawienia, nie myląc ich z nazwami firm")
     print("=" * 74)
     for tytul, ma_trafic, opis in TYTULY:
@@ -140,7 +167,7 @@ def sprawdz_regresje() -> int:
     print()
     print("=" * 74)
     print(f"REGRESJA: {'PRZESZŁA' if bledy == 0 else f'{bledy} BŁĘDÓW'} "
-          f"({len(ADRESY) + len(TYTULY) + len(SYGNALY)} przypadków)")
+          f"({len(ADRESY) + len(DOMENY) + len(TYTULY) + len(SYGNALY)} przypadków)")
     print("=" * 74)
     return bledy
 

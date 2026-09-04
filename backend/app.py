@@ -268,6 +268,17 @@ PODDOMENY_ODPADAJACE = (
 )
 
 
+def domena_z_url(url: str) -> str:
+    """Domena bez przedrostka www.
+
+    `netloc.replace("www.", "")` wycinało "www." TAKŻE ZE ŚRODKA nazwy: realna
+    firma seo-www.pl zamieniała się w nieistniejące "seo-pl" i pod takim adresem
+    trafiała na listę. Usuwamy wyłącznie przedrostek.
+    """
+    d = urlparse(url.lower()).netloc
+    return d[4:] if d.startswith("www.") else d
+
+
 def powod_odrzucenia(url: str) -> str | None:
     """Dlaczego adres nie jest stroną firmy-kandydata. None = przechodzi.
 
@@ -278,7 +289,7 @@ def powod_odrzucenia(url: str) -> str | None:
     poddomen ani końcówek publicznych).
     """
     u = url.lower()
-    domena = urlparse(u).netloc.replace("www.", "")
+    domena = domena_z_url(url)
     if not domena:
         return "brak domeny"
     if any(d in domena for d in DOMENY_ODPADAJACE):
@@ -304,7 +315,7 @@ def normalizuj_url(url: str) -> str | None:
     """
     if powod_odrzucenia(url):
         return None
-    return f"https://{urlparse(url.lower()).netloc.replace('www.', '')}"
+    return f"https://{domena_z_url(url)}"
 
 # Tytuły artykułów, poradników i wydarzeń — to nie są firmy, tylko treści o branży.
 FRAZY_NIE_FIRMA = (
@@ -348,10 +359,26 @@ TYTULY_ODRZUCAJACE = (
 
 
 def tavily_search(zapytanie: str, max_results: int = 15) -> list:
+    """Wyszukiwanie ograniczone do Polski.
+
+    Bez `country` całe klasy zapytań wracały z zagranicy, bo terminy branżowe są
+    angielskie i globalne strony wygrywają autorytetem. Zmierzone na tej samej
+    frazie „autoryzowany partner CRM": bez parametru 0/8 domen polskich (Salesforce,
+    Gartner, agilecrm), z parametrem 7/8 (erpline.pl, intebuco.pl, tillio.pl).
+    Podobnie „logistyka e-commerce" 4/8 -> 6/8.
+
+    Wcześniej łatano to nazwami presetów — „fulfillment e-commerce" na „logistyka
+    e-commerce". To leczyło objaw: polskie warianty zapytań i tak zwracały
+    angielskie wyniki, bo problem był w braku ograniczenia geograficznego.
+
+    `topic="general"` jest podane wprost, bo `country` działa tylko w tym trybie.
+    """
     key = os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")
     if not key:
         return []
-    return TavilyClient(api_key=key).search(zapytanie, max_results=max_results).get("results", [])
+    return TavilyClient(api_key=key).search(
+        zapytanie, max_results=max_results, country="poland", topic="general",
+    ).get("results", [])
 
 
 # Odsiewamy TYLKO firmy, dla których SEO jest rdzeniem i właściwie całą ofertą.
@@ -889,7 +916,7 @@ async def api_similar(request):
         r = await Runner.run(agent_zapytanie, opis)
         zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])
 
-        wlasna = urlparse(firma.get("url", "")).netloc.replace("www.", "").lower()
+        wlasna = domena_z_url(firma.get("url", ""))
         return JSONResponse({"ok": True, **await znajdz_firmy(zapytanie, wlasna)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
@@ -943,7 +970,7 @@ async def api_audyt(request):
         # .lower() JEST KONIECZNE. DataForSEO dopasowuje domenę wrażliwie na wielkość liter:
         # zapytanie o "Elektromaniacy.pl" zwróciło status 20000 Ok, policzyło $0.10
         # i oddało total_count=0 — cicha, płatna porażka. Domena musi być znormalizowana.
-        domena = urlparse(firma.get("url", "")).netloc.replace("www.", "").strip().lower()
+        domena = domena_z_url(firma.get("url", "")).strip()
 
         # 1) Prompty generuje NASZ model (tanio, mamy kontrolę) — nie DataForSEO
         opis = (f"Firma: {nazwa}\nBranża: {firma.get('branza','')}\n"

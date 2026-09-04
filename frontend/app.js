@@ -240,30 +240,61 @@ const PRESETY = {
     ["Strategia i doradztwo", [
       "doradztwo e-commerce", "digital advisory", "interim management e-commerce",
       "konsulting wzrostu e-commerce", "doradztwo strategiczne", "audyt e-commerce",
-      "transformacja cyfrowa",
+      "transformacja cyfrowa", "doradztwo marketingowe", "doradztwo biznesowe",
+      "zarządzanie projektami IT", "analityka internetowa",
     ]],
     ["Branding i kreacja", [
       "agencja brandingowa", "agencja kreatywna", "branding produktowy",
       "projektowanie opakowań", "identyfikacja wizualna", "studio graficzne",
-      "agencja UX/UI", "produkcja wideo", "fotografia produktowa",
+      "agencja UX/UI", "optymalizacja konwersji CRO", "produkcja wideo",
+      "fotografia produktowa",
     ]],
     ["Marketing poza SEO", [
+      // "zewnętrzny dyrektor marketingu" to przepisana pozycja Adama "Zew. Dyrektor
+      // Marketingu" — z OSOBY na USŁUGĘ. Narzędzie czyta strony firm, więc szuka
+      // firmy oferującej taką rolę, nie człowieka na stanowisku.
       "agencja performance marketing", "agencja Google Ads", "agencja social media",
       "agencja digital marketingu", "agencja PR", "marketing automation",
-      "influencer marketing", "e-mail marketing",
+      "influencer marketing", "e-mail marketing", "zewnętrzny dyrektor marketingu",
     ]],
     ["Sprzedaż i marketplace", [
+      // "outsourcing sprzedaży" — przepisany "Dyrektor sprzedaży", ta sama zasada.
+      // "porównywarka cen" ma tysiące podpiętych sklepów: jeden partner = dostęp
+      // do całego portfela sprzedawców.
       "agencja marketplace", "sprzedaż na Amazon", "integracje marketplace",
-      "doradztwo sprzedaży B2B",
+      "doradztwo sprzedaży B2B", "outsourcing sprzedaży", "porównywarka cen",
     ]],
-    ["Technologia i integracje", [
+    ["Technologia, integracje i resellerzy", [
+      // Resellerzy z listy Adama. Nie ma ich wśród jego 35 najlepszych partnerów,
+      // więc profil jest nieprzetestowany — ale mocny: taka firma ma bazę klientów
+      // z wdrożonym systemem i nie ma czym zrobić im SEO.
+      // Nazwy POLSKIE, nie "reseller". Sprawdzone: "reseller CRM" zwracalo
+      // smartsalescrm.com, jetpackcrm.com i bigin.com — angielskie strony programów
+      // partnerskich. Polskie firmy piszą o sobie "autoryzowany partner" albo
+      // "partner wdrożeniowy".
       "oprogramowanie dla sklepów", "SaaS e-commerce", "headless commerce",
-      "integrator ERP", "wdrożenia CRM", "integracje płatności",
+      "producent oprogramowania", "producent CMS",
+      "integrator ERP", "integrator PIM", "wdrożenia CRM", "integracje płatności",
       "logistyka e-commerce",
+      "autoryzowany partner CRM", "partner wdrożeniowy", "integrator systemów IT",
+    ]],
+    ["AI i automatyzacja", [
+      "agencja AI", "wdrożenia chatbotów", "narzędzia AI dla firm",
     ]],
     ["Wiedza i usługi prawne", [
-      "kancelaria prawna e-commerce", "regulaminy i RODO", "szkolenia e-commerce",
-      "ekspert e-commerce", "agencja badawcza",
+      // "kancelaria prawa nowych technologii" to polska nazwa tego, co Adam
+      // zapisał jako "kancelarie ai" — pod hasłem "kancelaria AI" wyszukiwarka
+      // zwraca narzędzia AI dla prawników, nie kancelarie.
+      "kancelaria prawna e-commerce", "kancelaria prawa nowych technologii",
+      "regulaminy i RODO", "szkolenia e-commerce", "ekspert e-commerce",
+      "agencja badawcza",
+    ]],
+    ["Sieci i społeczności biznesowe", [
+      // Inny mechanizm niż reszta: do tych organizacji się WSTĘPUJE, a nie pisze
+      // do nich z ofertą partnerstwa. Narzędzie pomaga je znaleźć i porównać,
+      // decyzja o członkostwie zapada poza nim (BNI, kluby biznesu, grupy zakupowe).
+      "stowarzyszenie branżowe", "klub biznesu", "grupa zakupowa",
+      "networking biznesowy", "sieć aniołów biznesu",
     ]],
   ],
   // ⚠️ Zestaw startowy, do potwierdzenia z Adamem — kogo dokładnie chcemy
