@@ -330,34 +330,63 @@ const PRESETY = {
   ],
 };
 
-// Która kategoria jest rozwinięta. null = wszystkie zwinięte.
-// Osiemdziesiąt tagów naraz to ściana, w której nic nie widać — zwinięte grupy
-// dają dziesięć czytelnych wierszy i pokazują, ile czego jest.
+// Która kategoria jest wybrana. null = żadna, widać sam wybór kafli.
+// Osiemdziesiąt tagów naraz to ściana, w której nic nie widać.
 let otwartaGrupa = null;
+
+// Ikona per kategoria. Trzymana osobno od PRESETY, bo to warstwa prezentacji —
+// lista kategorii ma zostać czytelna jako dane, bez domieszki wyglądu.
+const IKONY_GRUP = {
+  "Budowa stron i sklepów": "layers",
+  "Utrzymanie i administracja": "clock",
+  "Strategia i doradztwo": "target",
+  "Branding i kreacja": "tag",
+  "Marketing poza SEO": "chart",
+  "Sprzedaż i marketplace": "table",
+  "Technologia, integracje i resellerzy": "link",
+  "AI i automatyzacja": "search",
+  "Wiedza i usługi prawne": "file",
+  "Sieci i społeczności biznesowe": "users",
+  "Handel": "table",
+  "Usługi lokalne": "pin",
+  "B2B i technologie": "building",
+  "Turystyka i HoReCa": "user",
+};
 
 function renderPresety() {
   const grupy = PRESETY[tryb] || PRESETY.partner;
-  document.getElementById("presety-branz").innerHTML = grupy.map(([grupa, fraza, pozycje], i) => {
-    const otwarta = otwartaGrupa === i;
+  const wybrana = otwartaGrupa !== null ? grupy[otwartaGrupa] : null;
+
+  // Siatka kafli zostaje na miejscu po wybraniu, a usługi pokazują się POD nią.
+  // Rozwijanie w miejscu przesuwałoby pozostałe kafle przy każdym kliknięciu.
+  const kafle = grupy.map(([grupa, , pozycje], i) => `
+    <button class="kafel kafel-kat${otwartaGrupa === i ? " aktywny" : ""}"
+            type="button" data-grupa="${i}" aria-pressed="${otwartaGrupa === i}">
+      <svg class="ico"><use href="#i-${IKONY_GRUP[grupa] || "tag"}"/></svg>
+      <div><b>${esc(grupa)}</b><span>${pozycje.length} kategorii</span></div>
+    </button>`).join("");
+
+  const panel = !wybrana ? "" : (() => {
+    const [grupa, fraza, pozycje] = wybrana;
     return `
-      <div class="preset-grupa${otwarta ? " otwarta" : ""}">
-        <button class="preset-naglowek" type="button" data-grupa="${i}" aria-expanded="${otwarta}">
-          <svg class="ico xs preset-strzalka"><use href="#i-arrow"/></svg>
-          <span class="preset-nazwa">${esc(grupa)}</span>
-          <em class="preset-licznik">${pozycje.length}</em>
+      <div class="preset-panel">
+        <div class="preset-panel-head">
+          <span class="mono">${esc(grupa)}</span>
+          <button class="btn-lekki" type="button" data-grupa="${otwartaGrupa}">
+            <svg class="ico xs"><use href="#i-x"/></svg>Zwiń</button>
+        </div>
+        <button class="tag tag-glowny" data-preset="${escAttr(fraza)}" type="button"
+                title="Szuka szeroko w całej kategorii, zamiast jednej usługi">
+          <svg class="ico xs"><use href="#i-target"/></svg>Cała kategoria: ${esc(fraza)}
         </button>
-        ${otwarta ? `
-          <div class="preset-tresc">
-            <button class="tag tag-glowny" data-preset="${escAttr(fraza)}" type="button"
-                    title="Szuka szeroko w całej kategorii, zamiast jednej usługi">
-              <svg class="ico xs"><use href="#i-target"/></svg>Cała kategoria: ${esc(fraza)}
-            </button>
-            <div class="tagi wybieralne">${pozycje.map((p) =>
-              `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`
-            ).join("")}</div>
-          </div>` : ""}
+        <div class="tagi wybieralne">${pozycje.map((p) =>
+          `<button class="tag" data-preset="${escAttr(p)}" type="button">${esc(p)}</button>`
+        ).join("")}</div>
       </div>`;
-  }).join("");
+  })();
+
+  document.getElementById("presety-branz").innerHTML =
+    `<div class="kafle kafle-kategorie">${kafle}</div>${panel}`;
 }
 renderPresety();
 

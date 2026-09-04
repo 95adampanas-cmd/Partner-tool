@@ -148,33 +148,37 @@ button { font-family: var(--sans); }
 
 .presety { margin-top: 20px; }
 .presety .mono { margin-bottom: 9px; font-size: 9px; color: var(--faint); }
-/* Akordeon kategorii. Przy 78 pozycjach płaska lista tagów była ścianą, w której
-   nic nie dało się znaleźć. Zwinięte grupy dają dziesięć czytelnych wierszy
-   i od razu pokazują, ile czego jest. Rozwinięta jest jedna naraz. */
-.preset-grupa { border-bottom: 1px solid var(--border-soft); }
-.preset-grupa:last-child { border-bottom: none; }
+/* Kategorie jako kafle — ten sam język, co statystyki nad listą firm.
+   Przy 78 pozycjach płaska lista tagów była ścianą, w której nic nie dało się
+   znaleźć. Dziesięć kafli pokazuje od razu, ile czego jest. */
+/* Selektor podwójny celowo: .kafle jest zdefiniowane NIŻEJ w pliku i przy równej
+   specyficzności wygrałoby swoim repeat(3, 1fr). */
+.kafle.kafle-kategorie { grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
+.kafel.kafel-kat b {
+  font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; font-family: var(--mono); line-height: 1.35;
+}
+.kafel.kafel-kat span { margin-top: 4px; text-transform: none; letter-spacing: .04em; }
+.kafel.kafel-kat.aktywny {
+  border-color: rgba(240,78,42,.45); background: rgba(240,78,42,.07);
+}
+.kafel.kafel-kat.aktywny .ico { color: var(--orange); }
+.kafel-kat.aktywny .kafel-strzalka { display: none; }
 
-.preset-naglowek {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 11px 4px; background: none; border: none; cursor: pointer;
-  font: inherit; color: inherit; text-align: left;
-  transition: color .14s;
+/* Panel z usługami stoi POD siatką, nie w jej środku: rozwijanie w miejscu
+   przesuwałoby pozostałe kafle przy każdym kliknięciu. */
+.preset-panel {
+  margin-top: 4px; padding: 15px 17px;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--r);
 }
-.preset-naglowek:hover { color: var(--orange); }
-.preset-naglowek:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
-.preset-nazwa {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .09em;
-  text-transform: uppercase;
+.preset-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 11px;
 }
-.preset-licznik {
-  margin-left: auto; font-family: var(--mono); font-size: 10px;
-  font-style: normal; color: var(--faint);
+.preset-panel-head .mono {
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
 }
-/* Strzałka w prawo, po rozwinięciu obraca się w dół — kierunek mówi, co się stanie. */
-.preset-strzalka { color: var(--faint); transition: transform .18s; flex-shrink: 0; }
-.preset-grupa.otwarta .preset-strzalka { transform: rotate(90deg); color: var(--orange); }
-
-.preset-tresc { padding: 2px 0 14px 26px; }
 /* Wyszukanie CAŁEJ kategorii — szerszy zasięg niż pojedyncza usługa, więc
    odróżnione wizualnie i postawione nad listą, a nie w jej środku. */
 .tag-glowny {
