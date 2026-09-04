@@ -50,6 +50,26 @@ MODEL_TANI = "gpt-5.4-nano"  # proste zadania (np. wygenerowanie zapytania)
 
 BRAK = "nie do ustalenia"    # PRD: uczciwy brak zamiast halucynacji
 
+# Kategorie partnerskie — JEDNO ŹRÓDŁO PRAWDY. Model przypisuje tu firmę przy
+# researchu, front grupuje po tym listy, a /api/kategorie je udostępnia.
+#
+# Te same nazwy są nagłówkami grup w PRESETY (frontend/app.js). Nazwy MUSZĄ się
+# zgadzać, inaczej firma wyląduje w kategorii, której nie ma na liście wyboru.
+# Pilnuje tego test regresji — poprzednim razem kopia reguł w teście rozjechała
+# się po cichu i nikt tego nie zauważył przez trzy commity.
+KATEGORIE_PARTNEROW = [
+    "Budowa stron i sklepów",
+    "Utrzymanie i administracja",
+    "Strategia i doradztwo",
+    "Branding i kreacja",
+    "Marketing poza SEO",
+    "Sprzedaż i marketplace",
+    "Technologia, integracje i resellerzy",
+    "AI i automatyzacja",
+    "Wiedza i usługi prawne",
+    "Sieci i społeczności biznesowe",
+]
+
 
 # ══════════════════════════════════════════════════════════════════════
 #  MODEL DANYCH  (patrz docs/DATA-MODEL.md)
@@ -78,6 +98,7 @@ class Firma(BaseModel):
     ma_seo: bool
     seo_zakres: str              # co dokładnie oferuje i jak duża część oferty
     opis: str                    # 2-3 zdania, czym firma się zajmuje
+    kategoria: str               # jedna z KATEGORIE_PARTNEROW — po niej grupujemy listy
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -626,6 +647,25 @@ W seo_zakres napisz KRÓTKO, co dokładnie firma robi w obszarze SEO i skąd to 
 — po to, żeby człowiek mógł sprawdzić Twój wniosek. Gdy ma_seo = false, ale coś
 około-SEO w ofercie jest (audyt, optymalizacja), napisz co, zamiast "{BRAK}".
 
+KATEGORIA — przypisz firmę do DOKŁADNIE JEDNEJ z poniższych. Przepisz nazwę
+znak w znak, bez zmieniania wielkości liter i bez własnych wariantów:
+- Budowa stron i sklepów
+- Utrzymanie i administracja
+- Strategia i doradztwo
+- Branding i kreacja
+- Marketing poza SEO
+- Sprzedaż i marketplace
+- Technologia, integracje i resellerzy
+- AI i automatyzacja
+- Wiedza i usługi prawne
+- Sieci i społeczności biznesowe
+
+Wybierz po tym, co jest RDZENIEM oferty, a nie po tym, co firma robi przy okazji.
+Agencja budująca sklepy, która ma też branding wśród usług, idzie do "Budowa stron
+i sklepów". Agencja brandingowa robiąca strony klientom idzie do "Branding i kreacja".
+
+Gdy firma naprawdę nie pasuje do żadnej — wpisz "{BRAK}". Nie naciągaj.
+
 NIE orzekaj, czy firma jest konkurentem ani czy jest dobrym partnerem. Ta sama agencja
 z SEO w ofercie bywa jednym i drugim, zależnie od tego, po co do niej piszemy.
 Dostarczasz fakty — decyduje człowiek."""
@@ -808,6 +848,19 @@ agenci_mail = [
 # ══════════════════════════════════════════════════════════════════════
 #  API
 # ══════════════════════════════════════════════════════════════════════
+def pusty_research(f: dict) -> bool:
+    """Czy research praktycznie nic nie przyniósł — strona zablokowała bota albo padła.
+
+    To NIE jest ocena jakości firmy. Firma może być mała i mieć jedną usługę;
+    tu chodzi o zbieg trzech rzeczy naraz: nieustalona branża, najwyżej jedna
+    usługa i najwyżej jedna odwiedzona podstrona. Tak wygląda pobranie, które
+    zwróciło samą stronę powitalną albo komunikat blokady.
+    """
+    return ((f.get("branza") or BRAK) == BRAK
+            and len(f.get("uslugi") or []) <= 1
+            and len(f.get("zrodlo_danych") or []) <= 1)
+
+
 async def api_research(request):
     """Funkcja 1 — research firmy po URL."""
     try:
@@ -840,6 +893,19 @@ async def api_research(request):
         firma["zrodlo_danych"] = odwiedzone
         # ścieżka, w której firma została zbadana — „Praca" rozdziela po niej listy
         firma["tryb"] = (body.get("tryb") or "partner").lower()
+
+        # Nieudany research NIE MOŻE nadpisać dobrego rekordu. Brantt.pl miał
+        # 83 usługi i pełną kartę; przy ponownym badaniu strona nas zablokowała
+        # i wróciło „nie do ustalenia" z jedną usługą — co skasowało wszystko,
+        # bez żadnego błędu. Odkryte dopiero przy oglądaniu wyników.
+        stara = next((x for x in baza.firmy() if x.get("url") == url), None)
+        if stara and pusty_research(firma) and not pusty_research(stara):
+            return JSONResponse({
+                "ok": False,
+                "error": ("Strona nie oddała treści (prawdopodobnie blokuje bota). "
+                          "Zachowałem poprzednie dane tej firmy — spróbuj ponownie później."),
+            })
+
         baza.zapisz_firme(firma, firma["tryb"])
         return JSONResponse({"ok": True, "firma": firma})
     except Exception as e:
@@ -1227,6 +1293,12 @@ async def api_audyty(request):
     return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
 
 
+async def api_kategorie(request):
+    """Kategorie partnerskie dla frontu. Backend jest tu źródłem prawdy — front
+    ma je tylko wyświetlić, a nie trzymać własną kopię."""
+    return JSONResponse({"ok": True, "kategorie": KATEGORIE_PARTNEROW})
+
+
 async def api_columns(request):
     """Kolumny eksportu — front renderuje podgląd DOKŁADNIE tak, jak zapisze CSV."""
     return JSONResponse({"kolumny": [{"naglowek": n, "klucz": k} for n, k in KOLUMNY]})
@@ -1257,6 +1329,7 @@ app = Starlette(routes=[
     Route("/api/szukaj", api_szukaj, methods=["POST"]),
     Route("/api/email", api_email, methods=["POST"]),
     Route("/api/columns", api_columns, methods=["GET"]),
+    Route("/api/kategorie", api_kategorie, methods=["GET"]),
     # pamięć — bez tego cała praca ginęła po odświeżeniu strony
     Route("/api/firmy", api_firmy, methods=["GET"]),
     Route("/api/firmy/usun", api_firma_usun, methods=["POST"]),

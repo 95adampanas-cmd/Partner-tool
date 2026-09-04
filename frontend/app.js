@@ -70,6 +70,7 @@ function pokazSekcje(nazwa) {
         if (el) el.innerHTML = "";
       });
     otwartaGrupa = null;   // numery grup należą do poprzedniej ścieżki
+    podobneKategoria = null;
     trybPokazany = tryb;
   }
 
@@ -333,6 +334,8 @@ const PRESETY = {
 // Która kategoria jest wybrana. null = żadna, widać sam wybór kafli.
 // Osiemdziesiąt tagów naraz to ściana, w której nic nie widać.
 let otwartaGrupa = null;
+// Kategoria wybrana w "Szukaj podobnych". null = wszystkie firmy ścieżki.
+let podobneKategoria = null;
 
 // Ikona per kategoria. Trzymana osobno od PRESETY, bo to warstwa prezentacji —
 // lista kategorii ma zostać czytelna jako dane, bez domieszki wyglądu.
@@ -634,6 +637,11 @@ document.addEventListener("click", (e) => {
   if (wiersz) { pokazSekcje("firmy"); return pokazDetal(wiersz.dataset.id); }
   if (e.target.classList.contains("wroc")) return pokazListe();
 
+  const katPodobne = e.target.closest("[data-kat-podobne]");
+  if (katPodobne) {
+    podobneKategoria = katPodobne.dataset.katPodobne || null;
+    return renderPodobne();
+  }
   const wzor = e.target.closest(".wybierz-wzor");
   if (wzor) { podobneWybrana = wzor.dataset.id; podobneTagi.clear(); return renderPodobne(); }
   if (e.target.classList.contains("zmien-wzor")) {
@@ -748,22 +756,49 @@ function renderPodobne() {
   const wybor = document.getElementById("podobne-wybor");
   const tagiBox = document.getElementById("podobne-tagi");
 
-  if (!tabs.length) {
+  const moje = firmyTrybu();
+
+  if (!moje.length) {
     wybor.innerHTML = `<div class="pusto">Najpierw zbadaj jakąś firmę
       (<b>Research po URL</b> albo <b>Szukaj po branży</b>) — podobnych szukamy na jej podstawie.</div>`;
     tagiBox.innerHTML = "";
     return;
   }
 
-  const wpis = tabs.find((t) => t.id === podobneWybrana);
+  const wpis = moje.find((t) => t.id === podobneWybrana);
 
   if (!wpis) {
+    // Wybór po kategorii. Kategorię nadaje model przy researchu (pole `kategoria`),
+    // a jej nazwy pochodzą z backendu — front ich nie wymyśla. Firmy zbadane przed
+    // wprowadzeniem pola trafiają do „Bez kategorii", zamiast znikać z listy.
+    const kat = (t) => t.firma.kategoria && t.firma.kategoria !== BRAK
+      ? t.firma.kategoria : "Bez kategorii";
+    const liczby = new Map();
+    moje.forEach((t) => liczby.set(kat(t), (liczby.get(kat(t)) || 0) + 1));
+
+    const widoczne = podobneKategoria
+      ? moje.filter((t) => kat(t) === podobneKategoria) : moje;
+
+    const chipy = [...liczby.entries()].map(([nazwa, ile]) => `
+      <button class="tag${podobneKategoria === nazwa ? " zaznaczony" : ""}"
+              type="button" data-kat-podobne="${escAttr(nazwa)}">
+        ${esc(nazwa)} <em class="chip-licznik">${ile}</em>
+      </button>`).join("");
+
     wybor.innerHTML = `<div class="card">
       <div class="mono"><span class="sq"></span> 1. Wybierz firmę wzorcową</div>
-      <div class="similar-list">${tabs.map((t) => `
+      ${liczby.size > 1 ? `
+        <div class="filtr-kategorii tagi wybieralne">
+          <button class="tag${podobneKategoria ? "" : " zaznaczony"}" type="button"
+                  data-kat-podobne="">Wszystkie <em class="chip-licznik">${moje.length}</em></button>
+          ${chipy}
+        </div>` : ""}
+      <div class="similar-list">${widoczne.map((t) => `
         <div class="sim-row wybierz-wzor" data-id="${t.id}">
           <div class="sim-info">
-            <span class="sim-name">${esc(t.firma.nazwa)}</span>
+            <span class="sim-name">${esc(t.firma.nazwa)}${
+              t.firma.kategoria && t.firma.kategoria !== BRAK
+                ? `<span class="tag-kat">${esc(t.firma.kategoria)}</span>` : ""}</span>
             <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
           </div>
           <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>

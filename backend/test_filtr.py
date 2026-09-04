@@ -124,9 +124,48 @@ SYGNALY = [
 ]
 
 
+def sprawdz_kategorie() -> int:
+    """Czy nazwy kategorii w backendzie i we froncie są identyczne.
+
+    Backend przypisuje firmę do kategorii przy researchu, front grupuje po niej
+    listy. Gdy jedna strona zmieni nazwę, firma wyląduje w kategorii, której nie
+    ma na liście wyboru — i po prostu zniknie z widoku, bez żadnego błędu.
+    Dokładnie tak rozjechał się poprzednio ten test i nikt nie zauważył
+    przez trzy commity.
+    """
+    import re
+    from pathlib import Path
+
+    plik = Path(__file__).resolve().parent.parent / "frontend" / "app.js"
+    if not plik.exists():
+        print("  POMINIĘTE — nie znaleziono frontend/app.js")
+        return 0
+
+    tresc = plik.read_text(encoding="utf-8")
+    poczatek = tresc.index("partner: [")
+    koniec = tresc.index("klient: [")
+    we_froncie = re.findall(r'\["([^"]+)",\s*"', tresc[poczatek:koniec])
+
+    brakuje = [k for k in app.KATEGORIE_PARTNEROW if k not in we_froncie]
+    nadmiar = [k for k in we_froncie if k not in app.KATEGORIE_PARTNEROW]
+    for k in brakuje:
+        print(f"  BŁĄD | w backendzie jest, we froncie NIE MA: {k!r}")
+    for k in nadmiar:
+        print(f"  BŁĄD | we froncie jest, w backendzie NIE MA: {k!r}")
+    if not brakuje and not nadmiar:
+        print(f"  OK   | {len(we_froncie)} kategorii, nazwy zgodne po obu stronach")
+    return len(brakuje) + len(nadmiar)
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
+
+    print("=" * 74)
+    print("KATEGORIE — czy backend i frontend nazywają je tak samo")
+    print("=" * 74)
+    bledy += sprawdz_kategorie()
+    print()
 
     print("=" * 74)
     print("ADRESY — czy normalizuj_url() odrzuca to, co powinno")
