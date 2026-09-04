@@ -101,15 +101,26 @@ TYTULY = [
     ("Laptop 4 You",                                            False, "PUŁAPKA: 'top' + liczba"),
 ]
 
-# Tag „ma SEO w opisie". To FAKT, nie ocena — żadna firma przez niego nie wypada
-# z listy. Czy agencja z SEO jest konkurentem, czy partnerem, rozstrzyga zespół.
+# Tag „prowadzi kampanie SEO". FAKT, nie ocena — żadna firma przez niego nie wypada
+# z listy ani nie jest ukrywana. Czy agencja z SEO jest konkurentem, czy partnerem,
+# rozstrzyga zespół.
+#
+# Definicja zawężona 04.09.2026 na polecenie Adama: liczą się KAMPANIE, czyli ciągła
+# usługa pozycjonowania. NIE liczą się audyt SEO, „optymalizacja SEO" przy wdrożeniu,
+# SEO copywriting ani kampanie płatne (Google Ads to nie jest SEO).
 SYGNALY = [
-    ("Grupa iCEA - Skuteczne pozycjonowanie i SEO", "Pozycjonowanie stron, audyty SEO.", True),
-    ("Delante - SEO & SEM Agency",                  "Agencja SEO/SEM, Google Ads.",      True),
-    ("Convertis | Agencja eCommerce",               "Sklepy internetowe, audyt SEO.",    True),
-    ("Oficjalna agencja PrestaShop",                "Wdrażamy sklepy B2C i B2B.",        False),
-    ("Sii Polska",                                  "7000 inżynierów, cloud, testy.",    False),
-    ("Obfitość | Kreatywna agencja e-commerce",     "Projektujemy sklepy i marki.",      False),
+    ("Grupa iCEA - Skuteczne pozycjonowanie i SEO", "Pozycjonowanie stron, link building.", True),
+    ("Delante - SEO & SEM Agency",       "Agencja SEO/SEM. Pozycjonowanie, audyty SEO.", True),
+    ("Agencja X",                        "Prowadzimy kampanie pozycjonowania dla sklepów.", True),
+    ("Q",                                "Pozycjonowanie stron oraz audyt SEO i optymalizacja.", True),
+
+    ("Convertis | Agencja eCommerce",    "Sklepy internetowe, wdrożenia, audyt SEO sklepu.", False),
+    ("wecanfly | Shopify Plus",          "Shopify Development, UX/UI, Shopify SEO Optimization.", False),
+    ("brantt | Agencja kreatywna",       "Branding, strony www, copywriting, SEO copywriting.", False),
+    ("When | Agencja marketingowa",      "Kampanie Google Ads, Meta Ads, LinkedIn Ads.", False),
+    ("Oficjalna agencja PrestaShop",     "Wdrażamy sklepy B2C i B2B.",        False),
+    ("Sii Polska",                       "7000 inżynierów, cloud, testy.",    False),
+    ("Obfitość | Kreatywna agencja e-commerce", "Projektujemy sklepy i marki.", False),
 ]
 
 
@@ -156,13 +167,13 @@ def sprawdz_regresje() -> int:
 
     print()
     print("=" * 74)
-    print("TAG SEO — czy w opisie pada SEO. Fakt do pokazania, nie powód odrzucenia")
+    print("TAG SEO — czy firma PROWADZI KAMPANIE. Audyt i optymalizacja się nie liczą")
     print("=" * 74)
     for tytul, opis_firmy, ma_isc in SYGNALY:
         idzie = app.ma_sygnal_seo(tytul, opis_firmy)
         ok = idzie == ma_isc
         bledy += not ok
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'tag SEO ' if idzie else 'bez tagu':8} | {tytul[:52]}")
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'kampanie' if idzie else 'bez tagu':8} | {tytul[:52]}")
 
     print()
     print("=" * 74)

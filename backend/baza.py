@@ -52,6 +52,11 @@ def _przenies_konkurent_na_ma_seo(db: sqlite3.Connection) -> None:
     SEO" — znaczyło „SEO nie jest rdzeniem". Takiej firmy nie umiemy zaklasyfikować
     ze starych danych, więc zostawiamy ma_seo = false i mówimy o tym w seo_zakres,
     zamiast zmyślać. Ponowny research nadpisze to prawdziwą odpowiedzią.
+
+    NIE dopisujemy tu niczego z listy usług. Próbowałem 04.09.2026 i było to błędne:
+    „pozycjonowanie" jako jedna z dziesięciu pozycji nie znaczy, że firma sprzedaje
+    SEO — Tebim i Devisu robią audyty, a nie usługę. Wartość ustala człowiek albo
+    pełny research całej strony, nie dopasowanie słowa w liście.
     """
     do_zmiany = []
     for r in db.execute("SELECT url, dane FROM firmy"):

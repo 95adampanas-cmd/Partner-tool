@@ -229,6 +229,12 @@ const PRESETY = {
       "wdrożenia Shopify", "wdrożenia PrestaShop", "wdrożenia WooCommerce",
       "wdrożenia IdoSell", "tworzenie sklepów internetowych",
       "projektowanie stron internetowych", "software house", "agencja interaktywna",
+      // Z usług 9 zbadanych partnerów: platformę B2B ma 4 z nich (Tebim, Devisu,
+      // Sellision, wecanfly), aplikacje mobilne 2. Migracje to u wecanfly osobna
+      // linia — pięć usług (WooCommerce, Magento, BigCommerce, Shopware, WordPress
+      // -> Shopify). Sklep po migracji zawsze traci widoczność, więc to naturalny
+      // moment na rozmowę o SEO.
+      "platforma B2B", "migracja sklepu internetowego", "aplikacje mobilne",
     ]],
     ["Utrzymanie i administracja", [
       // webinity.pl: opieka nad dziesiątkami serwisów naraz, bez budowania nowych.
@@ -240,7 +246,7 @@ const PRESETY = {
     ["Strategia i doradztwo", [
       "doradztwo e-commerce", "digital advisory", "interim management e-commerce",
       "konsulting wzrostu e-commerce", "doradztwo strategiczne", "audyt e-commerce",
-      "transformacja cyfrowa", "doradztwo marketingowe", "doradztwo biznesowe",
+      "doradztwo marketingowe", "doradztwo biznesowe",
       "zarządzanie projektami IT", "analityka internetowa",
     ]],
     ["Branding i kreacja", [
@@ -256,6 +262,7 @@ const PRESETY = {
       "agencja performance marketing", "agencja Google Ads", "agencja social media",
       "agencja digital marketingu", "agencja PR", "marketing automation",
       "influencer marketing", "e-mail marketing", "zewnętrzny dyrektor marketingu",
+      "content marketing",   // widoczni i brantt — oni piszą, my optymalizujemy
     ]],
     ["Sprzedaż i marketplace", [
       // "outsourcing sprzedaży" — przepisany "Dyrektor sprzedaży", ta sama zasada.
@@ -263,6 +270,7 @@ const PRESETY = {
       // do całego portfela sprzedawców.
       "agencja marketplace", "sprzedaż na Amazon", "integracje marketplace",
       "doradztwo sprzedaży B2B", "outsourcing sprzedaży", "porównywarka cen",
+      "ekspansja zagraniczna e-commerce",   // widoczni i Sellision
     ]],
     ["Technologia, integracje i resellerzy", [
       // Resellerzy z listy Adama. Nie ma ich wśród jego 35 najlepszych partnerów,
@@ -277,6 +285,7 @@ const PRESETY = {
       "integrator ERP", "integrator PIM", "wdrożenia CRM", "integracje płatności",
       "logistyka e-commerce",
       "autoryzowany partner CRM", "partner wdrożeniowy", "integrator systemów IT",
+      "automatyzacja procesów",   // Growthmatic i Tribe47
     ]],
     ["AI i automatyzacja", [
       "agencja AI", "wdrożenia chatbotów", "narzędzia AI dla firm",
@@ -287,7 +296,6 @@ const PRESETY = {
       // zwraca narzędzia AI dla prawników, nie kancelarie.
       "kancelaria prawna e-commerce", "kancelaria prawa nowych technologii",
       "regulaminy i RODO", "szkolenia e-commerce", "ekspert e-commerce",
-      "agencja badawcza",
     ]],
     ["Sieci i społeczności biznesowe", [
       // Inny mechanizm niż reszta: do tych organizacji się WSTĘPUJE, a nie pisze

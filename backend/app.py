@@ -397,15 +397,37 @@ def tavily_search(zapytanie: str, max_results: int = 15) -> list:
 #
 # Granice słów są tu istotne, nie kosmetyczne. Dopasowanie podciągiem łapało "sem"
 # w środku innych wyrazów i podawało do oceny firmę wdrożeniową oraz software house.
-SYGNAL_SEO = re.compile(
-    r"\b(seo|sem|ppc|sxo|adwords|google\s+ads|pozycjonowani\w*|pozycjonowa\w*)\b",
+SYGNAL_SEO = re.compile(r"\b(seo|sxo|pozycjonowani\w*|pozycjonowa\w*)\b", re.IGNORECASE)
+
+# Kampanie płatne to NIE jest SEO i same z siebie nie dają tagu — wcześniej wzorzec
+# łapał "google ads", "sem" i "ppc", więc agencja prowadząca wyłącznie reklamy
+# dostawała znaczek SEO.
+ANTY_SEO = re.compile(
+    r"\b(audyt\w*|audit\w*|optymalizacj\w*|optimi[sz]\w*|copywriting|szkoleni\w*)"
+    r"\s+(\w+\s+){0,2}?seo"
+    r"|seo\s+(audyt\w*|audit\w*|copywriting|optymalizacj\w*|optimi[sz]\w*)"
+    r"|zoptymalizowan\w*\s+pod\s+seo",
     re.IGNORECASE,
 )
 
 
 def ma_sygnal_seo(tytul: str, opis: str) -> bool:
-    """Czy wynik w ogóle warto oddać modelowi do oceny. NIE jest werdyktem."""
-    return bool(SYGNAL_SEO.search(f"{tytul or ''} {opis or ''}"))
+    """Czy w opisie widać, że firma prowadzi KAMPANIE SEO. Sam znacznik, nie werdykt.
+
+    Uczciwe ograniczenie: opis z wyszukiwarki ma kilkaset znaków i często nie da się
+    z niego odróżnić kampanii od audytu. Odsiewamy więc to, co widać wprost — audyt,
+    optymalizację, SEO copywriting — a resztę tagujemy. Pełne rozstrzygnięcie robi
+    dopiero research całej strony (pole ma_seo w modelu Firma).
+
+    Tag NIGDY nie usuwa firmy z listy ani jej nie ukrywa. Służy wyłącznie do tego,
+    żeby człowiek widział, z kim ma do czynienia.
+    """
+    tekst = f"{tytul or ''} {opis or ''}"
+    if not SYGNAL_SEO.search(tekst):
+        return False
+    # jedyna wzmianka o SEO to audyt/optymalizacja -> to nie są kampanie
+    bez_okolo = ANTY_SEO.sub(" ", tekst)
+    return bool(SYGNAL_SEO.search(bez_okolo))
 
 # Usługi, których NIE wolno wpuścić do zapytania — inaczej szukamy własnych konkurentów.
 USLUGI_KONKURENCYJNE = ("seo", "sem", "pozycjonowanie", "google ads", "meta ads", "adwords", "ppc")
@@ -582,18 +604,27 @@ Szukaj w sekcjach "o nas", "zespół", "kontakt". Jeśli nikt nie jest wymienion
 
 SEO W OFERCIE — ustalasz FAKT, nie wydajesz osądu.
 
-ma_seo = true, gdy firma SPRZEDAJE KLIENTOM pozycjonowanie / SEO / SEM / Google Ads
-jako usługę — obojętne, czy to rdzeń oferty, czy jedna z kilkunastu pozycji.
+ma_seo = true TYLKO wtedy, gdy firma PROWADZI KLIENTOM KAMPANIE SEO — czyli sprzedaje
+pozycjonowanie jako ciągłą usługę, w której odpowiada za wzrost widoczności w czasie.
 
-ma_seo = false, gdy takiej usługi w ofercie NIE MA. Nie liczą się:
-- "strona zoptymalizowana pod SEO" jako cecha produktu, który sprzedają,
-- wpis na blogu o SEO,
-- słowo "SEO" w stopce, w tagach albo w opisie technologii.
-To są wzmianki, nie usługa na sprzedaż.
+ma_seo = false we WSZYSTKICH pozostałych przypadkach, a zwłaszcza gdy firma robi
+jednorazowe albo techniczne rzeczy wokół SEO:
+- audyt SEO,
+- "optymalizacja SEO" strony lub sklepu,
+- techniczne SEO przy wdrożeniu,
+- SEO copywriting, teksty pod SEO,
+- "strona zoptymalizowana pod SEO" jako cecha tego, co sprzedają,
+- wpis na blogu o SEO albo słowo "SEO" w stopce czy w tagach.
 
-W seo_zakres napisz KRÓTKO dwie rzeczy: jakie dokładnie usługi SEO/SEM widać w ofercie
-i jak dużą jej część stanowią — czy to rdzeń działalności, czy dodatek obok wdrożeń,
-brandingu albo software'u. Gdy ma_seo = false, wpisz "{BRAK}".
+To NIE są kampanie SEO. Firma robiąca audyt albo optymalizację przy wdrożeniu ma
+ma_seo = false, choćby słowo "SEO" padało na stronie kilkanaście razy.
+
+Google Ads, Meta Ads i inne kampanie płatne to NIE jest SEO — same z siebie nigdy
+nie dają ma_seo = true.
+
+W seo_zakres napisz KRÓTKO, co dokładnie firma robi w obszarze SEO i skąd to wiadomo
+— po to, żeby człowiek mógł sprawdzić Twój wniosek. Gdy ma_seo = false, ale coś
+około-SEO w ofercie jest (audyt, optymalizacja), napisz co, zamiast "{BRAK}".
 
 NIE orzekaj, czy firma jest konkurentem ani czy jest dobrym partnerem. Ta sama agencja
 z SEO w ofercie bywa jednym i drugim, zależnie od tego, po co do niej piszemy.
