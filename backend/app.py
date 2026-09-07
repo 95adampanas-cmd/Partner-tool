@@ -932,17 +932,32 @@ async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
     # do_thread, bo pula wątków blokowałaby pętlę zdarzeń na czas kilkunastu żądań HTTP
     stany = await asyncio.to_thread(sprawdz_wszystkie)
 
+    # Firmy, które już badaliśmy. NIE usuwamy ich z wyników — mogą być trafne
+    # i user ma prawo je zobaczyć — ale oznaczamy, żeby nie płacić po raz drugi
+    # za te same 30 sekund researchu. Przy dwóch źródłach i 78 kategoriach ta
+    # sama firma wraca regularnie.
+    znane = {}
+    for z in await asyncio.to_thread(baza.firmy):
+        d = domena_z_url(z.get("url") or "")
+        if d:
+            znane[d] = z.get("tryb") or "partner"
+
     zostaja = []
     for f, stan in zip(firmy, stany):
         if stan == "martwa":
             continue
         if stan == "niepewna":
             f["niepewna"] = True  # front pokaże adnotację, user decyduje
+        gdzie = znane.get(domena_z_url(f["url"]))
+        if gdzie:
+            f["zbadana"] = True
+            f["zbadana_tryb"] = gdzie   # bywa, że w DRUGIEJ ścieżce — to też trzeba wiedzieć
         zostaja.append(f)
 
     return {
         "firmy": zostaja[:12],
         "z_seo": sum(1 for f in zostaja[:12] if f.get("ma_seo")),
+        "juz_zbadane": sum(1 for f in zostaja[:12] if f.get("zbadana")),
         "odsiane_martwe": stany.count("martwa"),
     }
 

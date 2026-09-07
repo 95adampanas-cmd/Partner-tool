@@ -918,7 +918,8 @@ function listaFirmHTML(data, naglowek) {
     <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
       data.z_seo ? ` · ${data.z_seo} z SEO w ofercie` : ""
     }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
-    }${data.bez_strony ? ` · ${data.bez_strony} firm z Map bez strony WWW (pomijamy — nie ma czego zbadać)` : ""}</p>
+    }${data.bez_strony ? ` · ${data.bez_strony} firm z Map bez strony WWW (pomijamy — nie ma czego zbadać)` : ""
+    }${data.juz_zbadane ? ` · ${data.juz_zbadane} już masz` : ""}</p>
     <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
   </div>`;
 }
@@ -930,12 +931,22 @@ function wierszHTML(f) {
     <div class="sim-info">
       <span class="sim-name">${esc(f.nazwa)}${
         f.ma_seo ? `<span class="tag-seo" title="W opisie firmy pada SEO / SEM / pozycjonowanie">SEO</span>` : ""
+      }${
+        // Firma już w bazie. Nie chowamy jej — może być trafna — ale mówimy wprost,
+        // żeby nie płacić drugi raz za ten sam research.
+        f.zbadana ? `<span class="tag-zbadana" title="Masz ją już w sekcji Firmy${
+          f.zbadana_tryb && f.zbadana_tryb !== tryb ? `, w ścieżce ${TRYBY[f.zbadana_tryb]?.nazwa || f.zbadana_tryb}` : ""
+        }">JUŻ ZBADANA${
+          f.zbadana_tryb && f.zbadana_tryb !== tryb ? ` · ${esc(TRYBY[f.zbadana_tryb]?.nazwa || f.zbadana_tryb)}` : ""
+        }</span>` : ""
       }</span>
       <a class="sim-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)}<svg class="ico xs"><use href="#i-external"/></svg></a>
       ${f.opis ? `<span class="sim-opis">${esc(f.opis.slice(0, 150))}${f.opis.length > 150 ? "…" : ""}</span>` : ""}
       ${f.niepewna ? `<span class="niepewna"><svg class="ico xs"><use href="#i-alert"/></svg>nie udało się zweryfikować strony (blokada bota?)</span>` : ""}
     </div>
-    <button class="researchuj" type="button">Researchuj<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+    <button class="researchuj${f.zbadana ? " btn-lekki" : ""}" type="button">${
+      f.zbadana ? "Zbadaj ponownie" : "Researchuj"
+    }<svg class="ico xs"><use href="#i-arrow"/></svg></button>
   </div>`;
 }
 
