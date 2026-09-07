@@ -1,5 +1,9 @@
 # Sekrety — NIGDY na GitHub
+# Wzorzec .env* celowo szeroki: reguly ".env" i "*.env" NIE lapaly kopii
+# w rodzaju ".env.kopia" ani ".env.backup", a wlasnie takie pliki powstaja
+# przy porzadkach i zawieraja komplet kluczy.
 .env
+.env*
 *.env
 !.env.example
 
