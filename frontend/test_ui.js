@@ -40,7 +40,7 @@ const { window } = dom;
 window.fetch = (u) => Promise.resolve({
   json: () => Promise.resolve(u.includes("/api/firmy")
     ? { ok: true, firmy: FIRMY }
-    : { ok: true, kolumny: [], kategorie: [] }),
+    : { ok: true, kolumny: [], kategorie: [], kolejka: [] }),
 });
 window.scrollTo = () => {};
 
@@ -89,6 +89,10 @@ setTimeout(() => {
   nav("podobne", "klient");
   sprawdz("Podobne: w ścieżce Klienci tylko klient",
     nazwy("#podobne-wybor .sim-name").join().startsWith("Ella"), nazwy("#podobne-wybor .sim-name").join(", "));
+
+  nav("kolejka");
+  sprawdz("Kolejka: sekcja renderuje pusty stan bez błędu",
+    d.getElementById("kolejka-box").innerHTML.includes("Kolejka jest pusta"));
 
   nav("eksport");
   sprawdz("Eksport: sekcja renderuje się bez błędu",

@@ -99,6 +99,23 @@ def _utworz(db: sqlite3.Connection) -> None:
             data     TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_audyty_url ON audyty(url);
+
+        -- Kolejka kandydatow: firmy znalezione w wyszukiwaniu, jeszcze NIE zbadane.
+        -- Bez niej wyniki znikaly razem z zapytaniem: user znajdowal 12 firm, badal
+        -- trzy, a dziewiec przepadalo — lacznie z frazą, ktora je znalazla.
+        -- Trzymamy tu tylko to, co dalo wyszukiwanie (nazwa, opis, tag SEO), bo
+        -- reszta powstaje dopiero przy researchu.
+        CREATE TABLE IF NOT EXISTS kolejka (
+            url      TEXT PRIMARY KEY,
+            tryb     TEXT NOT NULL DEFAULT 'partner',
+            nazwa    TEXT,
+            opis     TEXT,
+            ma_seo   INTEGER NOT NULL DEFAULT 0,
+            zrodlo   TEXT,                     -- wyszukiwarka / mapy
+            zapytanie TEXT,                    -- fraza, ktora ja znalazla
+            dodana   TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_kolejka_tryb ON kolejka(tryb);
     """)
     db.commit()
 
@@ -200,3 +217,52 @@ def statystyki() -> dict:
         f = db.execute("SELECT tryb, COUNT(*) n FROM firmy GROUP BY tryb").fetchall()
         a = db.execute("SELECT COUNT(*) n FROM audyty").fetchone()
         return {"firmy": {r["tryb"]: r["n"] for r in f}, "audyty": a["n"] if a else 0}
+
+
+# ══════════════════════════════════════════════════════════════════
+#  KOLEJKA — kandydaci przed researchem
+# ══════════════════════════════════════════════════════════════════
+def dodaj_do_kolejki(firmy: list[dict], tryb: str = "partner",
+                     zrodlo: str = "", zapytanie: str = "") -> int:
+    """Dopisuje kandydatow. Zwraca ile REALNIE doszlo.
+
+    Firma juz zbadana do kolejki nie trafia — kolejka ma pokazywac robote do
+    zrobienia, a nie mieszac jej ze zrobiona. Powtorne dodanie tego samego
+    adresu nie nadpisuje wpisu: liczy sie moment, w ktorym trafil na liste.
+    """
+    if not firmy:
+        return 0
+    with _zamek:
+        db = _polacz()
+        zbadane = {r["url"] for r in db.execute("SELECT url FROM firmy")}
+        doszlo = 0
+        for f in firmy:
+            url = (f.get("url") or "").strip()
+            if not url or url in zbadane:
+                continue
+            kur = db.execute("""
+                INSERT INTO kolejka (url, tryb, nazwa, opis, ma_seo, zrodlo, zapytanie, dodana)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(url) DO NOTHING
+            """, (url, tryb, f.get("nazwa") or "", (f.get("opis") or "")[:600],
+                  1 if f.get("ma_seo") else 0, zrodlo, zapytanie, _teraz()))
+            doszlo += kur.rowcount or 0
+        db.commit()
+        return doszlo
+
+
+def kolejka(tryb: str | None = None) -> list[dict]:
+    with _zamek:
+        db = _polacz()
+        if tryb:
+            w = db.execute("SELECT * FROM kolejka WHERE tryb = ? ORDER BY dodana DESC", (tryb,))
+        else:
+            w = db.execute("SELECT * FROM kolejka ORDER BY dodana DESC")
+        return [{**dict(r), "ma_seo": bool(r["ma_seo"])} for r in w.fetchall()]
+
+
+def usun_z_kolejki(url: str) -> None:
+    with _zamek:
+        db = _polacz()
+        db.execute("DELETE FROM kolejka WHERE url = ?", (url,))
+        db.commit()

@@ -77,6 +77,10 @@
       <svg class="ico"><use href="#i-building"/></svg><span>Firmy</span>
       <em class="badge" id="badge-firmy" hidden>0</em>
     </button>
+    <button class="nav-item" data-sekcja="kolejka">
+      <svg class="ico"><use href="#i-inbox"/></svg><span>Do zbadania</span>
+      <em class="badge" id="badge-kolejka" hidden>0</em>
+    </button>
     <button class="nav-item" data-sekcja="audyt">
       <svg class="ico"><use href="#i-chart"/></svg><span>Mikroaudyt</span>
     </button>
@@ -157,6 +161,15 @@
       <button class="wroc" type="button"><svg class="ico sm"><use href="#i-back"/></svg> Wszystkie firmy</button>
       <div id="panels"></div>
     </div>
+  </section>
+
+  <section class="sekcja" data-sekcja="kolejka">
+    <header class="sekcja-head">
+      <h1>Do zbadania</h1>
+      <p>Firmy znalezione w wyszukiwaniu, jeszcze niezbadane. Wyniki znikają razem
+        z zapytaniem — tutaj zostają, dopóki ich nie zbadasz albo nie odrzucisz.</p>
+    </header>
+    <div id="kolejka-box"></div>
   </section>
 
   <section class="sekcja" data-sekcja="audyt">

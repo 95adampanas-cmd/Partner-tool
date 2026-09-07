@@ -80,10 +80,12 @@ function pokazSekcje(nazwa) {
   if (nazwa === "eksport") renderEksport();
   if (nazwa === "podobne") renderPodobne();
   if (nazwa === "audyt") renderAudyt();
+  if (nazwa === "kolejka") renderKolejke();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
   odswiezBadge("badge-firmy", firmyTrybu().length);
+  odswiezBadge("badge-kolejka", kolejkaTrybu().length);
   odswiezBadge("badge-eksport",
     koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
   // Sekcje pozyskiwania są wspólne dla obu ścieżek, więc muszą powiedzieć,
@@ -369,6 +371,73 @@ function renderZrodla() {
         <svg class="ico xs"><use href="#i-${z.ikona}"/></svg> ${esc(z.nazwa)}
       </button>`).join("")}</div>
     <p class="hint">${esc(ZRODLA[zrodlo].opis)}</p>`;
+}
+
+// Kolejka kandydatow: firmy znalezione, jeszcze niezbadane. Bez niej wyniki
+// znikaly razem z zapytaniem — 12 znalezionych, 3 zbadane, 9 przepadalo.
+let kolejka = [];
+
+async function wczytajKolejke() {
+  try {
+    const d = await (await fetch("/api/kolejka")).json();
+    kolejka = (d.ok && d.kolejka) || [];
+  } catch { kolejka = []; }
+  odswiezBadge("badge-kolejka", kolejkaTrybu().length);
+}
+function kolejkaTrybu() {
+  return kolejka.filter((k) => (k.tryb || "partner") === tryb);
+}
+wczytajKolejke();
+
+async function dodajDoKolejki(firmy, zapytanie, zrodloNazwa) {
+  const res = await fetch("/api/kolejka", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ firmy, tryb, zapytanie, zrodlo: zrodloNazwa }),
+  });
+  const d = await res.json();
+  await wczytajKolejke();
+  return d.doszlo || 0;
+}
+
+async function usunZKolejki(url) {
+  await fetch("/api/kolejka", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  await wczytajKolejke();
+  renderKolejke();
+}
+
+function renderKolejke() {
+  const box = document.getElementById("kolejka-box");
+  if (!box) return;
+  const moje = kolejkaTrybu();
+  if (!moje.length) {
+    box.innerHTML = `<div class="pusto">
+      <svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Kolejka jest pusta.<br><span>Po wyszukaniu firm użyj przycisku
+        <b>Dodaj do kolejki</b> — zostaną tu, dopóki ich nie zbadasz.</span></p></div>`;
+    return;
+  }
+  box.innerHTML = przelacznikTrybu(kolejka) + `<div class="card">
+    <div class="mono"><span class="sq"></span> Czeka na research (${moje.length})</div>
+    <div class="similar-list">${moje.map((k) => `
+      <div class="sim-row" data-url="${escAttr(k.url)}">
+        <div class="sim-info">
+          <span class="sim-name">${esc(k.nazwa || hostname(k.url))}${
+            k.ma_seo ? `<span class="tag-seo">SEO</span>` : ""}</span>
+          <a class="sim-url" href="${escAttr(k.url)}" target="_blank" rel="noopener">${esc(hostname(k.url))}<svg class="ico xs"><use href="#i-external"/></svg></a>
+          ${k.opis ? `<span class="sim-opis">${esc(k.opis.slice(0, 150))}${k.opis.length > 150 ? "…" : ""}</span>` : ""}
+          <span class="kolejka-meta">${esc(k.zrodlo || "—")}${
+            k.zapytanie ? ` · „${esc(k.zapytanie)}"` : ""} · ${esc((k.dodana || "").slice(0, 10))}</span>
+        </div>
+        <button class="researchuj" type="button">Researchuj<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        <button class="usun-z-kolejki" type="button" title="Usuń z kolejki">
+          <svg class="ico xs"><use href="#i-x"/></svg></button>
+      </div>`).join("")}</div>
+  </div>`;
 }
 
 function renderPresety() {
@@ -729,6 +798,10 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
+  const doKolejki = e.target.closest(".do-kolejki-wszystkie");
+  if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
+  const usunK = e.target.closest(".usun-z-kolejki");
+  if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest(".sim-row").dataset.url); }
   const dalej = e.target.closest(".szukaj-dalej");
   if (dalej) return szukajWgTagow(dalej, true);
 
@@ -1008,6 +1081,15 @@ function listaFirmHTML(data, naglowek) {
     }${data.bez_strony ? ` · ${data.bez_strony} firm z Map bez strony WWW (pomijamy — nie ma czego zbadać)` : ""
     }${data.juz_zbadane ? ` · ${data.juz_zbadane} już masz` : ""}</p>
     <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
+    <div class="dalej-pasek">
+      <button class="btn-lekki do-kolejki-wszystkie" type="button"
+              data-zapytanie="${escAttr(data.zapytanie || "")}"
+              data-zrodlo="${escAttr(data.zrodlo || "wyszukiwarka")}">
+        <svg class="ico xs"><use href="#i-inbox"/></svg>Dodaj wszystkie do kolejki
+      </button>
+      <span class="hint">Wyniki znikają razem z zapytaniem. W kolejce zostaną,
+        dopóki ich nie zbadasz.</span>
+    </div>
   </div>`;
 }
 
@@ -1050,6 +1132,11 @@ async function researchujZListy(przycisk) {
     } else {
       otworzFirme(data.firma);
       przycisk.innerHTML = '<svg class="ico xs"><use href="#i-check"/></svg>Otwarto kartę';
+      // Backend zdjął ją już z kolejki — front musi się o tym dowiedzieć,
+      // inaczej licznik w menu i lista pokazują robotę, której nie ma.
+      wczytajKolejke().then(() => {
+        if (document.querySelector('.sekcja.aktywna')?.dataset.sekcja === "kolejka") renderKolejke();
+      });
     }
   } catch (err) {
     przycisk.disabled = false;
@@ -1802,3 +1889,31 @@ function esc(s) {
 function escAttr(s) { return esc(s).replace(/"/g, "&quot;"); }
 
 renderResearchPanel();  // stan startowy
+
+
+async function dodajWszystkieDoKolejki(przycisk) {
+  // Zbieramy z aktualnie wyświetlonej listy, a nie z zapamiętanej odpowiedzi —
+  // user mógł w międzyczasie kliknąć „Szukaj dalej" i lista urosła.
+  const wiersze = [...przycisk.closest(".card").querySelectorAll(".sim-row[data-url]")];
+  const firmy = wiersze.map((w) => ({
+    url: w.dataset.url,
+    nazwa: (w.querySelector(".sim-name")?.textContent || "").replace(/\s*(SEO|JUŻ ZBADANA[^]*)$/, "").trim(),
+    opis: w.querySelector(".sim-opis")?.textContent || "",
+    ma_seo: !!w.querySelector(".tag-seo"),
+  }));
+  const etykieta = przycisk.innerHTML;
+  przycisk.disabled = true;
+  przycisk.textContent = "Dodaję…";
+  try {
+    const doszlo = await dodajDoKolejki(firmy, przycisk.dataset.zapytanie, przycisk.dataset.zrodlo);
+    // Mówimy ILE realnie doszło: reszta to firmy już zbadane albo już w kolejce.
+    przycisk.innerHTML = doszlo
+      ? `<svg class="ico xs"><use href="#i-check"/></svg>Dodano ${doszlo} z ${firmy.length}`
+      : `<svg class="ico xs"><use href="#i-check"/></svg>Wszystkie już masz`;
+  } catch (e) {
+    przycisk.innerHTML = etykieta;
+    alert("Nie udało się dodać do kolejki: " + e.message);
+  } finally {
+    przycisk.disabled = false;
+  }
+}

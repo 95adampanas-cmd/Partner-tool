@@ -232,6 +232,19 @@ button { font-family: var(--sans); }
 }
 .dalej-pasek .hint { margin: 0; font-size: 12px; color: var(--faint); }
 
+/* Metryczka w kolejce: skąd firma przyszła i kiedy. Bez tego po tygodniu nie
+   wiadomo, czemu ta firma w ogóle jest na liście. */
+.kolejka-meta {
+  display: block; margin-top: 5px;
+  font-family: var(--mono); font-size: 10px; color: var(--faint);
+}
+.usun-z-kolejki {
+  background: none; border: none; color: var(--faint); cursor: pointer;
+  padding: 6px; border-radius: 6px; flex-shrink: 0;
+  transition: color .14s, background .14s;
+}
+.usun-z-kolejki:hover { color: var(--orange); background: var(--surface-2); }
+
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */

@@ -922,6 +922,8 @@ async def api_research(request):
             })
 
         baza.zapisz_firme(firma, firma["tryb"])
+        # Zbadana firma znika z kolejki — kolejka pokazuje robotę DO zrobienia.
+        baza.usun_z_kolejki(url)
         return JSONResponse({"ok": True, "firma": firma})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
@@ -1379,6 +1381,29 @@ async def api_audyty(request):
     return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
 
 
+async def api_kolejka(request):
+    """Kolejka kandydatów — firmy znalezione, jeszcze niezbadane.
+
+    GET  zwraca listę, POST dopisuje, DELETE usuwa pojedynczy adres.
+    Firmy już zbadane nie trafiają do kolejki (pilnuje tego baza) — kolejka ma
+    pokazywać robotę do zrobienia, a nie mieszać jej ze zrobioną.
+    """
+    if request.method == "GET":
+        tryb = request.query_params.get("tryb")
+        return JSONResponse({"ok": True, "kolejka": await asyncio.to_thread(baza.kolejka, tryb)})
+
+    body = await request.json()
+    if request.method == "DELETE":
+        await asyncio.to_thread(baza.usun_z_kolejki, (body.get("url") or "").strip())
+        return JSONResponse({"ok": True})
+
+    doszlo = await asyncio.to_thread(
+        baza.dodaj_do_kolejki, body.get("firmy") or [],
+        (body.get("tryb") or "partner").lower(),
+        body.get("zrodlo") or "", body.get("zapytanie") or "")
+    return JSONResponse({"ok": True, "doszlo": doszlo})
+
+
 async def api_zrodla(request):
     """Które źródła firm są podłączone. Front pyta, zanim pokaże przełącznik —
     opcja, która na pewno zwróci błąd, nie powinna być klikalna."""
@@ -1426,6 +1451,7 @@ app = Starlette(routes=[
     Route("/api/columns", api_columns, methods=["GET"]),
     Route("/api/kategorie", api_kategorie, methods=["GET"]),
     Route("/api/zrodla", api_zrodla, methods=["GET"]),
+    Route("/api/kolejka", api_kolejka, methods=["GET", "POST", "DELETE"]),
     # pamięć — bez tego cała praca ginęła po odświeżeniu strony
     Route("/api/firmy", api_firmy, methods=["GET"]),
     Route("/api/firmy/usun", api_firma_usun, methods=["POST"]),
