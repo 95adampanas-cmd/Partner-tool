@@ -886,6 +886,15 @@ async def api_research(request):
         _u = urlparse(url)
         url = _u._replace(scheme=_u.scheme.lower(), netloc=_u.netloc.lower()).geturl()
 
+        # Adres sprowadzony do postaci KANONICZNEJ: https://domena, bez www i bez
+        # ścieżki. To ten sam kształt, jaki produkuje normalizuj_url dla wyników
+        # wyszukiwania — bez tego "tebim.pro" i "www.tebim.pro/" to dla bazy dwie
+        # różne firmy, bo url jest kluczem głównym. Tak właśnie powstał duplikat
+        # Tebima 07.09. Scraper i tak sam znajduje podstrony, więc nic nie tracimy.
+        _kanon = domena_z_url(url)
+        if _kanon:
+            url = "https://" + _kanon
+
         tekst, odwiedzone = scrape_firme(url)
         if not tekst:
             return JSONResponse({
