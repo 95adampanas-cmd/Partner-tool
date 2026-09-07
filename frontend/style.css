@@ -212,6 +212,26 @@ button { font-family: var(--sans); }
   letter-spacing: .06em; vertical-align: 1px;
 }
 
+/* Tag „całego ujęcia" (branża, kategoria) obok pojedynczych usług. Wyróżniony,
+   bo działa inaczej: usługa zawęża, branża trzyma szeroko. */
+.tag.tag-szeroki { border-color: rgba(240,78,42,.3); }
+.tag.tag-szeroki.zaznaczony { border-color: rgba(240,78,42,.6); }
+.grupa-tagow { margin-top: 12px; }
+.preset-etykieta-mini {
+  display: block; margin-bottom: 6px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+}
+.opcjonalne { font-style: normal; color: var(--faint); text-transform: none; letter-spacing: 0; }
+
+/* Pasek „szukaj dalej" pod narastającą listą. Wyjaśnienie obok przycisku, bo bez
+   niego nie wiadomo, czym kolejna runda różni się od ponownego kliknięcia. */
+.dalej-pasek {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-soft);
+}
+.dalej-pasek .hint { margin: 0; font-size: 12px; color: var(--faint); }
+
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */

@@ -504,7 +504,8 @@ def zapytanie_z_miejscem(fraza: str, miasto: str = "", limit_slow: int = 5) -> s
     return " ".join(slowa) + (f" {miasto.strip()}" if miasto.strip() else "")
 
 
-def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> list:
+def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10,
+                  pomin: set | None = None) -> list:
     """Zostawia realne firmy. Odrzuca katalogi/rankingi, badaną firmę i duplikaty domen.
 
     ŻADNA firma nie wypada z powodu SEO. Wcześniej model rozstrzygał, czy agencja
@@ -523,6 +524,10 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10) -> list:
             continue
         dom = urlparse(strona).netloc
         if dom in widziane or (wlasna_domena and wlasna_domena in dom):
+            continue
+        # Firmy pokazane w poprzednich rundach "Szukaj dalej" — bez tego kolejne
+        # klikniecie zwracaloby w kolku te sama pierwsza dziesiatke.
+        if pomin and domena_z_url(strona) in pomin:
             continue
         widziane.add(dom)
 
@@ -913,17 +918,19 @@ async def api_research(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
-async def znajdz_firmy(zapytanie: str, wlasna_domena: str = "") -> dict:
+async def znajdz_firmy(zapytanie: str, wlasna_domena: str = "",
+                       pomin: set | None = None, ile: int = 15) -> dict:
     """Jedno zapytanie -> Tavily -> filtr -> kontrola żywotności."""
-    wyniki = await asyncio.to_thread(tavily_search, zapytanie)
+    wyniki = await asyncio.to_thread(tavily_search, zapytanie, ile)
     return {"zapytanie": zapytanie,
-            **await znajdz_firmy_z_wynikow(wyniki, wlasna_domena)}
+            **await znajdz_firmy_z_wynikow(wyniki, wlasna_domena, pomin)}
 
 
-async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "") -> dict:
+async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "",
+                                 pomin: set | None = None) -> dict:
     """Filtr + deduplikacja + kontrola żywotności.
     Osobno od pobierania, bo Tryb B scala wyniki z kilku zapytań naraz."""
-    firmy = filtruj_firmy(wyniki, wlasna_domena, limit=18)
+    firmy = filtruj_firmy(wyniki, wlasna_domena, limit=18, pomin=pomin)
 
     def sprawdz_wszystkie():
         with ThreadPoolExecutor(max_workers=12) as pool:
@@ -1029,6 +1036,9 @@ async def api_szukaj(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+_NOWA_LINIA = chr(10)   # zamiast sekwencji ucieczki — jest odporna na przenoszenie kodu
+
+
 async def api_similar(request):
     """Funkcja 2 — szukaj podobnych firm (LLM tylko generuje zapytanie, filtr jest deterministyczny)."""
     try:
@@ -1041,23 +1051,47 @@ async def api_similar(request):
         body = await request.json()
         firma = body.get("firma") or {}
         tagi = body.get("tagi") or []
+        # Domeny pokazane w poprzednich rundach — przychodzą z frontu przy "Szukaj dalej".
+        pomin = {d for d in (body.get("pomin") or []) if d}
+        runda = int(body.get("runda") or 1)
 
-        # Zapytanie zawsze układa LLM — user daje mu tylko wskazówki (zaznaczone usługi).
+        branza = (firma.get("branza") or "").strip()
+
+        # Zapytanie zawsze układa LLM — user daje mu tylko wskazówki.
         if tagi:
-            opis = (f"Branża: {firma.get('branza', '')}.\n"
-                    f"USŁUGI WSKAZANE PRZEZ UŻYTKOWNIKA (zbuduj zapytanie WOKÓŁ NICH, "
-                    f"uszanuj ten wybór): {', '.join(tagi)}.")
+            opis = ("Branża: " + branza + "." + _NOWA_LINIA +
+                    "USŁUGI WSKAZANE PRZEZ UŻYTKOWNIKA (zbuduj zapytanie WOKÓŁ NICH, "
+                    "uszanuj ten wybór): " + ", ".join(tagi) + ".")
         else:
-            # Bez wskazówek: wywalamy usługi konkurencyjne, inaczej sami prosimy o agencje SEO.
-            uslugi = [u for u in firma.get("uslugi", [])
-                      if not any(z in u.lower() for z in USLUGI_KONKURENCYJNE)][:5]
-            opis = f"Branża: {firma.get('branza', '')}. Główne usługi: {', '.join(uslugi)}."
+            # Bez tagów szukamy po BRANŻY — po tym, jak sami sklasyfikowaliśmy tę firmę
+            # przy researchu. Wcześniej dokładaliśmy do tego pięć usług, przez co
+            # zapytanie stawało się wąskie — a kto nie zaznaczył żadnego tagu,
+            # ten właśnie NIE chciał zawężać.
+            opis = ("Branża: " + branza + "." if branza else
+                    "Firma: " + (firma.get("nazwa") or "") + ". Opis: " + (firma.get("opis") or "")[:200])
+
+        # Kolejna runda ma dać INNE firmy. Samo odsianie już pokazanych dawałoby
+        # coraz krótsze listy z tego samego zapytania, więc prosimy o inne ujęcie.
+        if runda > 1:
+            opis += (_NOWA_LINIA + _NOWA_LINIA + "To już " + str(runda) + ". podejście do tej samej firmy. "
+                     "Poprzednie zapytania zwróciły firmy, których user nie chce oglądać "
+                     "ponownie. Zaproponuj INNE UJĘCIE tej samej branży — synonim, węższą "
+                     "specjalizację albo pokrewny typ firmy. Nie powtarzaj poprzedniej frazy.")
 
         r = await Runner.run(agent_zapytanie, opis)
-        zapytanie = " ".join((r.final_output or "").strip().strip('"').split()[:8])
+        # bez_lokalizacji, bo model mimo zakazu dopisuje "Polska" — a zmierzyliśmy,
+        # że to słowo trafia w nazwy nagród i izb, nie w kraj. Tavily i tak jest
+        # ograniczone do Polski parametrem country.
+        zapytanie = " ".join(bez_lokalizacji(
+            (r.final_output or "").strip().strip('"')).split()[:8])
+
+        # Kolejne rundy odsiewają wszystko, co już pokazaliśmy, więc muszą mieć
+        # z czego wybierać — inaczej po pierwszej rundzie lista jest pusta.
+        ile = 15 if runda == 1 else 20
 
         wlasna = domena_z_url(firma.get("url", ""))
-        return JSONResponse({"ok": True, **await znajdz_firmy(zapytanie, wlasna)})
+        return JSONResponse({"ok": True, "runda": runda,
+                             **await znajdz_firmy(zapytanie, wlasna, pomin, ile)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 

@@ -702,7 +702,7 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   const wzor = e.target.closest(".wybierz-wzor");
-  if (wzor) { podobneWybrana = wzor.dataset.id; podobneTagi.clear(); return renderPodobne(); }
+  if (wzor) { podobneWybrana = wzor.dataset.id; podobneTagi.clear(); resetPodobnychWynikow(); return renderPodobne(); }
   if (e.target.classList.contains("zmien-wzor")) {
     podobneWybrana = null; podobneTagi.clear();
     document.getElementById("podobne-wynik").innerHTML = "";
@@ -729,6 +729,8 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
+  const dalej = e.target.closest(".szukaj-dalej");
+  if (dalej) return szukajWgTagow(dalej, true);
 
   const wa = e.target.closest(".wybierz-audyt");
   if (wa) { audytWybrana = wa.dataset.id; document.getElementById("audyt-raport").innerHTML = ""; return renderAudyt(); }
@@ -873,39 +875,124 @@ function renderPodobne() {
     </div>
   </div>`;
 
-  const uslugi = wpis.firma.uslugi || [];
+  // Branża i kategoria jako tagi. Wcześniej dało się wybrać tylko pojedyncze usługi,
+  // więc "znajdź inne agencje PrestaShop" trzeba było składać z trzech szczegółów.
+  // Branża bywa zapisana jako "agencja e-commerce / agencja PrestaShop" — rozbijamy
+  // po ukośniku, bo to dwa osobne, sensowne ujęcia tej samej firmy.
+  const szerokie = [
+    ...(wpis.firma.branza || "").split("/").map((x) => x.trim()),
+    wpis.firma.kategoria,
+  ].filter((x) => x && x !== BRAK)
+   .filter((x, i, a) => a.indexOf(x) === i);
+
+  const uslugi = (wpis.firma.uslugi || []).filter((u) => !szerokie.includes(u));
+
+  const tagBtn = (t, szeroki) =>
+    `<button class="tag${podobneTagi.has(t) ? " zaznaczony" : ""}${szeroki ? " tag-szeroki" : ""}"
+      data-tag="${escAttr(t)}" type="button">${esc(t)}</button>`;
+
   tagiBox.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> 2. Zaznacz usługi definiujące podobieństwo</div>
-    <p class="hint">Im mniej i konkretniej, tym trafniejsze wyniki. Polecam 2-4 tagi.</p>
-    <div class="tagi wybieralne">${uslugi.map((u) =>
-      `<button class="tag ${podobneTagi.has(u) ? "zaznaczony" : ""}" data-tag="${escAttr(u)}" type="button">${esc(u)}</button>`
-    ).join("")}</div>
-    <button class="akcja glowna szukaj-wg-tagow" type="button" style="margin-top:18px" ${podobneTagi.size ? "" : "disabled"}>
-      <svg class="ico sm"><use href="#i-search"/></svg>Szukaj podobnych${podobneTagi.size ? ` (${podobneTagi.size})` : ""}
+    <div class="mono"><span class="sq"></span> 2. Zawęź wyszukiwanie <em class="opcjonalne">— opcjonalnie</em></div>
+    <p class="hint">Bez zaznaczenia szukamy po branży: <b>${esc(wpis.firma.branza || wpis.firma.kategoria || "—")}</b>.
+      Zaznacz tagi, jeśli chcesz węziej — im mniej i konkretniej, tym trafniej.</p>
+    ${szerokie.length ? `<div class="grupa-tagow">
+      <span class="preset-etykieta-mini">Całe ujęcie firmy</span>
+      <div class="tagi wybieralne">${szerokie.map((t) => tagBtn(t, true)).join("")}</div>
+    </div>` : ""}
+    ${uslugi.length ? `<div class="grupa-tagow">
+      <span class="preset-etykieta-mini">Pojedyncze usługi</span>
+    </div>` : ""}
+    <div class="tagi wybieralne">${uslugi.map((u) => tagBtn(u, false)).join("")}</div>
+    <button class="akcja glowna szukaj-wg-tagow" type="button" style="margin-top:18px">
+      <svg class="ico sm"><use href="#i-search"/></svg>${
+        podobneTagi.size
+          ? `Szukaj podobnych (${podobneTagi.size} ${podobneTagi.size === 1 ? "tag" : "tagi"})`
+          : "Szukaj podobnych po branży"
+      }
     </button>
   </div>`;
 }
 
-async function szukajWgTagow(przycisk) {
-  const wpis = tabs.find((t) => t.id === podobneWybrana);
+// Wyniki NARASTAJĄ między rundami. Jedno wyszukiwanie zwraca kilka firm, a użytkownik
+// zwykle chce zobaczyć więcej — nie te same od nowa. Trzymamy więc, co już pokazaliśmy,
+// i wysyłamy to do backendu, żeby kolejna runda zwróciła coś innego.
+let podobnePokazane = [];
+let podobneRunda = 0;
+
+function resetPodobnychWynikow() {
+  podobnePokazane = [];
+  podobneRunda = 0;
   const box = document.getElementById("podobne-wynik");
+  if (box) box.innerHTML = "";
+}
+
+async function szukajWgTagow(przycisk, dalej = false) {
+  const wpis = firmyTrybu().find((t) => t.id === podobneWybrana);
+  if (!wpis) return;
+  const box = document.getElementById("podobne-wynik");
+
+  if (!dalej) resetPodobnychWynikow();
+  podobneRunda += 1;
+
+  const etykieta = przycisk.innerHTML;
   przycisk.disabled = true;
   przycisk.textContent = "Szukam… (~10 s)";
-  box.innerHTML = "";
+  if (!dalej) box.innerHTML = "";
+
   try {
     const res = await fetch("/api/similar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, tagi: [...podobneTagi] }),
+      body: JSON.stringify({
+        firma: wpis.firma,
+        tagi: [...podobneTagi],
+        runda: podobneRunda,
+        pomin: podobnePokazane.map((f) => hostname(f.url)),
+      }),
     });
     const data = await res.json();
-    box.innerHTML = data.ok ? listaFirmHTML(data, "Podobne firmy") : errorHTML(data.error);
+    if (!data.ok) { box.innerHTML = errorHTML(data.error); return; }
+
+    // Doklejamy tylko NOWE domeny — backend już je odsiewa, ale przy zmianie tagów
+    // między rundami mogłyby wrócić, a lista z duplikatami niczego nie wnosi.
+    const znane = new Set(podobnePokazane.map((f) => hostname(f.url)));
+    const nowe = (data.firmy || []).filter((f) => !znane.has(hostname(f.url)));
+    podobnePokazane = [...podobnePokazane, ...nowe];
+
+    box.innerHTML = listaPodobnychHTML(data, nowe.length);
   } catch (err) {
     box.innerHTML = errorHTML(err.message);
   } finally {
     przycisk.disabled = false;
+    przycisk.innerHTML = etykieta;
     renderPodobne();
   }
+}
+
+// Osobny renderer, bo lista podobnych narasta i ma własną stopkę z „Szukaj dalej".
+function listaPodobnychHTML(data, ileNowych) {
+  if (!podobnePokazane.length) {
+    return `<div class="card"><p class="sim-err">Nie znalazłem firm dla „${esc(data.zapytanie)}".
+      Spróbuj innych tagów albo szukaj po samej branży.</p></div>`;
+  }
+  const wyczerpane = ileNowych === 0;
+  return `<div class="card">
+    <div class="mono"><span class="sq"></span> Podobne firmy (${podobnePokazane.length})</div>
+    <p class="hint">Runda ${data.runda}: „${esc(data.zapytanie)}"${
+      ileNowych ? ` · ${ileNowych} nowych` : " · nic nowego"
+    }</p>
+    <div class="similar-list">${podobnePokazane.map(wierszHTML).join("")}</div>
+    <div class="dalej-pasek">
+      <button class="btn-lekki szukaj-dalej" type="button">
+        <svg class="ico xs"><use href="#i-search"/></svg>Szukaj dalej — inne ujęcie branży
+      </button>
+      <span class="hint">${
+        wyczerpane
+          ? "Ostatnia runda nie dała nic nowego. Zmień tagi albo spróbuj jeszcze raz."
+          : "Każda runda pyta o to samo inaczej i pomija firmy już pokazane."
+      }</span>
+    </div>
+  </div>`;
 }
 
 function listaFirmHTML(data, naglowek) {
