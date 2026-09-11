@@ -202,3 +202,31 @@ Dopiero potem BizRaport — 100 zapytań testowych bez karty.
 
 **Zostaje za darmo z KRS:** regularność składania sprawozdań, rok wpisu i kapitał
 zakładowy. To nie przychód, ale mówi coś o kondycji i nic nie kosztuje.
+
+---
+
+## Czat do pogłębienia researchu tylko w granicach domeny firmy
+*11.09.2026*
+
+Research wyciąga 20 pól raz. Pytania spoza tej dwudziestki — „czy obsługują B2B",
+„ile biorą za wdrożenie" — padają na karcie firmy i agent doczytuje je ze strony.
+
+**Narzędzie `otworz_podstrone` sprawdza domenę przed pobraniem.** Bez tego `/api/czat`
+jest otwartym proxy: wystarczy poprosić agenta o dowolny adres, żeby nasz serwer
+pobrał go i zwrócił treść. Adres spoza domeny badanej firmy dostaje odmowę, a nie
+cichy brak wyniku — agent ma widzieć, że odbił się od granicy.
+
+**Pod odpowiedzią stoi lista faktycznie otwartych podstron.** Model, który niczego
+nie znalazł, potrafi odpowiedzieć pewnym tonem. Pusta lista źródeł jest jedynym
+widocznym sygnałem, że zmyślił. To ta sama zasada, co przy audycie: liczba bez
+źródła jest nieweryfikowalna, więc bezużyteczna.
+
+**Historia rozmowy nie idzie do bazy.** Czat jest notatnikiem roboczym — utrwalamy
+to, co człowiek przeniesie do researchu, nie każdą próbę.
+
+**Pułapka SDK, warta zapamiętania.** Wynik narzędzia przychodzi w `new_items` jako
+**słownik**, nie obiekt. Pierwsza wersja czytała go przez `getattr(raw_item, "output")`
+i zawsze dostawała pustkę. Objaw był zdradliwy: odpowiedzi wyglądały poprawnie,
+brakowało tylko źródeł — czyli awarii nie widać było tam, gdzie się patrzy.
+To kolejny przypadek tego samego wzorca co „fałszywe zera": brak danych, który
+wygląda jak poprawna odpowiedź.
