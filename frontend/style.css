@@ -297,6 +297,11 @@ button { font-family: var(--sans); }
 .masowy-poz:not(.ok):not(.trwa):not(.czeka) { color: var(--zolty); }
 .masowy-poz em { font-style: normal; opacity: .8; }
 
+/* Wybór źródła w „Szukaj podobnych" — nad przyciskiem, bo to decyzja
+   wcześniejsza niż samo szukanie. */
+.zrodla-podobne { margin-top: 14px; }
+.zrodla-podobne .tag { display: inline-flex; align-items: center; gap: 6px; }
+
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */

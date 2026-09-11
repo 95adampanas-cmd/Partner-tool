@@ -366,6 +366,9 @@ const PRESETY = {
 let otwartaGrupa = null;
 // Kategoria wybrana w "Szukaj podobnych". null = wszystkie firmy ścieżki.
 let podobneKategoria = null;
+// Zrodlo dla "Szukaj podobnych" — osobne od tego w "Szukaj po branzy",
+// bo to dwa rozne zadania i user moze chciec innego zrodla w kazdym.
+let zrodloPodobne = "wyszukiwarka";
 // Kategoria wybrana na liscie Firm. null = wszystkie.
 let filtrKategorii = null;
 
@@ -850,6 +853,8 @@ document.addEventListener("click", (e) => {
   if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
   const usunK = e.target.closest(".usun-z-kolejki");
   if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest(".sim-row").dataset.url); }
+  const zrPod = e.target.closest("[data-zrodlo-podobne]");
+  if (zrPod) { zrodloPodobne = zrPod.dataset.zrodloPodobne; return renderPodobne(); }
   const zbZazn = e.target.closest(".zbadaj-zaznaczone");
   if (zbZazn) return zbadajZaznaczone(zbZazn);
   if (e.target.id === "zazn-wszystkie") {
@@ -1058,6 +1063,15 @@ function renderPodobne() {
       <span class="preset-etykieta-mini">Pojedyncze usługi</span>
     </div>` : ""}
     <div class="tagi wybieralne">${uslugi.map((u) => tagBtn(u, false)).join("")}</div>
+    ${zrodlaDostepne.mapy ? `
+      <div class="zrodla-podobne">
+        <span class="preset-etykieta-mini">Skąd szukamy</span>
+        <div class="tagi wybieralne">${Object.entries(ZRODLA).map(([k, z]) => `
+          <button class="tag${zrodloPodobne === k ? " zaznaczony" : ""}" type="button"
+                  data-zrodlo-podobne="${k}" title="${escAttr(z.opis)}">
+            <svg class="ico xs"><use href="#i-${z.ikona}"/></svg> ${esc(z.nazwa)}
+          </button>`).join("")}</div>
+      </div>` : ""}
     <button class="akcja glowna szukaj-wg-tagow" type="button" style="margin-top:18px">
       <svg class="ico sm"><use href="#i-search"/></svg>${
         podobneTagi.size
@@ -1102,6 +1116,7 @@ async function szukajWgTagow(przycisk, dalej = false) {
         firma: wpis.firma,
         tagi: [...podobneTagi],
         runda: podobneRunda,
+        zrodlo: zrodloPodobne,
         pomin: podobnePokazane.map((f) => hostname(f.url)),
       }),
     });

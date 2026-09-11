@@ -1060,10 +1060,33 @@ async def api_research(request):
 
 async def znajdz_firmy(zapytanie: str, wlasna_domena: str = "",
                        pomin: set | None = None, ile: int = 15) -> dict:
-    """Jedno zapytanie -> Tavily -> filtr -> kontrola żywotności."""
-    wyniki = await asyncio.to_thread(tavily_search, zapytanie, ile)
-    return {"zapytanie": zapytanie,
-            **await znajdz_firmy_z_wynikow(wyniki, wlasna_domena, pomin)}
+    """Jedno zapytanie -> Tavily -> filtr -> kontrola żywotności.
+
+    Ze SKRACANIEM AWARYJNYM. Zmierzone: „agencja PrestaShop e-commerce" zwraca
+    z Tavily ZERO wyników, a „agencja PrestaShop" — piętnaście. Jedno słowo za
+    dużo i wyszukiwarka milknie. Model układa frazę za każdym razem inaczej, więc
+    funkcja działała losowo: raz jedenaście firm, raz pusto, przy tej samej firmie
+    wzorcowej.
+
+    Zamiast próbować wymusić na modelu krótsze frazy — co i tak byłoby prośbą,
+    nie gwarancją — obcinamy ostatnie słowo i pytamy ponownie. Zwracamy frazę,
+    która NAPRAWDĘ zadziałała, bo pokazanie userowi zapytania bez wyników byłoby
+    wprowadzaniem w błąd.
+    """
+    slowa = zapytanie.split()
+    uzyte, wynik = zapytanie, None
+    # Sprawdzamy wynik KOŃCOWY, nie surowy. Tavily potrafi oddać dziesięć pozycji,
+    # z których wszystkie wypadną jako katalogi, duplikaty albo martwe strony —
+    # dla usera to tak samo pusty ekran, więc tak samo trzeba spróbować krócej.
+    for dlugosc in range(len(slowa), 1, -1):
+        uzyte = " ".join(slowa[:dlugosc])
+        surowe = await asyncio.to_thread(tavily_search, uzyte, ile)
+        wynik = await znajdz_firmy_z_wynikow(surowe, wlasna_domena, pomin)
+        if wynik["firmy"]:
+            break
+
+    return {"zapytanie": uzyte, "skrocone": uzyte != zapytanie,
+            **(wynik or {"firmy": [], "z_seo": 0, "juz_zbadane": 0, "odsiane_martwe": 0})}
 
 
 async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "",
@@ -1191,6 +1214,14 @@ async def api_similar(request):
         # Domeny pokazane w poprzednich rundach — przychodzą z frontu przy "Szukaj dalej".
         pomin = {d for d in (body.get("pomin") or []) if d}
         runda = int(body.get("runda") or 1)
+        zrodlo = (body.get("zrodlo") or "wyszukiwarka").lower()
+        # Miasto TYLKO gdy user je poda. Wcześniej braliśmy miasto firmy wzorcowej
+        # i wyszło głupio: Tebim siedzi w Kaliszu, więc „podobne agencje PrestaShop"
+        # szukały się w Kaliszu i zwracały zero. Podobna firma nie musi być
+        # w tym samym mieście — a jak ma być, user to napisze.
+        miasto = (body.get("miasto") or "").strip()
+        if miasto == BRAK:
+            miasto = ""
 
         branza = (firma.get("branza") or "").strip()
 
@@ -1227,7 +1258,27 @@ async def api_similar(request):
         ile = 15 if runda == 1 else 20
 
         wlasna = domena_z_url(firma.get("url", ""))
-        return JSONResponse({"ok": True, "runda": runda,
+
+        # ── ŹRÓDŁO: MAPY ────────────────────────────────────────────────
+        # Ta sekcja chodziła wyłącznie po wyszukiwarce, mimo że przy „Szukaj po
+        # branży" zmierzyliśmy, że Mapy dają 10 z 12 firm, których wyszukiwarka
+        # nie znajduje. Zapytanie budujemy TAK SAMO — model nie wie, dokąd
+        # pójdzie — różni się tylko to, kto na nie odpowiada.
+        if zrodlo == "mapy":
+            if not mapy.dostepne():
+                return JSONResponse({"ok": False, "error":
+                    "Brak GOOGLE_MAPS_API_KEY w .env — wyszukiwanie po Mapach wyłączone."})
+            try:
+                z_map = await asyncio.to_thread(mapy.szukaj, zapytanie, miasto)
+            except mapy.BladMap as e:
+                return JSONResponse({"ok": False, "error": str(e)})
+            wyniki = [{"url": u, "title": "", "content": ""} for u in z_map["adresy"]]
+            wynik = await znajdz_firmy_z_wynikow(wyniki, wlasna, pomin)
+            return JSONResponse({"ok": True, "runda": runda, "zrodlo": "mapy",
+                                 "zapytanie": z_map["zapytanie"],
+                                 "bez_strony": z_map["bez_strony"], **wynik})
+
+        return JSONResponse({"ok": True, "runda": runda, "zrodlo": "wyszukiwarka",
                              **await znajdz_firmy(zapytanie, wlasna, pomin, ile)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
