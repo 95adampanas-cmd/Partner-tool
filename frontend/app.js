@@ -403,6 +403,9 @@ function renderZrodla() {
 // Kolejka kandydatow: firmy znalezione, jeszcze niezbadane. Bez niej wyniki
 // znikaly razem z zapytaniem — 12 znalezionych, 3 zbadane, 9 przepadalo.
 let kolejka = [];
+// Zaznaczenia do researchu masowego. Trzymamy URL-e, nie indeksy — lista
+// przerysowuje sie po kazdej zbadanej firmie i indeksy przestalyby pasowac.
+const kolejkaZaznaczone = new Set();
 
 async function wczytajKolejke() {
   try {
@@ -449,10 +452,25 @@ function renderKolejke() {
         <b>Dodaj do kolejki</b> — zostaną tu, dopóki ich nie zbadasz.</span></p></div>`;
     return;
   }
+  const zazn = moje.filter((k) => kolejkaZaznaczone.has(k.url)).length;
   box.innerHTML = przelacznikTrybu(kolejka) + `<div class="card">
     <div class="mono"><span class="sq"></span> Czeka na research (${moje.length})</div>
+    <div class="masowy-pasek">
+      <label class="zazn-wszystkie">
+        <input type="checkbox" id="zazn-wszystkie" ${zazn === moje.length && moje.length ? "checked" : ""}>
+        <span>Zaznacz wszystkie</span>
+      </label>
+      <button class="akcja glowna zbadaj-zaznaczone" type="button" ${zazn ? "" : "disabled"}>
+        <svg class="ico sm"><use href="#i-layers"/></svg>Zbadaj zaznaczone${zazn ? ` (${zazn})` : ""}
+      </button>
+      <span class="hint">Po trzy naraz. Awaria jednej firmy nie zatrzymuje reszty.</span>
+    </div>
+    <div id="masowy-postep"></div>
     <div class="similar-list">${moje.map((k) => `
       <div class="sim-row" data-url="${escAttr(k.url)}">
+        <label class="zazn-firme">
+          <input type="checkbox" class="zazn-kolejka" ${kolejkaZaznaczone.has(k.url) ? "checked" : ""}>
+        </label>
         <div class="sim-info">
           <span class="sim-name">${esc(k.nazwa || hostname(k.url))}${
             k.ma_seo ? `<span class="tag-seo">SEO</span>` : ""}</span>
@@ -832,6 +850,19 @@ document.addEventListener("click", (e) => {
   if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
   const usunK = e.target.closest(".usun-z-kolejki");
   if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest(".sim-row").dataset.url); }
+  const zbZazn = e.target.closest(".zbadaj-zaznaczone");
+  if (zbZazn) return zbadajZaznaczone(zbZazn);
+  if (e.target.id === "zazn-wszystkie") {
+    const moje = kolejkaTrybu();
+    if (e.target.checked) moje.forEach((k) => kolejkaZaznaczone.add(k.url));
+    else moje.forEach((k) => kolejkaZaznaczone.delete(k.url));
+    return renderKolejke();
+  }
+  if (e.target.classList.contains("zazn-kolejka")) {
+    const u = e.target.closest(".sim-row").dataset.url;
+    kolejkaZaznaczone.has(u) ? kolejkaZaznaczone.delete(u) : kolejkaZaznaczone.add(u);
+    return renderKolejke();
+  }
   const wybMail = e.target.closest(".wybierz-mail");
   if (wybMail) { maileWybrana = wybMail.dataset.id; maileAktywny = null; return renderMaile(); }
   if (e.target.closest(".zmien-mail-firme")) { maileWybrana = null; maileAktywny = null; return renderMaile(); }
@@ -2162,4 +2193,70 @@ async function zmienStanMaila(id, akcja, dane) {
   });
   await wczytajMaile();
   renderMaile();
+}
+
+
+// ══ RESEARCH MASOWY ═══════════════════════════════════════════════════
+// Bez tego kolejka byla pulapka: user dodawal 50 firm i badal je po jednej,
+// 30 sekund kazda. Front steruje rownoleglością sam, bez nowego endpointu —
+// dzieki temu widac postep firma po firmie, a awaria jednej nie przerywa reszty.
+//
+// Trzy naraz, nie wiecej: kazda firma to scrape kilku podstron plus wywolanie
+// modelu. Przy dziesieciu rownoleglych ryzykujemy limity OpenAI i to, ze scraper
+// zacznie wygladac dla stron jak atak.
+const MASOWO_NARAZ = 3;
+
+async function zbadajZaznaczone(przycisk) {
+  const doZbadania = kolejkaTrybu().filter((k) => kolejkaZaznaczone.has(k.url));
+  if (!doZbadania.length) return;
+
+  const postep = document.getElementById("masowy-postep");
+  przycisk.disabled = true;
+  const stan = new Map(doZbadania.map((k) => [k.url, "czeka"]));
+
+  const rysuj = () => {
+    const gotowe = [...stan.values()].filter((s) => s !== "czeka" && s !== "trwa").length;
+    postep.innerHTML = `<div class="masowy-postep">
+      <div class="mono">Zbadano ${gotowe} z ${doZbadania.length}</div>
+      <div class="pasek-postepu"><i style="width:${Math.round(gotowe / doZbadania.length * 100)}%"></i></div>
+      <div class="masowy-lista">${doZbadania.map((k) => {
+        const s = stan.get(k.url);
+        const ikona = s === "ok" ? "check" : s === "trwa" ? "clock" : s === "czeka" ? "clock" : "alert";
+        return `<span class="masowy-poz ${s}"><svg class="ico xs"><use href="#i-${ikona}"/></svg>${
+          esc(k.nazwa || hostname(k.url))}${s !== "ok" && s !== "czeka" && s !== "trwa"
+            ? `<em title="${escAttr(s)}">— nie udało się</em>` : ""}</span>`;
+      }).join("")}</div>
+    </div>`;
+  };
+  rysuj();
+
+  // Prosta pula: trzy watki biora kolejne pozycje z tej samej listy.
+  const kolejkaDoZrobienia = [...doZbadania];
+  async function watek() {
+    while (kolejkaDoZrobienia.length) {
+      const k = kolejkaDoZrobienia.shift();
+      stan.set(k.url, "trwa"); rysuj();
+      try {
+        const d = await research(k.url);
+        stan.set(k.url, d.ok ? "ok" : (d.error || "błąd"));
+        if (d.ok) kolejkaZaznaczone.delete(k.url);
+      } catch (e) {
+        stan.set(k.url, e.message || "błąd sieci");
+      }
+      rysuj();
+    }
+  }
+  await Promise.all(Array.from({ length: MASOWO_NARAZ }, watek));
+
+  // Odswiezamy komplet: zbadane firmy znikaja z kolejki i pojawiaja sie w Firmach.
+  await wczytajKolejke();
+  await wczytajMaile();
+  renderKolejke();
+  const nieudane = [...stan.values()].filter((s) => s !== "ok").length;
+  document.getElementById("masowy-postep").innerHTML = `<div class="masowy-postep">
+    <div class="mono">Gotowe: ${doZbadania.length - nieudane} z ${doZbadania.length}${
+      nieudane ? ` · ${nieudane} nie wyszło` : ""}</div>
+    ${nieudane ? `<p class="hint">Nieudane zostają w kolejce — najczęściej strona blokuje
+      bota albo nie odpowiada. Spróbuj pojedynczo później.</p>` : ""}
+  </div>`;
 }

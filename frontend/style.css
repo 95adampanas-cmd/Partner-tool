@@ -267,6 +267,36 @@ button { font-family: var(--sans); }
 /* Brak osoby decyzyjnej to informacja o JAKOŚCI maila, który powstanie — nie usterka. */
 .sim-opis.brak-osoby { color: var(--zolty); }
 
+/* ── Research masowy ── */
+.masowy-pasek {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 12px 0; padding: 12px 0; border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.masowy-pasek .hint { margin: 0; font-size: 12px; color: var(--faint); }
+.zazn-wszystkie, .zazn-firme { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.zazn-wszystkie span { font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+.zazn-firme { padding-right: 4px; }
+.zazn-wszystkie input, .zazn-firme input { accent-color: var(--orange); width: 15px; height: 15px; cursor: pointer; }
+
+.masowy-postep { margin: 14px 0; }
+.masowy-postep .mono { font-size: 10px; color: var(--muted); margin-bottom: 8px; }
+/* Pasek pokazuje ILE zrobione, lista pod nim — KTÓRE. Sam procent nie mówi,
+   czy firma, na której Ci zależy, już przeszła. */
+.pasek-postepu { height: 4px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.pasek-postepu i { display: block; height: 100%; background: var(--orange); transition: width .3s; }
+.masowy-lista { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+.masowy-poz {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 6px; font-size: 12px;
+  background: var(--surface-2); color: var(--muted);
+}
+.masowy-poz.trwa { color: var(--orange); }
+.masowy-poz.ok { color: var(--zielony); }
+.masowy-poz:not(.ok):not(.trwa):not(.czeka) { color: var(--zolty); }
+.masowy-poz em { font-style: normal; opacity: .8; }
+
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */
