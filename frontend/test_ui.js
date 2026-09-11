@@ -69,26 +69,53 @@ setTimeout(() => {
   const aktywna = () => (d.querySelector(".sekcja.aktywna .tryb-btn.aktywny") || {}).textContent || "";
   const nazwy = (sel) => [...d.querySelectorAll(sel)].map((x) => x.textContent.trim());
 
+  // Ścieżka klientów bywa wyłączona (POKAZUJ_KLIENTOW w app.js). Testy jej nie
+  // kasujemy — sprawdzamy to, co w danej konfiguracji ma być prawdą. Dzięki temu
+  // po ponownym włączeniu ścieżki komplet asercji wraca sam.
+  // Stan czytamy z DOM, a NIE ze zmiennej w app.js. window.eval tworzy `const`
+  // we własnym zakresie, więc drugi eval jej nie widzi i odczyt zawsze dawał
+  // undefined — testy leciały złą gałęzią i przy wyłączonej ścieżce przechodziły
+  // przypadkiem. Poza tym test powinien sprawdzać to, co widzi użytkownik.
+  const zKlientami = [...d.querySelectorAll(".nav-grupa")]
+    .some((g) => g.textContent.trim() === "Klienci");
+
   nav("firmy");
-  sprawdz("Firmy: start pokazuje partnerów", nazwy(".firma-row-nazwa").length === 2,
+  sprawdz("Firmy: pokazuje partnerów", nazwy(".firma-row-nazwa").length === 2,
     nazwy(".firma-row-nazwa").join(", "));
-  zakladka("klient");
-  sprawdz("Firmy: zakładka przełącza na Klientów", aktywna().includes("Klienci"));
-  sprawdz("Firmy: widać klienta, nie partnerów",
-    nazwy(".firma-row-nazwa").join().startsWith("Ella"), nazwy(".firma-row-nazwa").join(", "));
-  zakladka("partner");
-  sprawdz("Firmy: powrót na Partnerów", nazwy(".firma-row-nazwa").length === 2);
+
+  if (zKlientami) {
+    zakladka("klient");
+    sprawdz("Firmy: zakładka przełącza na Klientów", aktywna().includes("Klienci"));
+    sprawdz("Firmy: widać klienta, nie partnerów",
+      nazwy(".firma-row-nazwa").join().startsWith("Ella"), nazwy(".firma-row-nazwa").join(", "));
+    zakladka("partner");
+    sprawdz("Firmy: powrót na Partnerów", nazwy(".firma-row-nazwa").length === 2);
+  } else {
+    sprawdz("Firmy: brak przełącznika ścieżki",
+      !d.querySelector(".sekcja.aktywna .przelacznik-tryb"));
+    sprawdz("Menu: brak grupy Klienci",
+      ![...d.querySelectorAll(".nav-grupa")].some((g) => g.textContent.trim() === "Klienci"));
+    sprawdz("Menu: brak pozycji ze ścieżką klienta",
+      d.querySelectorAll('.nav-item[data-tryb="klient"]').length === 0);
+    sprawdz("Firmy: klient NIE miesza się z partnerami",
+      !nazwy(".firma-row-nazwa").join().includes("Ella"), nazwy(".firma-row-nazwa").join(", "));
+  }
 
   nav("audyt");
   sprawdz("Audyt: partnerzy do wyboru", nazwy("#audyt-wybor .sim-name").length === 2);
-  zakladka("klient");
-  sprawdz("Audyt: zakładka przełącza na Klientów", aktywna().includes("Klienci"));
-  sprawdz("Audyt: klient dostępny do audytu",
-    nazwy("#audyt-wybor .sim-name").join().startsWith("Ella"), nazwy("#audyt-wybor .sim-name").join(", "));
+  if (zKlientami) {
+    zakladka("klient");
+    sprawdz("Audyt: zakładka przełącza na Klientów", aktywna().includes("Klienci"));
+    sprawdz("Audyt: klient dostępny do audytu",
+      nazwy("#audyt-wybor .sim-name").join().startsWith("Ella"), nazwy("#audyt-wybor .sim-name").join(", "));
+  } else {
+    sprawdz("Audyt: klient nie trafia na listę",
+      !nazwy("#audyt-wybor .sim-name").join().includes("Ella"), nazwy("#audyt-wybor .sim-name").join(", "));
+  }
 
-  nav("podobne", "klient");
-  sprawdz("Podobne: w ścieżce Klienci tylko klient",
-    nazwy("#podobne-wybor .sim-name").join().startsWith("Ella"), nazwy("#podobne-wybor .sim-name").join(", "));
+  nav("podobne", zKlientami ? "klient" : null);
+  sprawdz("Podobne: lista firm wzorcowych niepusta",
+    nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));
 
   nav("kolejka");
   sprawdz("Kolejka: sekcja renderuje pusty stan bez błędu",

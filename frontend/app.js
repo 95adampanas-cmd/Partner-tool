@@ -11,6 +11,17 @@ let kolumny = [];    // definicja kolumn CSV — z backendu (jedno źródło pra
 // zmienia to, czego szukamy (dla partnera liczy sie komplementarnosc, dla klienta
 // sklep ze słabą widocznością to najlepszy trop) i ton maila. Każda zbadana firma
 // pamięta, w której ścieżce powstała, więc „Praca" potrafi je rozdzielić.
+// ── WYŁĄCZNIK ŚCIEŻKI KLIENTÓW ───────────────────────────────────────
+// false = interfejs pokazuje wyłącznie partnerów: znika grupa „Klienci" z menu
+// i wszystkie przełączniki ścieżki. Model danych zostaje NIETKNIĘTY — kolumna
+// `tryb` dalej jest w bazie, a firmy zbadane jako klienci czekają tam bez zmian.
+//
+// Dlaczego wyłącznik, a nie usunięcie: tryb siedzi w 169 miejscach w pięciu
+// plikach i w trzech tabelach. Wycięcie tego to przepisywanie połowy aplikacji
+// przy zerowym zysku — a powrót do klientów kosztuje wtedy tyle samo co teraz.
+// Tak wystarczy zmienić to jedno słowo na true.
+const POKAZUJ_KLIENTOW = false;
+
 let tryb = "partner";
 // Dla której ścieżki narysowano wspólne sekcje. Bez tego nie da się poznać, że
 // user JUŻ przełączył ścieżkę, a na ekranie wisi jeszcze zawartość poprzedniej.
@@ -48,6 +59,18 @@ async function wczytajPamiec() {
     console.warn("Nie udało się wczytać zapisanych firm:", e);
   }
 }
+// Usunięcie grupy „Klienci" z menu. Robione w JS, nie przez skasowanie z HTML,
+// żeby przywrócenie ścieżki nie wymagało odtwarzania znaczników.
+if (!POKAZUJ_KLIENTOW) {
+  document.querySelectorAll('.nav-item[data-tryb="klient"]').forEach((b) => b.remove());
+  [...document.querySelectorAll(".nav-grupa")]
+    .filter((g) => g.textContent.trim() === "Klienci")
+    .forEach((g) => g.remove());
+  // Nagłówek „Ścieżka: Partnerzy" też przestaje mieć sens, gdy ścieżka jest jedna.
+  document.querySelectorAll("[data-tryb-naglowek]")
+    .forEach((h) => h.removeAttribute("data-tryb-naglowek"));
+}
+
 wczytajPamiec();
 
 // ══ Nawigacja między sekcjami ══
@@ -561,6 +584,8 @@ function zapiszKoszyk(url, w_koszyku) {
 }
 
 function przelacznikTrybu(liczOd = tabs) {
+  // Przy jednej ścieżce przełącznik byłby przyciskiem, który nic nie zmienia.
+  if (!POKAZUJ_KLIENTOW) return "";
   return `<div class="przelacznik-tryb" role="tablist">
     ${Object.entries(TRYBY).map(([k, t]) => `
       <button class="tryb-btn ${tryb === k ? "aktywny" : ""}" data-ustaw-tryb="${k}"
