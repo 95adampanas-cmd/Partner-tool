@@ -52,6 +52,8 @@ MODEL_TANI = "gpt-5.4-nano"  # proste zadania (np. wygenerowanie zapytania)
 
 BRAK = "nie do ustalenia"    # PRD: uczciwy brak zamiast halucynacji
 
+_NOWA_LINIA = chr(10)   # zamiast sekwencji ucieczki — jest odporna na przenoszenie kodu
+
 # Kategorie partnerskie — JEDNO ŹRÓDŁO PRAWDY. Model przypisuje tu firmę przy
 # researchu, front grupuje po tym listy, a /api/kategorie je udostępnia.
 #
@@ -927,6 +929,23 @@ STYLE_MAILI = [
      "rozmowy o modelu współpracy."),
 ]
 
+# Poprawianie gotowego maila. Osobny agent, bo zadanie jest inne niz pisanie od zera:
+# dostaje TEKST, który ma zachować, i jedno polecenie. Agent od pisania dostałby tu
+# dane firmy i zaczął od nowa — a user chce poprawki, nie nowego maila.
+agent_poprawka = Agent(
+    name="poprawka-maila",
+    instructions=(
+        "Poprawiasz GOTOWY mail sprzedażowy według polecenia użytkownika." + _NOWA_LINIA +
+        "ZASADY:" + _NOWA_LINIA +
+        "- Zmieniaj TYLKO to, o co prosi user. Reszta zostaje słowo w słowo." + _NOWA_LINIA +
+        "- Nie dopisuj faktów o firmie, których nie ma w tekście. Gdy polecenie "
+        "wymaga informacji, której nie masz, napisz mail bez niej zamiast zmyślać." + _NOWA_LINIA +
+        "- Zachowaj język i formę zwracania się, chyba że polecenie mówi inaczej." + _NOWA_LINIA +
+        "- Zwróć SAM mail: bez komentarza, bez wstępu, bez wyjaśnień co zmieniłeś."
+    ),
+    model=MODEL,
+)
+
 agenci_mail = [
     Agent(name=f"mail-{nazwa}", instructions=f"{MAIL_SYSTEM}\n\nSTYL: {opis}", model=MODEL)
     for nazwa, opis in STYLE_MAILI
@@ -1157,9 +1176,6 @@ async def api_szukaj(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
-_NOWA_LINIA = chr(10)   # zamiast sekwencji ucieczki — jest odporna na przenoszenie kodu
-
-
 async def api_similar(request):
     """Funkcja 2 — szukaj podobnych firm (LLM tylko generuje zapytanie, filtr jest deterministyczny)."""
     try:
@@ -1228,10 +1244,15 @@ async def api_email(request):
         )
         # 3 style równolegle — czas jak przy jednym mailu
         wyniki = await asyncio.gather(*[Runner.run(a, kontekst) for a in agenci_mail])
-        maile = [
-            {"styl": nazwa, "tresc": w.final_output}
-            for (nazwa, _), w in zip(STYLE_MAILI, wyniki)
-        ]
+        # Draft zapisujemy OD RAZU. Wcześniej żył tylko w przeglądarce — zamknięcie
+        # karty kasowało go bezpowrotnie, mimo że napisanie kosztowało tokeny i czas.
+        url = (firma.get("url") or "").strip()
+        tryb = (body.get("tryb") or firma.get("tryb") or "partner").lower()
+        maile = []
+        for (nazwa, _), w in zip(STYLE_MAILI, wyniki):
+            tresc = str(w.final_output or "")
+            mid = await asyncio.to_thread(baza.zapisz_mail, url, nazwa, tresc, tryb) if url else None
+            maile.append({"id": mid, "styl": nazwa, "tresc": tresc})
         return JSONResponse({"ok": True, "maile": maile})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
@@ -1491,6 +1512,61 @@ async def api_audyty(request):
     return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
 
 
+async def api_maile(request):
+    """Biblioteka maili. GET lista, DELETE usuwa jedną wersję, PATCH oznacza wysłany.
+
+    „Wysłany" to jedyny ślad, że mail poszedł — narzędzie nie ma dostępu do skrzynki
+    i nie będzie udawać, że wie więcej niż user mu powie.
+    """
+    if request.method == "GET":
+        url = request.query_params.get("url")
+        tryb = request.query_params.get("tryb")
+        return JSONResponse({"ok": True,
+                             "maile": await asyncio.to_thread(baza.maile, url, tryb)})
+
+    body = await request.json()
+    if request.method == "DELETE":
+        await asyncio.to_thread(baza.usun_mail, int(body.get("id") or 0))
+        return JSONResponse({"ok": True})
+
+    await asyncio.to_thread(baza.oznacz_wyslany,
+                            int(body.get("id") or 0), bool(body.get("wyslany", True)))
+    return JSONResponse({"ok": True})
+
+
+async def api_email_popraw(request):
+    """Poprawia gotowy mail według polecenia. Zapisuje jako NOWĄ wersję.
+
+    Nowa wersja, a nie nadpisanie: poprawka bywa gorsza od oryginału, a bez historii
+    nie da się do niego wrócić. To ta sama zasada, co przy historii audytów.
+    """
+    try:
+        body = await request.json()
+        zrodlo = int(body.get("id") or 0)
+        polecenie = (body.get("polecenie") or "").strip()
+        if not polecenie:
+            return JSONResponse({"ok": False, "error": "Napisz, co poprawić."})
+
+        stary = await asyncio.to_thread(baza.mail, zrodlo)
+        if not stary:
+            return JSONResponse({"ok": False, "error": "Nie znalazłem tego maila w bibliotece."})
+
+        wejscie = ("MAIL DO POPRAWY:" + _NOWA_LINIA + stary["tresc"]
+                   + _NOWA_LINIA + _NOWA_LINIA + "POLECENIE UŻYTKOWNIKA:" + _NOWA_LINIA + polecenie)
+        w = await Runner.run(agent_poprawka, wejscie)
+        tresc = str(w.final_output or "").strip()
+        if not tresc:
+            return JSONResponse({"ok": False, "error": "Model nie zwrócił treści — spróbuj inaczej sformułować."})
+
+        nowy_id = await asyncio.to_thread(
+            baza.zapisz_mail, stary["url"], "poprawiony", tresc,
+            stary.get("tryb") or "partner", polecenie)
+        return JSONResponse({"ok": True, "mail": {
+            "id": nowy_id, "styl": "poprawiony", "tresc": tresc, "polecenie": polecenie}})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
 async def api_kolejka(request):
     """Kolejka kandydatów — firmy znalezione, jeszcze niezbadane.
 
@@ -1562,6 +1638,8 @@ app = Starlette(routes=[
     Route("/api/kategorie", api_kategorie, methods=["GET"]),
     Route("/api/zrodla", api_zrodla, methods=["GET"]),
     Route("/api/kolejka", api_kolejka, methods=["GET", "POST", "DELETE"]),
+    Route("/api/maile", api_maile, methods=["GET", "DELETE", "PATCH"]),
+    Route("/api/email/popraw", api_email_popraw, methods=["POST"]),
     # pamięć — bez tego cała praca ginęła po odświeżeniu strony
     Route("/api/firmy", api_firmy, methods=["GET"]),
     Route("/api/firmy/usun", api_firma_usun, methods=["POST"]),

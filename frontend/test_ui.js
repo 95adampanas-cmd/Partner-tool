@@ -40,7 +40,7 @@ const { window } = dom;
 window.fetch = (u) => Promise.resolve({
   json: () => Promise.resolve(u.includes("/api/firmy")
     ? { ok: true, firmy: FIRMY }
-    : { ok: true, kolumny: [], kategorie: [], kolejka: [] }),
+    : { ok: true, kolumny: [], kategorie: [], kolejka: [], maile: [] }),
 });
 window.scrollTo = () => {};
 
@@ -116,6 +116,10 @@ setTimeout(() => {
   nav("podobne", zKlientami ? "klient" : null);
   sprawdz("Podobne: lista firm wzorcowych niepusta",
     nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));
+
+  nav("maile");
+  sprawdz("Maile: sekcja pokazuje wybór firmy",
+    d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));
 
   nav("kolejka");
   sprawdz("Kolejka: sekcja renderuje pusty stan bez błędu",

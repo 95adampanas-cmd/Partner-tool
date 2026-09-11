@@ -245,6 +245,28 @@ button { font-family: var(--sans); }
 }
 .usun-z-kolejki:hover { color: var(--orange); background: var(--surface-2); }
 
+/* ── Moduł maili ── */
+.mail-akcje { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.mail-data { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-left: 10px; }
+.mail-draft.otwarty { border-color: rgba(240,78,42,.35); }
+/* Polecenie poprawki zostaje widoczne przy wersji — po tygodniu inaczej nie wiadomo,
+   czym ta wersja różni się od poprzedniej. */
+.mail-polecenie {
+  margin: 0 0 8px; padding: 7px 11px; border-left: 2px solid var(--orange);
+  background: var(--surface-2); color: var(--muted); font-size: 12.5px;
+}
+.mail-czat { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.mail-polecenie-input {
+  flex: 1; min-width: 220px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 13px;
+  color: var(--text); font-family: var(--sans); font-size: 13.5px; outline: none;
+}
+.mail-polecenie-input:focus { border-color: #3a3a42; }
+.mail-polecenie-input::placeholder { color: var(--faint); }
+/* Brak osoby decyzyjnej to informacja o JAKOŚCI maila, który powstanie — nie usterka. */
+.sim-opis.brak-osoby { color: var(--zolty); }
+
 .wynik:not(:empty) { margin-top: 26px; }
 
 /* Panel informacyjny / statystyki pod polem wejściowym */

@@ -95,6 +95,8 @@ function pokazSekcje(nazwa) {
     otwartaGrupa = null;   // numery grup należą do poprzedniej ścieżki
     podobneKategoria = null;
     filtrKategorii = null;
+    maileWybrana = null;
+    maileAktywny = null;
     trybPokazany = tryb;
   }
 
@@ -104,11 +106,13 @@ function pokazSekcje(nazwa) {
   if (nazwa === "podobne") renderPodobne();
   if (nazwa === "audyt") renderAudyt();
   if (nazwa === "kolejka") renderKolejke();
+  if (nazwa === "maile") renderMaile();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
   odswiezBadge("badge-firmy", firmyTrybu().length);
   odswiezBadge("badge-kolejka", kolejkaTrybu().length);
+  odswiezBadge("badge-maile", maileTrybu().length);
   odswiezBadge("badge-eksport",
     koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
   // Sekcje pozyskiwania są wspólne dla obu ścieżek, więc muszą powiedzieć,
@@ -411,6 +415,7 @@ function kolejkaTrybu() {
   return kolejka.filter((k) => (k.tryb || "partner") === tryb);
 }
 wczytajKolejke();
+wczytajMaile();
 
 async function dodajDoKolejki(firmy, zapytanie, zrodloNazwa) {
   const res = await fetch("/api/kolejka", {
@@ -827,6 +832,27 @@ document.addEventListener("click", (e) => {
   if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
   const usunK = e.target.closest(".usun-z-kolejki");
   if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest(".sim-row").dataset.url); }
+  const wybMail = e.target.closest(".wybierz-mail");
+  if (wybMail) { maileWybrana = wybMail.dataset.id; maileAktywny = null; return renderMaile(); }
+  if (e.target.closest(".zmien-mail-firme")) { maileWybrana = null; maileAktywny = null; return renderMaile(); }
+  const genW = e.target.closest(".generuj-warianty");
+  if (genW) return generujWarianty(genW);
+  const popr = e.target.closest(".popraw-mail");
+  if (popr) {
+    const id = Number(popr.closest(".mail-draft").dataset.mailId);
+    maileAktywny = maileAktywny === id ? null : id;
+    return renderMaile();
+  }
+  const wysl = e.target.closest(".wyslij-poprawke");
+  if (wysl) return wyslijPoprawke(wysl);
+  const oznW = e.target.closest(".oznacz-wyslany");
+  if (oznW) {
+    const d = oznW.closest(".mail-draft");
+    const m = maileLista.find((x) => x.id === Number(d.dataset.mailId));
+    return zmienStanMaila(Number(d.dataset.mailId), "PATCH", { wyslany: !(m && m.wyslany) });
+  }
+  const usM = e.target.closest(".usun-mail");
+  if (usM) { e.stopPropagation(); return zmienStanMaila(Number(usM.closest(".mail-draft").dataset.mailId), "DELETE", {}); }
   const dalej = e.target.closest(".szukaj-dalej");
   if (dalej) return szukajWgTagow(dalej, true);
 
@@ -1941,4 +1967,199 @@ async function dodajWszystkieDoKolejki(przycisk) {
   } finally {
     przycisk.disabled = false;
   }
+}
+
+// ══ MODUŁ: MAILE ══════════════════════════════════════════════════════
+// Osobna sekcja w „Pracy", a nie dodatek do karty firmy. Pisanie maila to własny
+// etap pracy: wybierasz firmę, generujesz warianty, poprawiasz je poleceniem
+// i wracasz do tego, co już napisałeś.
+//
+// Biblioteka trzyma KAŻDĄ wersję, nie tylko ostatnią. Poprawka bywa gorsza od
+// oryginału, a bez historii nie da się do niego wrócić — ta sama zasada, co przy
+// historii audytów.
+let maileWybrana = null;      // id firmy, do której piszemy
+let maileLista = [];          // biblioteka z bazy
+let maileAktywny = null;      // id wersji otwartej do poprawiania
+
+async function wczytajMaile() {
+  try {
+    const d = await (await fetch("/api/maile")).json();
+    maileLista = (d.ok && d.maile) || [];
+  } catch { maileLista = []; }
+  odswiezBadge("badge-maile", maileTrybu().length);
+}
+
+function maileTrybu() {
+  return maileLista.filter((m) => (m.tryb || "partner") === tryb);
+}
+
+function maileFirmy(url) {
+  return maileTrybu().filter((m) => m.url === url);
+}
+
+function renderMaile() {
+  const box = document.getElementById("maile-box");
+  if (!box) return;
+  const firmy = firmyTrybu();
+
+  if (!firmy.length) {
+    box.innerHTML = `<div class="pusto">
+      <svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Najpierw zbadaj jakąś firmę.<br><span>Mail piszemy na podstawie tego,
+        co wiemy z researchu — bez danych byłby ogólnikiem.</span></p></div>`;
+    return;
+  }
+
+  const wpis = firmy.find((t) => t.id === maileWybrana);
+
+  // ── Krok 1: wybór firmy ──
+  if (!wpis) {
+    const ile = (t) => maileFirmy(t.firma.url).length;
+    box.innerHTML = przelacznikTrybu(tabs) + `<div class="card">
+      <div class="mono"><span class="sq"></span> Do kogo piszemy</div>
+      <div class="similar-list">${firmy.map((t) => `
+        <div class="sim-row wybierz-mail" data-id="${t.id}">
+          <div class="sim-info">
+            <span class="sim-name">${esc(t.firma.nazwa)}${
+              ile(t) ? `<span class="tag-zbadana">${ile(t)} w bibliotece</span>` : ""}</span>
+            <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
+            ${t.firma.persona_imie && t.firma.persona_imie !== BRAK
+              ? `<span class="sim-opis">Osoba decyzyjna: ${esc(t.firma.persona_imie)}${
+                  t.firma.persona_stanowisko && t.firma.persona_stanowisko !== BRAK
+                    ? ` — ${esc(t.firma.persona_stanowisko)}` : ""}</span>`
+              : `<span class="sim-opis brak-osoby">Brak osoby decyzyjnej w danych — mail wyjdzie bezosobowy.</span>`}
+          </div>
+          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>`).join("")}</div>
+    </div>`;
+    return;
+  }
+
+  // ── Krok 2: warianty i biblioteka ──
+  const wersje = maileFirmy(wpis.firma.url);
+  box.innerHTML = `
+    <div class="card">
+      <div class="mono"><span class="sq"></span> Piszemy do</div>
+      <div class="wzor-head">
+        <div>
+          <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
+          <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
+        </div>
+        <button class="btn-lekki zmien-mail-firme" type="button">Zmień firmę</button>
+      </div>
+      <button class="akcja glowna generuj-warianty" type="button" style="margin-top:16px">
+        <svg class="ico sm"><use href="#i-mail"/></svg>${
+          wersje.length ? "Wygeneruj nowe warianty" : "Wygeneruj 3 warianty"}
+      </button>
+      ${wersje.length ? "" : `<p class="hint">Trzy style naraz: rzeczowy, partnerski, ekspercki.
+        Potem każdy da się poprawić poleceniem.</p>`}
+    </div>
+    <div id="maile-wynik"></div>
+    ${wersje.length ? bibliotekaHTML(wersje) : ""}`;
+}
+
+function bibliotekaHTML(wersje) {
+  return `<div class="card">
+    <div class="mono"><span class="sq"></span> Biblioteka (${wersje.length})</div>
+    <p class="hint">Każda wersja zostaje — także ta sprzed poprawki.</p>
+    ${wersje.map(mailHTML).join("")}
+  </div>`;
+}
+
+function mailHTML(m) {
+  const otwarty = maileAktywny === m.id;
+  return `<div class="mail-draft${otwarty ? " otwarty" : ""}" data-mail-id="${m.id}">
+    <div class="mail-head">
+      <span class="mail-styl">${esc(m.styl || "—")}</span>
+      ${m.wyslany ? `<span class="tag-zbadana">wysłany</span>` : ""}
+      <span class="mail-data">${esc((m.data || "").replace("T", " ").slice(0, 16))}</span>
+      <div class="mail-akcje">
+        <button class="kopiuj" type="button"><svg class="ico xs"><use href="#i-copy"/></svg>Kopiuj</button>
+        <button class="btn-lekki popraw-mail" type="button">
+          <svg class="ico xs"><use href="#i-arrow"/></svg>${otwarty ? "Zwiń" : "Popraw"}</button>
+        <button class="btn-lekki oznacz-wyslany" type="button" title="Narzędzie nie widzi Twojej skrzynki — zaznacz sam">
+          <svg class="ico xs"><use href="#i-check"/></svg>${m.wyslany ? "Cofnij" : "Wysłany"}</button>
+        <button class="usun-z-kolejki usun-mail" type="button" title="Usuń wersję">
+          <svg class="ico xs"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    ${m.polecenie ? `<p class="mail-polecenie">Poprawka: „${esc(m.polecenie)}"</p>` : ""}
+    <pre class="mail-tresc">${esc(m.tresc)}</pre>
+    ${otwarty ? `
+      <div class="mail-czat">
+        <input class="mail-polecenie-input" type="text" autocomplete="off"
+               placeholder="Co poprawić? np. „skróć do 3 zdań", „mniej formalnie", „dodaj pytanie na koniec"">
+        <button class="akcja glowna wyslij-poprawke" type="button">
+          <svg class="ico sm"><use href="#i-arrow"/></svg>Popraw
+        </button>
+      </div>
+      <p class="hint">Powstanie NOWA wersja — ta zostaje nietknięta.</p>` : ""}
+  </div>`;
+}
+
+async function generujWarianty(przycisk) {
+  const wpis = firmyTrybu().find((t) => t.id === maileWybrana);
+  if (!wpis) return;
+  const box = document.getElementById("maile-wynik");
+  const etykieta = przycisk.innerHTML;
+  przycisk.disabled = true;
+  przycisk.textContent = "Piszę… (~20 s)";
+  box.innerHTML = "";
+  try {
+    const res = await fetch("/api/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firma: wpis.firma, tryb }),
+    });
+    const d = await res.json();
+    if (!d.ok) { box.innerHTML = errorHTML(d.error); return; }
+    await wczytajMaile();
+    renderMaile();
+  } catch (e) {
+    box.innerHTML = errorHTML(e.message);
+  } finally {
+    przycisk.disabled = false;
+    przycisk.innerHTML = etykieta;
+  }
+}
+
+async function wyslijPoprawke(przycisk) {
+  const draft = przycisk.closest(".mail-draft");
+  const pole = draft.querySelector(".mail-polecenie-input");
+  const polecenie = (pole.value || "").trim();
+  if (!polecenie) { pole.focus(); return; }
+
+  const etykieta = przycisk.innerHTML;
+  przycisk.disabled = true;
+  przycisk.textContent = "Poprawiam…";
+  try {
+    const res = await fetch("/api/email/popraw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: Number(draft.dataset.mailId), polecenie }),
+    });
+    const d = await res.json();
+    if (!d.ok) {
+      draft.insertAdjacentHTML("beforeend", `<p class="sim-err">${esc(d.error)}</p>`);
+      return;
+    }
+    await wczytajMaile();
+    maileAktywny = d.mail.id;   // otwieramy nową wersję — na niej pracujemy dalej
+    renderMaile();
+  } catch (e) {
+    draft.insertAdjacentHTML("beforeend", `<p class="sim-err">${esc(e.message)}</p>`);
+  } finally {
+    przycisk.disabled = false;
+    przycisk.innerHTML = etykieta;
+  }
+}
+
+async function zmienStanMaila(id, akcja, dane) {
+  await fetch("/api/maile", {
+    method: akcja,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...dane }),
+  });
+  await wczytajMaile();
+  renderMaile();
 }

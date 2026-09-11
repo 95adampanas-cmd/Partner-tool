@@ -81,6 +81,10 @@
       <svg class="ico"><use href="#i-inbox"/></svg><span>Do zbadania</span>
       <em class="badge" id="badge-kolejka" hidden>0</em>
     </button>
+    <button class="nav-item" data-sekcja="maile">
+      <svg class="ico"><use href="#i-mail"/></svg><span>Maile</span>
+      <em class="badge" id="badge-maile" hidden>0</em>
+    </button>
     <button class="nav-item" data-sekcja="audyt">
       <svg class="ico"><use href="#i-chart"/></svg><span>Mikroaudyt</span>
     </button>
@@ -170,6 +174,15 @@
         z zapytaniem — tutaj zostają, dopóki ich nie zbadasz albo nie odrzucisz.</p>
     </header>
     <div id="kolejka-box"></div>
+  </section>
+
+  <section class="sekcja" data-sekcja="maile">
+    <header class="sekcja-head">
+      <h1>Maile</h1>
+      <p>Wybierz firmę, wygeneruj warianty, popraw je poleceniem. Każda wersja zostaje
+        w bibliotece — także ta, którą poprawiłeś i chcesz cofnąć.</p>
+    </header>
+    <div id="maile-box"></div>
   </section>
 
   <section class="sekcja" data-sekcja="audyt">

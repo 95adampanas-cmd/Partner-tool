@@ -116,6 +116,22 @@ def _utworz(db: sqlite3.Connection) -> None:
             dodana   TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_kolejka_tryb ON kolejka(tryb);
+
+        -- Biblioteka maili. Do tej pory draft żył tylko w przegladarce: zamkniecie
+        -- karty kasowalo go bezpowrotnie, a napisanie maila kosztuje tokeny i czas.
+        -- Trzymamy KAZDA wersje, nie tylko ostatnia — poprawianie w czacie ma sens
+        -- wtedy, gdy da sie wrocic do poprzedniej, gdy nowa wyjdzie gorzej.
+        CREATE TABLE IF NOT EXISTS maile (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            url      TEXT NOT NULL,          -- firma, do ktorej pisany
+            tryb     TEXT NOT NULL DEFAULT 'partner',
+            styl     TEXT,                   -- rzeczowy / partnerski / ekspercki / poprawiony
+            tresc    TEXT NOT NULL,
+            polecenie TEXT,                  -- co user kazal poprawic (puste przy pierwszej wersji)
+            wyslany  INTEGER NOT NULL DEFAULT 0,
+            data     TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_maile_url ON maile(url);
     """)
     db.commit()
 
@@ -265,4 +281,58 @@ def usun_z_kolejki(url: str) -> None:
     with _zamek:
         db = _polacz()
         db.execute("DELETE FROM kolejka WHERE url = ?", (url,))
+        db.commit()
+
+
+# ══════════════════════════════════════════════════════════════════
+#  MAILE — biblioteka draftow
+# ══════════════════════════════════════════════════════════════════
+def zapisz_mail(url: str, styl: str, tresc: str, tryb: str = "partner",
+                polecenie: str = "") -> int:
+    """Dopisuje wersje maila. Zwraca jej id — front potrzebuje go do poprawiania."""
+    with _zamek:
+        db = _polacz()
+        kur = db.execute(
+            "INSERT INTO maile (url, tryb, styl, tresc, polecenie, data) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (url, tryb, styl, tresc, polecenie, _teraz()))
+        db.commit()
+        return kur.lastrowid
+
+
+def maile(url: str | None = None, tryb: str | None = None, limit: int = 200) -> list[dict]:
+    """Najnowsze u gory — biblioteka sluzy do siegania po to, co wlasnie napisane."""
+    with _zamek:
+        db = _polacz()
+        warunki, param = [], []
+        if url:
+            warunki.append("url = ?"); param.append(url)
+        if tryb:
+            warunki.append("tryb = ?"); param.append(tryb)
+        gdzie = ("WHERE " + " AND ".join(warunki)) if warunki else ""
+        param.append(limit)
+        w = db.execute(f"SELECT * FROM maile {gdzie} ORDER BY id DESC LIMIT ?", param)
+        return [{**dict(r), "wyslany": bool(r["wyslany"])} for r in w.fetchall()]
+
+
+def mail(id_: int) -> dict | None:
+    with _zamek:
+        db = _polacz()
+        r = db.execute("SELECT * FROM maile WHERE id = ?", (id_,)).fetchone()
+        return {**dict(r), "wyslany": bool(r["wyslany"])} if r else None
+
+
+def oznacz_wyslany(id_: int, wyslany: bool = True) -> None:
+    """Zaznaczenie „wyslany" to jedyny slad, ze mail poszedl — narzedzie nie ma
+    dostepu do skrzynki i nie bedzie udawac, ze wie wiecej."""
+    with _zamek:
+        db = _polacz()
+        db.execute("UPDATE maile SET wyslany = ? WHERE id = ?", (1 if wyslany else 0, id_))
+        db.commit()
+
+
+def usun_mail(id_: int) -> None:
+    with _zamek:
+        db = _polacz()
+        db.execute("DELETE FROM maile WHERE id = ?", (id_,))
         db.commit()
