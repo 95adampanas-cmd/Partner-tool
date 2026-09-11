@@ -165,3 +165,40 @@ starcie. Zachowawczo: `konkurent = true` znaczyło „SEO jest rdzeniem", więc 
 na pewno ma. Ale `konkurent = false` NIE znaczyło „nie ma SEO" — tylko „to nie rdzeń".
 Takich firm nie da się zaklasyfikować ze starych danych, więc `seo_zakres` mówi wprost,
 że trzeba je zbadać ponownie, zamiast zmyślać odpowiedź.
+
+## 2026-09-11 — Dane finansowe firm: odpuszczone
+
+**Cel:** dołożyć do karty firmy przychód i zysk partnera.
+
+**Wynik: nie ma darmowego źródła programowego.** Sprawdzone sześć ścieżek, wszystkie
+empirycznie, nie z opisów:
+
+| Źródło | Wynik |
+|---|---|
+| KRS API (`api-krs.ms.gov.pl`) | tylko *wzmianki*, że sprawozdanie złożono — zero liczb |
+| RDF stary (`ekrs.ms.gov.pl/rdf`) | Incapsula, 1160 bajtów wyzwania zamiast treści |
+| RDF nowy (`rdf-przegladarka.ms.gov.pl`) | Incapsula, to samo |
+| Biała lista VAT (`wl-api.mf.gov.pl`) | działa i jest darmowa, ale finansów nie ma |
+| `dane.gov.pl` | tylko sprawozdania funduszy publicznych, nie spółek |
+| OpenAPI portalu PRS | host wewnętrzny ministerstwa, nieosiągalny z zewnątrz |
+
+**Dlaczego jawne dane nie są dostępne maszynowo.** Sprawozdania leżą w RDF jako
+załączniki: XML w trzech schematach (mikro, małe, pełne) plus stare skany PDF.
+Wyciągnięcie z tego liczby „przychód" wymaga pobrania i sparsowania — i to jest
+dokładnie produkt, który sprzedaje BizRaport. Płaci się im za parsowanie, nie za dane.
+
+**Dlaczego nie scrapujemy.** Incapsula to postawione zabezpieczenie, nie niewygodny
+interfejs — jej obejście to inna kategoria niż czytanie otwartej strony, a mówimy
+o systemie Ministerstwa Sprawiedliwości. Ten sam argument, co przy LinkedIn w PRD
+i przy Mapach Google we wrześniu.
+
+**Dlaczego nie płacimy.** Nie ustaliliśmy, czy przychód partnera w ogóle zmienia
+decyzję o kontakcie. Dopóki na to nie ma odpowiedzi, abonament kupuje kolumnę w CSV,
+nie zmianę w procesie.
+
+**Gdyby wrócić do tematu:** najpierw sprawdzić RĘCZNIE na pięciu firmach
+(przeglądarka RDF jest bezpłatna i wpuszcza człowieka), czy liczba wpływa na decyzję.
+Dopiero potem BizRaport — 100 zapytań testowych bez karty.
+
+**Zostaje za darmo z KRS:** regularność składania sprawozdań, rok wpisu i kapitał
+zakładowy. To nie przychód, ale mówi coś o kondycji i nic nie kosztuje.
