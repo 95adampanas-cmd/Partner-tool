@@ -38,6 +38,7 @@ from agents import Agent, Runner, WebSearchTool
 import audyt
 import baza
 import mapy
+import krs as krs_api
 import dfs
 import geo
 import seranking
@@ -86,6 +87,8 @@ class Firma(BaseModel):
     email: str                   # ogólny kontakt firmowy
     nazwa_prawna: str            # pełna nazwa spółki (np. "Grupa X sp. z o.o.")
     nip: str
+    krs: str                     # numer KRS ze stron prawnych; otwiera oficjalny rejestr
+    regon: str
     adres: str                   # ulica + kod pocztowy
     miasto: str
     persona_imie: str            # osoba decyzyjna: imię i nazwisko
@@ -116,8 +119,24 @@ GRUPY_PODSTRON = (
     ("oferta", "uslugi", "usługi", "services"),                 # usługi
 )
 
-# wpisy blogowe/newsy zjadają limit znaków, a rzadko mają dane o firmie
-POMIJAJ = ("/blog", "/aktualnosci", "/news", "/polityka", "/regulamin")
+# Wpisy blogowe i newsy zjadają limit znaków, a rzadko mają dane o firmie.
+# UWAGA: regulaminu i polityki prywatności NIE pomijamy, choć kiedyś były na tej
+# liście. To był błąd kosztujący realne dane — polskie prawo wymaga podania tam
+# pełnej nazwy, NIP-u, KRS-u i adresu rejestrowego, więc to często JEDYNE miejsce
+# w serwisie, gdzie te dane w ogóle są. Zmierzone: NIP brakował w 6 z 10 firm,
+# a u Devisu i widoczni leżał właśnie w polityce prywatności.
+POMIJAJ = ("/blog", "/aktualnosci", "/news", "/aktualnosc", "/wpis")
+
+# Strony z danymi rejestrowymi. Traktujemy je INACZEJ niż zwykłe podstrony:
+# nie wrzucamy całej treści do LLM, bo to kilkanaście tysięcy znaków prawniczej
+# formuły, która zjadłaby limit. Wyciągamy z nich sam blok rejestrowy regexem.
+SCIEZKI_PRAWNE = ("polityka", "regulamin", "privacy", "prywatnosc", "prywatność",
+                  "terms", "legal", "rodo", "impressum")
+
+# NIP bywa zapisany z myślnikami i spacjami; KRS zawsze ma 10 cyfr.
+RE_NIP = re.compile(r"\bNIP[:\s]*((?:PL)?[\s-]?[0-9](?:[\s-]?[0-9]){9})", re.I)
+RE_KRS = re.compile(r"\bKRS[:\s]*([0-9]{10})\b", re.I)
+RE_REGON = re.compile(r"\bREGON[:\s]*([0-9]{9}(?:[0-9]{5})?)\b", re.I)
 
 MAX_PODSTRON = 4
 LIMIT_ZNAKOW = 12000
@@ -175,6 +194,52 @@ def znajdz_podstrony(html: str, base_url: str) -> list[str]:
     return wybrane[:MAX_PODSTRON]
 
 
+def dane_rejestrowe(html: str, base_url: str) -> tuple[str, list[str]]:
+    """Wyciąga NIP, KRS i REGON ze stron prawnych. Zwraca (blok tekstu, odwiedzone).
+
+    Osobna funkcja, a nie kolejna podstrona w scrape_firme, bo te strony traktujemy
+    INACZEJ. Regulamin potrafi mieć kilkanaście tysięcy znaków prawniczej formuły —
+    wrzucony w całości zjadłby limit, który ma iść na opis usług. Bierzemy z nich
+    wyłącznie linijkę z numerami.
+
+    Po co w ogóle: polskie prawo wymaga podania na tych stronach pełnej nazwy, NIP-u
+    i adresu rejestrowego, więc bywa to JEDYNE miejsce w serwisie, gdzie te dane są.
+    Zmierzone na 10 partnerach: NIP brakował w 6, a u Devisu i widoczni leżał
+    właśnie w polityce prywatności — której scraper wcześniej celowo NIE odwiedzał.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    wlasna = urlparse(base_url).netloc.lower().removeprefix("www.")
+
+    kandydaci = []
+    for a in soup.find_all("a", href=True):
+        pelny = urljoin(base_url, a["href"]).split("#")[0].split("?")[0]
+        if urlparse(pelny).netloc.lower().removeprefix("www.") != wlasna:
+            continue
+        sciezka = urlparse(pelny).path.lower()
+        if any(w in sciezka for w in SCIEZKI_PRAWNE) and pelny not in kandydaci:
+            kandydaci.append(pelny)
+
+    znalezione, odwiedzone = {}, []
+    for adres in kandydaci[:3]:          # trzy strony wystarczą, dalej są powtórki
+        h = pobierz(adres)
+        if not h:
+            continue
+        tekst = tekst_ze_strony(h)
+        odwiedzone.append(adres)
+        for nazwa, wzor in (("NIP", RE_NIP), ("KRS", RE_KRS), ("REGON", RE_REGON)):
+            if nazwa not in znalezione:
+                m = wzor.search(tekst)
+                if m:
+                    znalezione[nazwa] = " ".join(m.group(1).split())
+        if len(znalezione) == 3:         # komplet — nie ma po co czytać dalej
+            break
+
+    if not znalezione:
+        return "", odwiedzone
+    linie = ", ".join(f"{k}: {v}" for k, v in znalezione.items())
+    return f"[DANE REJESTROWE ZE STRON PRAWNYCH]\n{linie}", odwiedzone
+
+
 def scrape_firme(url: str) -> tuple[str, list[str]]:
     """Zwraca (tekst ze strony głównej + podstron, lista odwiedzonych URL-i)."""
     html = pobierz(url)
@@ -187,7 +252,16 @@ def scrape_firme(url: str) -> tuple[str, list[str]]:
         if h:
             czesci.append(f"[PODSTRONA: {pod}]\n{tekst_ze_strony(h)}")
             odwiedzone.append(pod)
-    return "\n\n".join(czesci)[:LIMIT_ZNAKOW], odwiedzone
+
+    # Numery rejestrowe dokładamy NA KOŃCU i po obcięciu limitu, żeby długa oferta
+    # nigdy ich nie wypchnęła. To kilkadziesiąt znaków, a decyduje o tym, czy
+    # rekord w Pipedrive ma NIP.
+    tresc = "\n\n".join(czesci)[:LIMIT_ZNAKOW]
+    blok, prawne = dane_rejestrowe(html, url)
+    if blok:
+        tresc += "\n\n" + blok
+        odwiedzone += prawne
+    return tresc, odwiedzone
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -553,6 +627,9 @@ KOLUMNY = [
     ("Website", "url"),
     ("Nazwa prawna", "nazwa_prawna"),
     ("NIP", "nip"),
+    ("KRS", "krs"),
+    ("REGON", "regon"),
+    ("PKD", "pkd"),
     ("Address", "adres"),
     ("City", "miasto"),
     ("Branza", "branza"),
@@ -628,6 +705,11 @@ OSOBA DECYZYJNA (persona_*) — to ma być KONKRETNY CZŁOWIEK do kontaktu, nie 
 Kogo wybrać: osobę NAJWYŻEJ w hierarchii (właściciel/CEO/founder przed managerem).
 Szukaj w sekcjach "o nas", "zespół", "kontakt". Jeśli nikt nie jest wymieniony z nazwiska
 — wszystkie pola persona_* to "{BRAK}". NIE zgaduj i NIE wymyślaj nazwisk.
+
+NUMERY REJESTROWE. Blok „[DANE REJESTROWE ZE STRON PRAWNYCH]" na końcu tekstu
+pochodzi z regulaminu albo polityki prywatności firmy. Jeśli tam są NIP, KRS lub REGON,
+przepisz je do odpowiednich pól — to źródło pewniejsze niż stopka strony.
+KRS to dokładnie 10 cyfr. Gdy któregoś numeru nie ma, wpisz "{BRAK}".
 
 SEO W OFERCIE — ustalasz FAKT, nie wydajesz osądu.
 
@@ -907,6 +989,34 @@ async def api_research(request):
         firma["url"] = url
         firma["zrodlo_danych"] = odwiedzone
         # ścieżka, w której firma została zbadana — „Praca" rozdziela po niej listy
+        # Oficjalny odpis z KRS, jeśli udało się wyłuskać numer ze stron prawnych.
+        # UZUPEŁNIAMY tylko braki — danych, które scraper zdobył, nie nadpisujemy
+        # po cichu. Rejestr bywa wprawdzie dokładniejszy, ale ciche podmienianie
+        # tego, co user widział na karcie, to dokładnie ta klasa błędu, na której
+        # przejechaliśmy się już przy ma_seo.
+        firma["zrodlo_krs"] = ""
+        numer = krs_api.poprawny_numer(firma.get("krs") or "")
+        if numer:
+            try:
+                o = await asyncio.to_thread(krs_api.odpis, numer)
+            except krs_api.BladKRS as e:
+                o = None
+                print(f"[krs] {numer}: {e}")
+            if o:
+                uzupelnione = []
+                for pole in ("nazwa_prawna", "nip", "regon", "adres", "miasto"):
+                    obecne = (firma.get(pole) or BRAK).strip()
+                    if obecne in ("", BRAK) and o.get(pole):
+                        firma[pole] = o[pole]
+                        uzupelnione.append(pole)
+                firma["krs"] = o["krs"]
+                if o.get("pkd"):
+                    firma["pkd"] = o["pkd"]
+                firma["zrodlo_krs"] = (
+                    f"KRS {o['krs']}, wpis {o['data_rejestracji']}"
+                    + (f" — uzupełniono: {', '.join(uzupelnione)}" if uzupelnione
+                       else " — dane ze strony były kompletne"))
+
         firma["tryb"] = (body.get("tryb") or "partner").lower()
 
         # Nieudany research NIE MOŻE nadpisać dobrego rekordu. Brantt.pl miał
