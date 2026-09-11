@@ -33,7 +33,7 @@ from starlette.staticfiles import StaticFiles
 import requests
 from bs4 import BeautifulSoup
 from tavily import TavilyClient
-from agents import Agent, Runner, WebSearchTool
+from agents import Agent, Runner, WebSearchTool, function_tool
 
 import audyt
 import baza
@@ -932,6 +932,66 @@ STYLE_MAILI = [
 # Poprawianie gotowego maila. Osobny agent, bo zadanie jest inne niz pisanie od zera:
 # dostaje TEKST, który ma zachować, i jedno polecenie. Agent od pisania dostałby tu
 # dane firmy i zaczął od nowa — a user chce poprawki, nie nowego maila.
+# ══════════════════════════════════════════════════════════════════════
+#  CZAT DO POGŁĘBIENIA RESEARCHU
+# ══════════════════════════════════════════════════════════════════════
+# Research jest jednorazowy: odwiedza 4-5 podstron i tnie do 12 tys. znaków.
+# Pytanie „czy oni robią B2B?" zwykle NIE MA odpowiedzi w tym, co zebraliśmy —
+# czat nad samą kartą firmy odpowiadałby „nie wiem" na większość sensownych pytań.
+#
+# Dlatego agent dostaje narzędzie do dociągania podstron W TRAKCIE rozmowy.
+# Odpowiedź pochodzi wtedy ze strony firmy, a nie z tego, co model pamięta
+# o branży — i da się pokazać, skąd.
+
+# Domena badanej firmy. Ustawiana przed każdą rozmową, czytana przez narzędzie.
+# Prosta zmienna wystarcza: serwer obsługuje jednego użytkownika, a rozmowa jest
+# jednym żądaniem — nie ma dwóch czatów naraz.
+_czat_domena = ""
+
+
+@function_tool
+def otworz_podstrone(adres: str) -> str:
+    """Pobiera treść podstrony z serwisu badanej firmy.
+
+    Args:
+        adres: pełny URL albo sama ścieżka, np. "/oferta" lub "https://firma.pl/oferta".
+    """
+    if not _czat_domena:
+        return "Brak kontekstu firmy."
+    pelny = adres if adres.lower().startswith("http") else urljoin("https://" + _czat_domena, adres)
+    # TWARDE ograniczenie do domeny firmy. Bez tego narzędzie staje się otwartym
+    # proxy: model mógłby na życzenie pobrać dowolny adres w internecie, a żądanie
+    # wyszłoby z naszego serwera i z naszego IP.
+    if domena_z_url(pelny) != _czat_domena:
+        return f"Odmowa: {pelny} jest poza domeną {_czat_domena}."
+    html = pobierz(pelny)
+    if not html:
+        return f"Nie udało się pobrać {pelny} (blokada bota albo strona nie istnieje)."
+    return f"[TREŚĆ {pelny}]" + _NOWA_LINIA + tekst_ze_strony(html)[:6000]
+
+
+agent_czat = Agent(
+    name="czat-research",
+    instructions=(
+        "Odpowiadasz na pytania o KONKRETNĄ firmę, na podstawie jej strony." + _NOWA_LINIA +
+        "Masz dane z researchu oraz narzędzie otworz_podstrone do dociągania podstron." + _NOWA_LINIA +
+        _NOWA_LINIA +
+        "ZASADY:" + _NOWA_LINIA +
+        "- Gdy odpowiedzi nie ma w danych z researchu, SPRÓBUJ otworzyć podstronę, "
+        "która może ją mieć (/oferta, /uslugi, /b2b, /cennik, /realizacje, /kontakt)." + _NOWA_LINIA +
+        "- Odpowiadaj TYLKO na podstawie tego, co przeczytałeś. Nie uzupełniaj "
+        "wiedzą o branży ani domysłami o tym, jak zwykle bywa." + _NOWA_LINIA +
+        "- Gdy po sprawdzeniu nadal nie wiesz, napisz wprost: czego szukałeś, gdzie, "
+        "i że tego nie ma. To jest pełnoprawna odpowiedź, nie porażka." + _NOWA_LINIA +
+        "- Podaj, z której podstrony pochodzi odpowiedź." + _NOWA_LINIA +
+        "- Pisz zwiezle i po polsku. Bez wstepow w rodzaju: oczywiscie, sprawdze."
+    ),
+    tools=[otworz_podstrone],
+    model=MODEL,
+)
+
+
+
 agent_poprawka = Agent(
     name="poprawka-maila",
     instructions=(
@@ -1563,6 +1623,66 @@ async def api_audyty(request):
     return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
 
 
+async def api_czat(request):
+    """Pytanie o zbadaną firmę. Agent może dociągnąć podstrony jej serwisu.
+
+    Historia rozmowy przychodzi z frontu i NIE jest zapisywana w bazie: to
+    narzędzie pracy nad jedną firmą, nie komunikator. Gdyby okazało się, że
+    wnioski z rozmów są warte zachowania, dołożymy tabelę — ale nie zakładamy
+    tego z góry.
+    """
+    global _czat_domena
+    try:
+        body = await request.json()
+        firma = body.get("firma") or {}
+        pytanie = (body.get("pytanie") or "").strip()
+        historia = body.get("historia") or []
+        if not pytanie:
+            return JSONResponse({"ok": False, "error": "Zadaj pytanie."})
+
+        _czat_domena = domena_z_url(firma.get("url") or "")
+        if not _czat_domena:
+            return JSONResponse({"ok": False, "error": "Firma bez adresu strony."})
+
+        # Karta firmy jako punkt wyjścia — bez niej agent zaczynałby od zera
+        # i dociągał podstrony, które już mamy.
+        karta = {k: v for k, v in firma.items()
+                 if k in ("nazwa", "branza", "opis", "uslugi", "case_studies",
+                          "wielkosc_zespolu", "miasto", "ma_seo", "seo_zakres")}
+        wejscie = ("FIRMA: " + (firma.get("url") or "") + _NOWA_LINIA
+                   + "DANE Z RESEARCHU: " + str(karta) + _NOWA_LINIA + _NOWA_LINIA)
+        for w in historia[-6:]:          # sześć ostatnich wystarczy na sensowny wątek
+            rola = "PYTANIE" if w.get("rola") == "user" else "ODPOWIEDZ"
+            wejscie += rola + ": " + str(w.get("tresc") or "")[:1500] + _NOWA_LINIA
+        wejscie += "PYTANIE: " + pytanie
+
+        w = await Runner.run(agent_czat, wejscie)
+
+        # Które podstrony agent naprawdę otworzył — user ma widzieć źródło,
+        # a nie ufać, że model gdzieś zajrzał.
+        #
+        # Wynik narzędzia przychodzi jako SŁOWNIK, nie obiekt. Pierwsza wersja
+        # czytała go przez getattr(raw_item, "output") i zawsze dostawała pustkę —
+        # odpowiedzi wyglądały poprawnie, ale lista źródeł była pusta mimo czterech
+        # otwartych podstron. Obsługujemy oba kształty.
+        odwiedzone = []
+        for item in w.new_items:
+            surowy = getattr(item, "raw_item", None)
+            if isinstance(surowy, dict):
+                tresc = str(surowy.get("output") or "")
+            else:
+                tresc = str(getattr(surowy, "output", "") or "")
+            for m in re.findall(r"\[TREŚĆ (https?://[^\]]+)\]", tresc):
+                if m not in odwiedzone:
+                    odwiedzone.append(m)
+
+        return JSONResponse({"ok": True, "odpowiedz": str(w.final_output or ""),
+                             "zrodla": odwiedzone})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+
 async def api_maile(request):
     """Biblioteka maili. GET lista, DELETE usuwa jedną wersję, PATCH oznacza wysłany.
 
@@ -1690,6 +1810,7 @@ app = Starlette(routes=[
     Route("/api/zrodla", api_zrodla, methods=["GET"]),
     Route("/api/kolejka", api_kolejka, methods=["GET", "POST", "DELETE"]),
     Route("/api/maile", api_maile, methods=["GET", "DELETE", "PATCH"]),
+    Route("/api/czat", api_czat, methods=["POST"]),
     Route("/api/email/popraw", api_email_popraw, methods=["POST"]),
     # pamięć — bez tego cała praca ginęła po odświeżeniu strony
     Route("/api/firmy", api_firmy, methods=["GET"]),

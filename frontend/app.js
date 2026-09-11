@@ -712,6 +712,19 @@ function panelHTML(id, f) {
       </div>
     </div>
     <div class="mail-box"></div>
+    <div class="card czat-karta">
+      <div class="mono"><span class="sq"></span> Dopytaj o tę firmę</div>
+      <p class="hint">Research odwiedza kilka podstron. Tu możesz dopytać o resztę —
+        agent doczyta z ich serwisu i pokaże, z której strony wziął odpowiedź.</p>
+      <div class="czat-watek"></div>
+      <div class="mail-czat">
+        <input class="czat-pytanie" type="text" autocomplete="off"
+               placeholder="np. czy obsługują B2B? jakie mają technologie? kto jest klientem?">
+        <button class="akcja glowna czat-wyslij" type="button">
+          <svg class="ico sm"><use href="#i-arrow"/></svg>Zapytaj
+        </button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -853,6 +866,8 @@ document.addEventListener("click", (e) => {
   if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
   const usunK = e.target.closest(".usun-z-kolejki");
   if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest(".sim-row").dataset.url); }
+  const czatB = e.target.closest(".czat-wyslij");
+  if (czatB) return czatZapytaj(czatB);
   const zrPod = e.target.closest("[data-zrodlo-podobne]");
   if (zrPod) { zrodloPodobne = zrPod.dataset.zrodloPodobne; return renderPodobne(); }
   const zbZazn = e.target.closest(".zbadaj-zaznaczone");
@@ -2274,4 +2289,59 @@ async function zbadajZaznaczone(przycisk) {
     ${nieudane ? `<p class="hint">Nieudane zostają w kolejce — najczęściej strona blokuje
       bota albo nie odpowiada. Spróbuj pojedynczo później.</p>` : ""}
   </div>`;
+}
+
+
+// ══ CZAT DO POGŁĘBIENIA RESEARCHU ═════════════════════════════════════
+// Historia trzymana w pamięci przeglądarki, per firma. Świadomie NIE w bazie:
+// to narzędzie pracy nad jedną firmą, nie komunikator. Gdyby wnioski z rozmów
+// okazały się warte zachowania, dołożymy tabelę — ale nie zakładamy tego z góry.
+const czatHistoria = new Map();   // url firmy -> [{rola, tresc, zrodla}]
+
+async function czatZapytaj(przycisk) {
+  const panel = przycisk.closest(".panel");
+  const pole = panel.querySelector(".czat-pytanie");
+  const watek = panel.querySelector(".czat-watek");
+  const pytanie = (pole.value || "").trim();
+  if (!pytanie) { pole.focus(); return; }
+
+  const firma = firmaZPanelu(panel);
+  const klucz = firma.url;
+  const hist = czatHistoria.get(klucz) || [];
+  hist.push({ rola: "user", tresc: pytanie });
+  czatHistoria.set(klucz, hist);
+  pole.value = "";
+  rysujCzat(watek, hist, true);
+
+  przycisk.disabled = true;
+  try {
+    const res = await fetch("/api/czat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firma, pytanie, historia: hist.slice(0, -1) }),
+    });
+    const d = await res.json();
+    hist.push(d.ok
+      ? { rola: "agent", tresc: d.odpowiedz, zrodla: d.zrodla || [] }
+      : { rola: "agent", tresc: "Nie udało się: " + d.error, blad: true });
+  } catch (e) {
+    hist.push({ rola: "agent", tresc: "Nie udało się: " + e.message, blad: true });
+  } finally {
+    czatHistoria.set(klucz, hist);
+    rysujCzat(watek, hist, false);
+    przycisk.disabled = false;
+  }
+}
+
+function rysujCzat(watek, hist, czeka) {
+  watek.innerHTML = hist.map((w) => w.rola === "user"
+    ? `<div class="czat-pytanie-wiersz">${esc(w.tresc)}</div>`
+    : `<div class="czat-odpowiedz${w.blad ? " blad" : ""}">
+         <pre>${esc(w.tresc)}</pre>
+         ${(w.zrodla || []).length ? `<div class="czat-zrodla">
+           ${w.zrodla.map((u) => `<a href="${escAttr(u)}" target="_blank" rel="noopener">${esc(hostname(u) + new URL(u).pathname)}</a>`).join("")}
+         </div>` : ""}
+       </div>`).join("")
+    + (czeka ? `<div class="czat-odpowiedz czeka"><pre>Czytam ich stronę…</pre></div>` : "");
+  watek.scrollTop = watek.scrollHeight;
 }
