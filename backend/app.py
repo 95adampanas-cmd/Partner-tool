@@ -1361,7 +1361,14 @@ async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "",
                                  pomin: set | None = None) -> dict:
     """Filtr + deduplikacja + kontrola żywotności.
     Osobno od pobierania, bo Tryb B scala wyniki z kilku zapytań naraz."""
-    firmy = filtruj_firmy(wyniki, wlasna_domena, limit=18, pomin=pomin)
+    # Limit dobrany do tego, ile realnie potrafi przyjść: Mapy oddają do 60 firm
+    # na zapytanie (3 strony po 20), z czego część bez strony WWW odpada wcześniej.
+    #
+    # Wcześniej stały tu DWA ścięcia jedno po drugim — limit=18, a potem [:12] przy
+    # zwracaniu. Z 40 firm z Map do użytkownika docierało 12, a UI pisało
+    # „ZNALEZIONE FIRMY (12)", jakby tyle właśnie było. Płaciliśmy Google za wyniki,
+    # które sami wyrzucaliśmy do kosza, i to bez śladu.
+    firmy = filtruj_firmy(wyniki, wlasna_domena, limit=60, pomin=pomin)
 
     def sprawdz_wszystkie():
         with ThreadPoolExecutor(max_workers=12) as pool:
@@ -1392,10 +1399,13 @@ async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "",
             f["zbadana_tryb"] = gdzie   # bywa, że w DRUGIEJ ścieżce — to też trzeba wiedzieć
         zostaja.append(f)
 
+    # Zwracamy WSZYSTKO, co przeżyło. Liczniki też liczymy z całości — inaczej
+    # „3 już masz" znaczyłoby „3 wśród pierwszych dwunastu", czyli co innego niż
+    # sugeruje etykieta.
     return {
-        "firmy": zostaja[:12],
-        "z_seo": sum(1 for f in zostaja[:12] if f.get("ma_seo")),
-        "juz_zbadane": sum(1 for f in zostaja[:12] if f.get("zbadana")),
+        "firmy": zostaja,
+        "z_seo": sum(1 for f in zostaja if f.get("ma_seo")),
+        "juz_zbadane": sum(1 for f in zostaja if f.get("zbadana")),
         "odsiane_martwe": stany.count("martwa"),
     }
 
@@ -1426,7 +1436,11 @@ async def api_szukaj(request):
                 return JSONResponse({"ok": False, "error":
                     "Brak GOOGLE_MAPS_API_KEY w .env — wyszukiwanie po Mapach wyłączone."})
             try:
-                z_map = await asyncio.to_thread(mapy.szukaj, branza, miasto)
+                # Trzy strony, bo tyle wynosi sufit API: Google przestaje oddawać
+                # nextPageToken po 60 firmach, niezależnie od wielkości rynku.
+                # Zmierzone: Warszawa 60, Leszno 60, Wielkopolska 60. Braliśmy dwie,
+                # czyli dwie trzecie tego, co i tak jesteśmy w stanie dostać.
+                z_map = await asyncio.to_thread(mapy.szukaj, branza, miasto, 3)
             except mapy.BladMap as e:
                 return JSONResponse({"ok": False, "error": str(e)})
 

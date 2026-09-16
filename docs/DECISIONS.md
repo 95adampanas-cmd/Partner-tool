@@ -416,3 +416,44 @@ bez nazw generycznych.
 **Lekcja:** zanim poprawisz prompt, sprawdź, co model dostaje na wejściu. Instrukcja
 „czytaj z menu usług" była niewykonalna, bo menu nie było w danych — a wyglądała
 sensownie i przeszłaby każdy przegląd kodu.
+
+---
+
+## Dwa ciche ścięcia wyników wyszukiwania
+*16.09.2026*
+
+Użytkownik dostawał 12 firm i nagłówek „ZNALEZIONE FIRMY (12)", który sugerował, że
+tyle właśnie znaleziono. Naprawdę znajdowaliśmy znacznie więcej i wyrzucaliśmy resztę
+w dwóch miejscach, jedno po drugim:
+
+```
+filtruj_firmy(..., limit=18)   →   zostaja[:12]
+```
+
+Przy Mapach wyglądało to tak: Google oddaje 40 firm (2 strony po 20), 7 odpada bez
+strony WWW, zostaje 33 — ścinamy do 18, sprawdzamy żywotność (czyli **płacimy 18
+żądań HTTP**), po czym zostawiamy 12. Dwadzieścia jeden firm, za które zapłaciliśmy
+Google, szło do kosza bez śladu w interfejsie.
+
+**Naprawa:** limit filtra podniesiony do 60 (tyle wynosi sufit Map), drugie ścięcie
+usunięte. Liczniki liczymy teraz z całości — wcześniej „3 już masz" znaczyło „3 wśród
+pierwszych dwunastu", czyli co innego, niż mówiła etykieta.
+
+**Przy okazji: braliśmy z Map dwie trzecie tego, co się da.** W kodzie stało `stron=2`,
+a sufit API to trzy strony. Zmierzone na trzech zapytaniach — Warszawa 60, Leszno 60,
+Wielkopolska 60 — Google przestaje oddawać `nextPageToken` po 60 firmach niezależnie
+od wielkości rynku. Jedno dodatkowe płatne zapytanie daje 50% więcej firm.
+
+**Efekt na „agencja interaktywna / Leszno":**
+
+| źródło | przed | po |
+|---|---|---|
+| Mapy | 12 | **43** |
+| Wyszukiwarka | 12 | **31** |
+
+Czas wzrósł z 10 do 13 sekund — tyle kosztuje sprawdzenie żywotności większej liczby
+stron. Warte tego.
+
+**Lekcja:** limit dopisany „na wszelki wypadek" przy jednej ścieżce zostaje na zawsze
+i staje się niewidzialnym sufitem produktu. Ten kosztował nas 2/3 wyników z płatnego
+API i nie zgłaszał się niczym — bo interfejs uczciwie pokazywał to, co dostał.
