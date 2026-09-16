@@ -81,6 +81,9 @@
       <svg class="ico"><use href="#i-inbox"/></svg><span>Do zbadania</span>
       <em class="badge" id="badge-kolejka" hidden>0</em>
     </button>
+    <button class="nav-item" data-sekcja="rozmowa">
+      <svg class="ico"><use href="#i-search"/></svg><span>Rozmowa</span>
+    </button>
     <button class="nav-item" data-sekcja="maile">
       <svg class="ico"><use href="#i-mail"/></svg><span>Maile</span>
       <em class="badge" id="badge-maile" hidden>0</em>
@@ -174,6 +177,15 @@
         z zapytaniem — tutaj zostają, dopóki ich nie zbadasz albo nie odrzucisz.</p>
     </header>
     <div id="kolejka-box"></div>
+  </section>
+
+  <section class="sekcja" data-sekcja="rozmowa">
+    <header class="sekcja-head">
+      <h1>Rozmowa o firmie</h1>
+      <p>Research odwiedza kilka podstron i wyciąga 22 pola. Tu dopytujesz o resztę —
+        agent doczyta z ich serwisu i pokaże, z której strony wziął odpowiedź.</p>
+    </header>
+    <div id="rozmowa-box"></div>
   </section>
 
   <section class="sekcja" data-sekcja="maile">

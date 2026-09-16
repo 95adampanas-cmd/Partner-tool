@@ -136,6 +136,20 @@ setTimeout(() => {
   sprawdz("Podobne: lista firm wzorcowych niepusta",
     nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));
 
+  nav("rozmowa");
+  sprawdz("Rozmowa: sekcja pokazuje wybór firmy",
+    d.getElementById("rozmowa-box").innerHTML.includes("O której firmie rozmawiamy"));
+  klik(d.querySelector("#rozmowa-box .sim-row button"));
+  sprawdz("Rozmowa: po wyborze firmy jest pole pytania",
+    !!d.querySelector("#rozmowa-box .czat-pytanie"));
+  sprawdz("Rozmowa: jest przycisk Zapytaj",
+    !!d.querySelector("#rozmowa-box .czat-wyslij"));
+  // Czat ma zyc w JEDNYM miejscu. Gdyby zostal tez w karcie firmy, dwa watki
+  // o tej samej firmie rozjechalyby sie bez sladu.
+  nav("firmy");
+  sprawdz("Rozmowa: czatu NIE ma juz w karcie firmy",
+    !d.querySelector(".panel .czat-karta"));
+
   nav("maile");
   sprawdz("Maile: sekcja pokazuje wybór firmy",
     d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));

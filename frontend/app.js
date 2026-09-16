@@ -107,6 +107,7 @@ function pokazSekcje(nazwa) {
   if (nazwa === "audyt") renderAudyt();
   if (nazwa === "kolejka") renderKolejke();
   if (nazwa === "maile") renderMaile();
+  if (nazwa === "rozmowa") renderRozmowa();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
@@ -712,19 +713,6 @@ function panelHTML(id, f) {
       </div>
     </div>
     <div class="mail-box"></div>
-    <div class="card czat-karta">
-      <div class="mono"><span class="sq"></span> Dopytaj o tę firmę</div>
-      <p class="hint">Research odwiedza kilka podstron. Tu możesz dopytać o resztę —
-        agent doczyta z ich serwisu i pokaże, z której strony wziął odpowiedź.</p>
-      <div class="czat-watek"></div>
-      <div class="mail-czat">
-        <input class="czat-pytanie" type="text" autocomplete="off"
-               placeholder="np. czy obsługują B2B? jakie mają technologie? kto jest klientem?">
-        <button class="akcja glowna czat-wyslij" type="button">
-          <svg class="ico sm"><use href="#i-arrow"/></svg>Zapytaj
-        </button>
-      </div>
-    </div>
   </div>`;
 }
 
@@ -906,6 +894,10 @@ document.addEventListener("click", (e) => {
   if (usM) { e.stopPropagation(); return zmienStanMaila(Number(usM.closest(".mail-draft").dataset.mailId), "DELETE", {}); }
   const dalej = e.target.closest(".szukaj-dalej");
   if (dalej) return szukajWgTagow(dalej, true);
+
+  const wr = e.target.closest(".wybierz-rozmowe");
+  if (wr) { rozmowaWybrana = wr.dataset.id; return renderRozmowa(); }
+  if (e.target.closest(".zmien-rozmowe-firme")) { rozmowaWybrana = null; return renderRozmowa(); }
 
   const wa = e.target.closest(".wybierz-audyt");
   if (wa) { audytWybrana = wa.dataset.id; document.getElementById("audyt-raport").innerHTML = ""; return renderAudyt(); }
@@ -2234,16 +2226,95 @@ async function zbadajZaznaczone(przycisk) {
 // Historia trzymana w pamięci przeglądarki, per firma. Świadomie NIE w bazie:
 // to narzędzie pracy nad jedną firmą, nie komunikator. Gdyby wnioski z rozmów
 // okazały się warte zachowania, dołożymy tabelę — ale nie zakładamy tego z góry.
+// ══ MODUŁ: ROZMOWA O FIRMIE ═══════════════════════════════════════════
+// Osobna sekcja, nie dodatek do karty firmy — ta sama zasada co przy mailach.
+// Dopytywanie to własny etap pracy: wchodzisz, wybierasz firmę, rozmawiasz.
+//
+// Wątek trzymamy w pamięci przeglądarki, nie w bazie. To notatnik roboczy:
+// utrwalamy to, co przeniesiesz do researchu, nie każdą próbę.
 const czatHistoria = new Map();   // url firmy -> [{rola, tresc, zrodla}]
+let rozmowaWybrana = null;        // id firmy, o której rozmawiamy
+
+function renderRozmowa() {
+  const box = document.getElementById("rozmowa-box");
+  if (!box) return;
+  const firmy = firmyTrybu();
+
+  if (!firmy.length) {
+    box.innerHTML = `<div class="pusto">
+      <svg class="ico xl"><use href="#i-search"/></svg>
+      <p>Najpierw zbadaj jakąś firmę.<br><span>Rozmowa opiera się na danych
+        z researchu — bez nich agent nie ma od czego zacząć.</span></p></div>`;
+    return;
+  }
+
+  const wpis = firmy.find((t) => t.id === rozmowaWybrana);
+
+  // ── Krok 1: wybór firmy ──
+  if (!wpis) {
+    const ile = (t) => (czatHistoria.get(t.firma.url) || []).length;
+    box.innerHTML = `<div class="card">
+      <div class="mono"><span class="sq"></span> O której firmie rozmawiamy</div>
+      <div class="similar-list">${firmy.map((t) => `
+        <div class="sim-row wybierz-rozmowe" data-id="${t.id}">
+          <div class="sim-info">
+            <span class="sim-name">${esc(t.firma.nazwa)}${
+              ile(t) ? `<span class="tag-zbadana">${ile(t)} w wątku</span>` : ""}</span>
+            <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
+          </div>
+          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>`).join("")}</div>
+    </div>`;
+    return;
+  }
+
+  // ── Krok 2: wątek ──
+  box.innerHTML = `
+    <div class="card">
+      <div class="mono"><span class="sq"></span> Rozmawiamy o</div>
+      <div class="wzor-head">
+        <div>
+          <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
+          <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
+        </div>
+        <button class="btn-lekki zmien-rozmowe-firme" type="button">Zmień firmę</button>
+      </div>
+    </div>
+    <div class="card czat-karta">
+      <div class="czat-watek"></div>
+      <div class="mail-czat">
+        <input class="czat-pytanie" type="text" autocomplete="off"
+               placeholder="np. czy obsługują B2B? jakie mają technologie? kto jest klientem?">
+        <button class="akcja glowna czat-wyslij" type="button">
+          <svg class="ico sm"><use href="#i-arrow"/></svg>Zapytaj
+        </button>
+      </div>
+      <p class="hint">Agent czyta WYŁĄCZNIE strony w domenie tej firmy. Pod odpowiedzią
+        stoi lista podstron, które faktycznie otworzył — pusta oznacza, że niczego
+        nie sprawdził.</p>
+    </div>`;
+  rysujCzat(box.querySelector(".czat-watek"), czatHistoria.get(wpis.firma.url) || [], false);
+}
+
+// Enter wysyla pytanie. W czacie to odruch — bez tego trzeba siegac myszka po
+// kazdym zdaniu, a rozmowa ma byc szybsza od klikania po karcie firmy.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || !e.target.classList.contains("czat-pytanie")) return;
+  e.preventDefault();
+  const b = e.target.closest(".czat-karta").querySelector(".czat-wyslij");
+  if (b && !b.disabled) czatZapytaj(b);
+});
 
 async function czatZapytaj(przycisk) {
-  const panel = przycisk.closest(".panel");
-  const pole = panel.querySelector(".czat-pytanie");
-  const watek = panel.querySelector(".czat-watek");
+  const wpis = firmyTrybu().find((t) => t.id === rozmowaWybrana);
+  if (!wpis) return;
+  const karta = przycisk.closest(".czat-karta");
+  const pole = karta.querySelector(".czat-pytanie");
+  const watek = karta.querySelector(".czat-watek");
   const pytanie = (pole.value || "").trim();
   if (!pytanie) { pole.focus(); return; }
 
-  const firma = firmaZPanelu(panel);
+  const firma = wpis.firma;
   const klucz = firma.url;
   const hist = czatHistoria.get(klucz) || [];
   hist.push({ rola: "user", tresc: pytanie });
