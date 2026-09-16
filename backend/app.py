@@ -165,12 +165,61 @@ def pobierz(url: str, timeout: int = 15) -> str:
         return ""
 
 
+# Pozycje menu, ktore nigdy nie sa usluga. Porownujemy CALA nazwe, nie fragment —
+# pierwsza wersja szukala podciagu i slowo "sklep" (mialo odsiewac koszyk) wycinalo
+# "Sklep B2B PrestaShop" oraz "Utrzymanie sklepu PrestaShop", czyli polowe oferty.
+# Reszte zostawiamy modelowi: to on ma rozstrzygnac, co jest oferta, a my mamy mu
+# tylko DOSTARCZYC dane.
+MENU_NIE_USLUGA = frozenset((
+    "kontakt", "o nas", "about", "about us", "blog", "kariera", "career", "praca",
+    "realizacje", "portfolio", "baza wiedzy", "case studies", "aktualnosci",
+    "aktualności", "newsletter", "polityka prywatności", "regulamin", "cookies",
+    "rodo", "home", "strona główna", "koszyk", "zaloguj", "logowanie", "sklep",
+    "en", "pl", "de", "menu", "szukaj", "faq", "pomoc", "cennik", "wiedza",
+))
+
+
+def menu_nawigacji(soup) -> list[str]:
+    """Pozycje z menu górnego — najbardziej wiarygodna lista tego, co firma sprzedaje.
+
+    DLACZEGO TO ISTNIEJE. `tekst_ze_strony` wycina <nav>, żeby nawigacja nie zaśmiecała
+    treści — i razem z nią wyrzucało MENU USŁUG, czyli najlepsze źródło informacji
+    o ofercie. Skutek był mylący: model dostawał tylko sekcję „Nasze Usługi" ze strony
+    głównej, która bywa skróconą zajawką. U Tebimu ta zajawka ma 6 pozycji o nazwach
+    ogólnych („Integracje E-commerce"), a prawdziwe menu — 10 pozycji z nazwami
+    konkretnymi („Integracje PrestaShop", „Wdrożenie PIM"). Wyciągaliśmy więc gorszą
+    z dwóch dostępnych list i wychodziła z tego generyczna agencja zamiast
+    wyspecjalizowanej.
+    """
+    pozycje = []
+    for nav in soup.find_all("nav"):
+        for a in nav.find_all("a"):
+            nazwa = " ".join(a.get_text(separator=" ").split())
+            if not (3 < len(nazwa) < 70):
+                continue
+            plaska = nazwa.lower().strip(" -–—|")
+            if plaska in MENU_NIE_USLUGA:
+                continue
+            # numery telefonu i adresy trafiaja do nawigacji rownie czesto co uslugi
+            if sum(c.isdigit() for c in nazwa) > len(nazwa) / 3:
+                continue
+            if nazwa not in pozycje:
+                pozycje.append(nazwa)
+    return pozycje[:30]
+
+
 def tekst_ze_strony(html: str) -> str:
     # UWAGA: NIE wycinamy <footer> — to tam zwykle są dane firmowe: adres, NIP, telefon, mail.
     soup = BeautifulSoup(html, "html.parser")
+    # Menu ratujemy PRZED usunięciem <nav> i doklejamy osobnym, opisanym blokiem.
+    # Osobnym, bo model ma wiedzieć, że to oferta, a nie zdanie z treści strony.
+    menu = menu_nawigacji(soup)
     for tag in soup(["script", "style", "nav"]):
         tag.decompose()
-    return " ".join(soup.get_text(separator=" ").split())
+    tresc = " ".join(soup.get_text(separator=" ").split())
+    if menu:
+        tresc = "[MENU GŁÓWNE SERWISU] " + " | ".join(menu) + " " + _NOWA_LINIA + tresc
+    return tresc
 
 
 def znajdz_podstrony(html: str, base_url: str) -> list[str]:
@@ -698,7 +747,14 @@ liczby osób ani realizacji. Uczciwy brak jest lepszy niż wymyślona wartość.
 CO WYCIĄGNĄĆ:
 - nazwa: nazwa firmy
 - branza: czym się zajmuje (np. "agencja e-commerce", "software house", "branding")
-- uslugi: lista konkretnych usług z oferty
+- uslugi: nazwy usług PRZEPISANE DOSŁOWNIE z menu usług / sekcji oferty.
+  Nie streszczaj ich, nie uogólniaj i nie tłumacz na własne słowa. Jeśli w menu
+  stoi "Integracje PrestaShop", masz napisać "Integracje PrestaShop" — a NIE
+  "Integracje E-commerce". Nazwa usługi niesie informację o tym, na czym firma
+  pracuje; usunięcie z niej platformy albo technologii zamienia wyspecjalizowaną
+  agencję w generyczną i psuje cały dalszy obraz firmy.
+  Bierz TYLKO pozycje z menu usług / oferty. Linki obecne wyłącznie w stopce
+  (patrz reguła o landingach niżej) NIE są usługami z oferty.
 - wielkosc_zespolu: liczba osób, jeśli podana (np. "20+ specjalistów")
 - liczba_projektow: liczba wdrożeń/projektów/klientów, jeśli podana
 - case_studies: nazwy klientów lub realizacji wymienione na stronie

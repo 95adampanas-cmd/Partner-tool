@@ -380,3 +380,39 @@ sprzedają go. Czyli dokładnie odwrotnie, niż chce definicja zawężona we wrz
 **Jak to wykryliśmy:** nie testem, tylko konfrontacją z rzeczywistością — Adam zna tego
 partnera i zaprzeczył werdyktowi, a screen z menu usług rozstrzygnął spór. Ta sama
 lekcja, co przy fałszywych zerach: liczba była prawdziwa, znaczenie inne niż etykieta.
+
+### Scraper wyrzucał menu usług razem z nawigacją
+*16.09.2026, ciąg dalszy sprawy Tebimu*
+
+Porównanie listy usług na karcie z menu USŁUGI na stronie pokazało dwie rozbieżności:
+u nas było „Pozycjonowanie", którego w menu nie ma, a nazwy brzmiały ogólnie
+(„Integracje E-commerce" zamiast „Integracje PrestaShop").
+
+**Pierwsza diagnoza była błędna.** Uznałem, że model parafrazuje nazwy, i dopisałem do
+promptu regułę „przepisuj dosłownie". Po niej nic się nie poprawiło — bo model *już*
+przepisywał dosłownie. Sprawdzenie, co faktycznie dostaje na wejściu, wykazało coś
+innego: **pozycji z menu nie było tam w ogóle.**
+
+Przyczyna siedziała w `tekst_ze_strony`: `soup(["script", "style", "nav"])` usuwało
+`<nav>`, a razem z nim menu usług. Komentarz w tej funkcji ostrzegał, żeby nie wycinać
+`<footer>` (bo tam są dane firmowe) — o nawigacji nikt nie pomyślał. Model dostawał
+więc tylko sekcję „Nasze Usługi" ze strony głównej, czyli **skróconą zajawkę**: sześć
+pozycji o nazwach ogólnych zamiast dziesięciu konkretnych. Wyciągaliśmy gorszą
+z dwóch dostępnych list i wychodziła z tego generyczna agencja zamiast wyspecjalizowanej.
+
+**Naprawa:** menu ratujemy PRZED usunięciem `<nav>` i doklejamy osobnym, opisanym
+blokiem `[MENU GŁÓWNE SERWISU]`. Osobnym, bo model ma wiedzieć, że to oferta, a nie
+zdanie z treści strony. Nie zgadujemy przy tym, co jest usługą — odsiewamy tylko
+pozycje, które nigdy nią nie są (kontakt, blog, kariera, wybór języka, telefon),
+a resztę rozstrzyga model.
+
+**Filtr trzeba było poprawić od razu po napisaniu.** Pierwsza wersja szukała PODCIĄGU
+i słowo „sklep" — dodane, żeby odsiewać koszyk — wycięło „Sklep B2B PrestaShop"
+i „Utrzymanie sklepu PrestaShop", czyli połowę oferty. Teraz porównujemy całą nazwę.
+
+**Wynik:** 10 z 10 usług dokładnie jak w menu (było 1 z 6), bez „Pozycjonowania",
+bez nazw generycznych.
+
+**Lekcja:** zanim poprawisz prompt, sprawdź, co model dostaje na wejściu. Instrukcja
+„czytaj z menu usług" była niewykonalna, bo menu nie było w danych — a wyglądała
+sensownie i przeszłaby każdy przegląd kodu.
