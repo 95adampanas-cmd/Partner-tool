@@ -113,6 +113,25 @@ setTimeout(() => {
       !nazwy("#audyt-wybor .sim-name").join().includes("Ella"), nazwy("#audyt-wybor .sim-name").join(", "));
   }
 
+  // Formularz audytu pojawia się DOPIERO po wybraniu firmy, a to on niesie całą
+  // konfigurację: modele, platformy wzmianek, zakres, koszt. Wcześniej test kończył
+  // się na liście firm, więc największy szablon w aplikacji nie był sprawdzany wcale
+  // — a usunięcie SE Ranking ruszyło w nim siedem miejsc.
+  if (zKlientami) zakladka("partner");
+  klik(d.querySelector("#audyt-wybor .sim-row button"));
+  const formularz = d.getElementById("audyt-wybor").innerHTML;
+  sprawdz("Audyt: formularz renderuje się po wyborze firmy",
+    formularz.includes("Które modele AI pytamy"));
+  sprawdz("Audyt: jest wybór modeli", d.querySelectorAll('input[name="silnik"]').length > 0,
+    `${d.querySelectorAll('input[name="silnik"]').length} modeli`);
+  sprawdz("Audyt: jest szacowany koszt w dolarach", /Szacowany koszt: .*\$/.test(formularz));
+  // Po usunięciu drugiego dostawcy nie ma już czego wybierać — gdyby przełącznik
+  // wrócił, wracałby też cały martwy kod obsługi, którego nikt by nie zauważył.
+  sprawdz("Audyt: brak wyboru dostawcy (został jeden)",
+    d.querySelectorAll('input[name="dostawca"]').length === 0);
+  sprawdz("Audyt: brak pozostałości po SE Ranking",
+    !/seranking|SE Ranking|kredyt/i.test(formularz));
+
   nav("podobne", zKlientami ? "klient" : null);
   sprawdz("Podobne: lista firm wzorcowych niepusta",
     nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));

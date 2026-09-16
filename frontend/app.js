@@ -924,28 +924,11 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
-  if (e.target.name === "dostawca") {
-    audytDostawca = e.target.value;
-    if (audytDostawca === "seranking") {
-      // odznaczamy silniki idace przez DataForSEO — inaczej zostalyby zaznaczone
-      // i audyt „na SE Ranking" siegalby po drugiego dostawce
-      audytSilniki = audytSilniki.filter((k) => !SILNIKI[k]?.dfs);
-      if (!audytSilniki.length) audytSilniki = ["chatgpt_wprost"];
-    }
-    return renderAudyt();
-  }
   if (e.target.name === "platforma") {
     const v = e.target.value;
     audytPlatformy = e.target.checked
       ? [...audytPlatformy, v] : audytPlatformy.filter((x) => x !== v);
     if (!audytPlatformy.length) audytPlatformy = [v];
-    return renderAudyt();
-  }
-  if (e.target.name === "silnik_sr") {
-    const v = e.target.value;
-    audytSilnikiSR = e.target.checked
-      ? [...audytSilnikiSR, v] : audytSilnikiSR.filter((x) => x !== v);
-    if (!audytSilnikiSR.length) audytSilnikiSR = [v];
     return renderAudyt();
   }
   if (e.target.name === "silnik") {
@@ -1300,11 +1283,9 @@ function kopiuj(przycisk) {
 // Jedyna PŁATNA funkcja (DataForSEO) — pokazujemy koszt zanim user kliknie.
 let audytWybrana = null;
 let audytIle = 5;
-let audytDostawca = "dataforseo";
 let audytSilniki = ["chatgpt_wprost"];
 // Silnik bazy SE Ranking dla sekcji wzmianek — ich dane pokrywaja 5 platform.
-let audytSilnikiSR = ["ai-overview"];
-// Platformy wzmianek u DataForSEO — ta sama idea co SILNIKI_SR, inny dostawca.
+// Platformy, na ktorych DataForSEO sprawdza wzmianki o marce.
 const PLATFORMY_DFS = {
   "google":     "Google AI Overviews",
   "chat_gpt":   "ChatGPT",
@@ -1313,13 +1294,7 @@ const PLATFORMY_DFS = {
 };
 let audytPlatformy = ["google"];
 
-const SILNIKI_SR = {
-  "ai-overview": "Google AI Overviews",
-  "ai-mode":     "Google AI Mode",
-  "chatgpt":     "ChatGPT",
-  "perplexity":  "Perplexity",
-  "gemini":      "Google Gemini",
-};   // ktore modele AI pytamy (mozna kilka)   // jeden dostawca na audyt, nigdy dwaj naraz
+// ktore modele AI pytamy (mozna kilka naraz)
 let audytAIO = true;
 
 const KOSZT_PROMPT = 0.006;   // Perplexity sonar, zmierzone
@@ -1329,8 +1304,8 @@ const KOSZT_SEO = 0.04;       // 3 wywolania Labs, zmierzone
 // ChatGPT 3 marki za $0.109. Tanszy dal WIECEJ danych — ale ma 6% rynku PL.
 // Modele potwierdzone darmowym endpointem DataForSEO — wszystkie z wyszukiwaniem w sieci.
 const SILNIKI = {
-  // Jedyny silnik na naszym wlasnym kluczu — dziala niezaleznie od DataForSEO
-  // i SE Ranking, wiec sekcja pytan nie pada razem z dostawca SEO.
+  // Jedyny silnik na naszym wlasnym kluczu. Odkad DataForSEO jest jedynym dostawca
+  // danych SEO, to JEDYNA sekcja audytu, ktora przezyje jego awarie albo puste saldo.
   chatgpt_wprost: { nazwa: "ChatGPT (bezpośrednio)", udzial: "86,4%", koszt: 0.012,
                     wlasny: true },
   chatgpt:    { nazwa: "ChatGPT",       udzial: "86,4%", koszt: 0.109, dfs: true },
@@ -1349,10 +1324,8 @@ let audytSEO = true;
 // audytem, a nie dopiero błędem 402 po minucie czekania.
 function wymagaDFS() {
   const l = audytSilniki.filter((k) => SILNIKI[k]?.dfs).map((k) => SILNIKI[k].nazwa);
-  if (audytDostawca !== "seranking") {
-    if (audytSEO) l.push("Widoczność w Google");
-    if (audytAIO) l.push("Widoczność w AI Overviews");
-  }
+  if (audytSEO) l.push("Widoczność w Google");
+  if (audytAIO) l.push("Widoczność w AI Overviews");
   return l.length ? l : null;
 }
 
@@ -1392,14 +1365,9 @@ function renderAudyt() {
     return;
   }
 
-  const sr = audytDostawca === "seranking";
-  // SE Ranking rozlicza sie w kredytach, nie w dolarach — pokazujemy wlasciwa jednostke,
-  // zamiast przeliczac jedno na drugie i sugerowac porownywalnosc, ktorej nie ma.
-  const koszt = sr
-    ? (audytIle * kosztSilnikow()).toFixed(3)
-    : (audytIle * kosztSilnikow() + (audytAIO ? KOSZT_AIO : 0)
-       + (audytSEO ? KOSZT_SEO : 0) + (audytAIO ? KOSZT_AIO * (audytPlatformy.length - 1) : 0)).toFixed(3);
-  const kredyty = sr ? ((audytSEO ? 400 + 800 : 0) + (audytAIO ? 2000 * audytSilnikiSR.length : 0)) : 0;
+  const koszt = (audytIle * kosztSilnikow() + (audytAIO ? KOSZT_AIO : 0)
+    + (audytSEO ? KOSZT_SEO : 0)
+    + (audytAIO ? KOSZT_AIO * (audytPlatformy.length - 1) : 0)).toFixed(3);
   wybor.innerHTML = `<div class="card">
     <div class="wzor-head">
       <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
@@ -1408,29 +1376,15 @@ function renderAudyt() {
     </div>
   </div>
   <div class="card">
-    <div class="mono"><i class="sq"></i>Źródło danych SEO</div>
-    <div class="akcje" style="margin-bottom:16px">
-      <label class="akcja check"><input type="radio" name="dostawca" value="dataforseo"
-        ${!sr ? "checked" : ""}> DataForSEO <span class="cena">rozliczenie w $</span></label>
-      <label class="akcja check"><input type="radio" name="dostawca" value="seranking"
-        ${sr ? "checked" : ""}> SE Ranking <span class="cena">rozliczenie w kredytach</span></label>
-    </div>
-    ${sr ? `<p class="hint" style="margin:-8px 0 16px">Dane o pozycjach dzielą się u nich
-      na <b>TOP 1-5</b>, nie TOP 3 — raport podpisze tę liczbę zgodnie z tym, co
-      faktycznie mierzy. Pytania klientów zadajemy niezależnie, naszym kluczem OpenAI.</p>` : ""}
-
     <div class="mono"><i class="sq"></i>Które modele AI pytamy</div>
     <div class="akcje" style="margin-bottom:10px">
-      ${Object.entries(SILNIKI).filter(([, m]) => !sr || !m.dfs).map(([k, m]) => `
+      ${Object.entries(SILNIKI).map(([k, m]) => `
         <label class="akcja check"><input type="checkbox" name="silnik" value="${k}"
           ${audytSilniki.includes(k) ? "checked" : ""}> ${m.nazwa}
           <span class="cena">${m.udzial || m.opis} · $${m.koszt}${
             m.wlasny ? " · nasz klucz" : m.dfs ? " · przez DataForSEO" : ""
           }</span></label>`).join("")}
     </div>
-    ${sr ? `<p class="hint" style="margin:0 0 16px">Przy SE Ranking pokazujemy tylko
-      silniki na <b>naszym własnym kluczu</b> — audyt nie dotyka wtedy DataForSEO
-      w żadnym miejscu. Modele z ich bazy wybierasz niżej, przy wzmiankach.</p>` : ""}
     ${wymagaDFS() ? `<p class="ostrzezenie-inline">Zaznaczone opcje wymagają konta
       <b>DataForSEO</b> ze środkami: ${wymagaDFS().join(", ")}. Jeśli saldo jest puste,
       audyt zakończy się błędem — odznacz je albo doładuj konto.</p>` : ""}
@@ -1441,7 +1395,7 @@ function renderAudyt() {
         ? " Przy kilku modelach widać, czy brak wzmianki dotyczy jednego silnika, czy wszystkich."
         : " Przy jednym modelu nie da się odróżnić cechy silnika od prawidłowości."}</p>
 
-    ${!sr && audytAIO ? `
+    ${audytAIO ? `
     <div class="mono"><i class="sq"></i>Wzmianki — z której platformy</div>
     <div class="akcje" style="margin-bottom:10px">
       ${Object.entries(PLATFORMY_DFS).map(([k, n]) => `
@@ -1451,21 +1405,6 @@ function renderAudyt() {
     <p class="hint" style="margin:0 0 16px">Baza DataForSEO — zapytania, przy których
       firma <b>już jest</b> cytowana. Każda platforma to osobne wywołanie
       (<b>+$${KOSZT_AIO}</b>).</p>` : ""}
-
-    ${sr && audytAIO ? `
-    <div class="mono"><i class="sq"></i>Wzmianki — z której platformy</div>
-    <div class="akcje" style="margin-bottom:10px">
-      ${Object.entries(SILNIKI_SR).map(([k, n]) => `
-        <label class="akcja check"><input type="checkbox" name="silnik_sr" value="${k}"
-          ${audytSilnikiSR.includes(k) ? "checked" : ""}> ${n}</label>`).join("")}
-    </div>
-    <p class="hint" style="margin:0 0 16px">To ich baza, odświeżana miesięcznie —
-      pokazuje, gdzie firma <b>jest</b> cytowana, a nie odpowiada na nasze pytania.
-      ${audytSilnikiSR.length > 1
-        ? `Przy kilku platformach raport zestawi je obok siebie — a to właśnie różnica
-           między nimi bywa wnioskiem: firma potrafi być pierwsza w Google AI Mode
-           i nieobecna w ChatGPT.`
-        : `Możesz zaznaczyć kilka — <b>2 000 kredytów za każdą</b>.`}</p>` : ""}
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
@@ -1477,8 +1416,7 @@ function renderAudyt() {
         <input type="range" id="audyt-ile" min="3" max="10" value="${audytIle}" style="width:110px">
         <b>${audytIle}</b></label>
     </div>
-    <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>${
-      kredyty ? ` + <b class="cena-suma">${kredyty.toLocaleString("pl-PL")} kredytów</b> SE Ranking` : ""}
+    <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>
       · pytania układa nasz model, odpowiedzi zbieramy z zaznaczonych silników.</p>
     <button class="akcja glowna generuj-audyt" type="button" style="margin-top:16px">
       <svg class="ico sm"><use href="#i-chart"/></svg>Wygeneruj audyt</button>
@@ -1495,7 +1433,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, dostawca: audytDostawca, silniki: audytSilniki, silniki_sr: audytSilnikiSR,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki,
                              ai_overview: audytAIO, seo: audytSEO, platformy: audytPlatformy }),
     });
     const data = await res.json();

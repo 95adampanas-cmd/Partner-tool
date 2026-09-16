@@ -43,7 +43,6 @@ import krs as krs_api
 import dfs
 import geo
 import profil
-import seranking
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
@@ -853,9 +852,9 @@ class Prompty(BaseModel):
 # ChatGPT pytany BEZPOŚREDNIO, naszym kluczem OpenAI — bez DataForSEO po drodze.
 # Powód nie jest kosztowy, tylko taki: sekcja z pytaniami klientów to nasza jedyna
 # przewaga nad audytami konkurencji, a szła przez dostawcę, który potrafi zawiesić
-# konto albo wyczerpać saldo i zabrać ją razem z resztą raportu. SE Ranking nie ma
-# odpowiednika tej funkcji (ich AI Search zwraca tylko prompty z własnej bazy),
-# więc bez tego przy wyborze SE Ranking sekcja w ogóle by nie działała.
+# konto albo wyczerpać saldo i zabrać ją razem z resztą raportu. Od czasu, gdy
+# DataForSEO został jedynym dostawcą danych SEO, ma to jeszcze większe znaczenie:
+# to JEDYNA sekcja audytu, która przeżyje jego awarię albo puste saldo.
 # ⚠ TEN JEDEN AGENT ZOSTAJE NA OPENAI. Nie przenoś go na Claude „dla spójności".
 #
 # Wszystkie pozostałe agenty WYKONUJĄ pracę — model jest dla nich narzędziem
@@ -1454,19 +1453,14 @@ async def api_audyt(request):
         firma = body.get("firma") or {}
         ile = int(body.get("ile_promptow") or 5)
         z_aio = bool(body.get("ai_overview", True))
-        # Jeden dostawca na audyt — nigdy dwaj naraz.
-        dostawca = (body.get("dostawca") or "dataforseo").lower()
+        # Jedyny dostawca danych SEO. Pole zostaje w raporcie i w bazie, bo stare
+        # audyty maja zapisane "seranking" i musza dalej dac sie odczytac.
+        dostawca = "dataforseo"
         # Można wybrać kilka modeli naraz — wtedy każde pytanie idzie do każdego z nich.
         wybrane = body.get("silniki") or [body.get("silnik") or "chatgpt_wprost"]
         silniki = [audyt.SILNIKI[k] for k in wybrane if k in audyt.SILNIKI]
-        if dostawca == "seranking":
-            # Twardy wymóg: wybór SE Ranking odcina DataForSEO CAŁKOWICIE.
-            # Zostają wyłącznie silniki na własnym kluczu — inaczej audyt „na SE Ranking"
-            # po cichu sięgałby po drugiego dostawcę i padał na jego saldzie.
-            silniki = [s for s in silniki if s.get("wlasny_klucz")]
         if not silniki:
             silniki = [audyt.SILNIKI["chatgpt_wprost"]]
-        koszt_kredytow = 0
 
         nazwa = firma.get("nazwa") or ""
         # .lower() JEST KONIECZNE. DataForSEO dopasowuje domenę wrażliwie na wielkość liter:
@@ -1536,42 +1530,12 @@ async def api_audyt(request):
         except Exception:
             techniczne = None
 
-        # 3) AI Overview — u SE Ranking to inny endpoint i inna jednostka rozliczeniowa.
-        # UWAGA: inicjalizacja MUSI być tutaj, przed pierwszym przypisaniem. Wcześniej
-        # `aio = None` stało niżej, między blokiem SE Ranking a blokiem DataForSEO,
-        # i kasowało wynik SE Ranking zaraz po jego ustawieniu — sekcja znikała
-        # z raportu mimo naliczonych kredytów.
+        # 3) AI Overview (opcjonalnie — najdroższy pojedynczy element raportu)
         aio = None
-        if z_aio and dostawca == "seranking":
-            try:
-                # Ich baza pokrywa pięć platform — można wziąć kilka naraz i pokazać
-                # różnicę. To dokładnie ten wniosek, którego nie widać przy jednym
-                # silniku: firma może być pierwsza w Google AI Mode i nieobecna
-                # w ChatGPT, a obie liczby są prawdziwe.
-                wybrane_sr = body.get("silniki_sr") or [body.get("silnik_sr") or "ai-overview"]
-                wybrane_sr = [x for x in wybrane_sr if x in seranking.SILNIKI_AI] or ["ai-overview"]
-                platformy = []
-                for nazwa_pl in wybrane_sr:
-                    sr, k = await asyncio.to_thread(
-                        seranking.wzmianki_ai, domena, nazwa_pl, 10,
-                        f"audyt_{domena}_{nazwa_pl}")
-                    koszt_kredytow += k
-                    w = seranking.analizuj_wzmianki(sr, domena, nazwa)
-                    w["silnik_nazwa"] = seranking.SILNIKI_AI[nazwa_pl]
-                    platformy.append(w)
-                # pierwsza platforma zasila sekcję szczegółową, reszta idzie do
-                # tabeli porównawczej — bez mieszania danych z różnych źródeł
-                aio = platformy[0]
-                if len(platformy) > 1:
-                    aio["platformy"] = [
-                        {"nazwa": p["silnik_nazwa"], "liczba": p["liczba_wzmianek"],
-                         "srednia": p["srednia_pozycja"]} for p in platformy]
-            except seranking.BladAPI:
-                raise
-
-        # 3b) AI Overview przez DataForSEO (opcjonalnie — najdroższy pojedynczy element)
-        if z_aio and dostawca != "seranking":
-            # Tak samo jak u SE Ranking: można wziąć kilka platform i pokazać różnicę.
+        if z_aio:
+            # Można wziąć kilka platform naraz i pokazać różnicę. To dokładnie ten
+            # wniosek, którego nie widać przy jednym silniku: firma bywa pierwsza
+            # w jednym asystencie i nieobecna w drugim, a obie liczby są prawdziwe.
             wybrane_pl = body.get("platformy") or ["google"]
             wybrane_pl = [x for x in wybrane_pl if x in audyt.PLATFORMY_WZMIANEK] or ["google"]
             zebrane = []
@@ -1591,32 +1555,20 @@ async def api_audyt(request):
                      "srednia": z["srednia_pozycja"]} for z in zebrane]
 
         # 4) Klasyczne SEO — „Raport Zero"
-        # Dostawcę wybiera użytkownik przed audytem i NIGDY nie mieszamy dwóch
-        # w jednym dokumencie: jedna liczba, jedno podpisane źródło. Różnice znaczeń
-        # (SE Ranking nie ma koszyka TOP 3, tylko TOP 5) niesie pole `etykieta_czolo`,
-        # żeby raport nie podpisał liczby nazwą metryki, której nie dotyczy.
+        # Pole `etykieta_czolo` zostaje mimo jednego dostawcy: raport ma podpisywać
+        # liczbę nazwą metryki, która ją opisuje ("fraz w TOP 3"), zamiast zakładać,
+        # że czytelnik wie, co dokładnie zliczono. Stare audyty niosą tu inną wartość.
         seo = None
         if bool(body.get("seo", True)):
-            if dostawca == "seranking":
-                ov, fr, kk, st, k = await asyncio.to_thread(
-                    seranking.dane_seo, domena, f"audyt_{domena}")
-                koszt_kredytow += k
-                # ruch konkurentów jest już w odpowiedzi domain/competitors
-                seo = seranking.analizuj_seo(ov, fr, kk, st, domena, None, audyt.PORTALE)
-                # Ta sama sekcja co przy DataForSEO, tylko z ich danych — bez
-                # dodatkowego wywolania, bo block_type jest juz w odpowiedzi.
-                seo["luka"] = seranking.luka_z_fraz(fr, domena)
-                frazy = fr
-            else:
-                rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
-                    audyt.dane_seo, domena, f"audyt_seo_{domena}"
-                )
-                koszt += k
-                seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy, ruch_konk)
+            rank, konk, strony, frazy, ruch_konk, k = await asyncio.to_thread(
+                audyt.dane_seo, domena, f"audyt_seo_{domena}"
+            )
+            koszt += k
+            seo = audyt.analizuj_seo(rank, konk, strony, domena, frazy, ruch_konk)
 
             # 4b) Luka GEO — zestawienie pozycji w Google z obecnoscia w AI Overview.
             # Wymaga danych z AIO (kto nas cytuje), wiec tylko gdy wlaczone.
-            if dostawca != "seranking" and seo.get("frazy") and aio:
+            if seo.get("frazy") and aio:
                 cytowane = {w["prompt"].lower() for w in (aio.get("wzmianki") or [])}
                 luka = await asyncio.to_thread(
                     audyt.analiza_luki, audyt.pula_fraz(frazy), domena, cytowane, 8,
@@ -1628,7 +1580,6 @@ async def api_audyt(request):
         raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, aio, koszt, seo)
         raport["dostawca"] = dostawca
         raport["silniki"] = [{"nazwa": s["nazwa"], "udzial": s["udzial"]} for s in silniki]
-        raport["koszt_kredytow"] = koszt_kredytow
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne
 
@@ -1648,12 +1599,9 @@ async def api_audyt(request):
             print(f"  raport zapisany: {plik.name}")
         except Exception as e:
             print(f"  (nie udalo sie zapisac raportu: {e})")
-        # Saldo pytamy TYLKO tego dostawcy, którego faktycznie użyliśmy.
-        # Wcześniej szło bezwarunkowo, więc audyt „na SE Ranking" i tak zaglądał
-        # do DataForSEO — nieszkodliwie, ale wbrew zasadzie rozdzielenia.
-        raport["saldo_po"] = dfs.saldo() if dostawca != "seranking" else None
+        raport["saldo_po"] = dfs.saldo()
         return JSONResponse({"ok": True, "raport": raport})
-    except (dfs.BladAPI, seranking.BladAPI) as e:
+    except dfs.BladAPI as e:
         # Awaria po stronie DataForSEO. Świadomie NIE budujemy raportu: dokument
         # z pustych danych wygląda jak wynik i powiedziałby partnerowi, że ma zerową
         # widoczność — a to nieprawda. Lepiej pokazać błąd niż fałszywe zero.

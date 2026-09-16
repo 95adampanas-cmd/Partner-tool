@@ -303,3 +303,49 @@ o samą ścieżkę („/oferta"), a użytkownik ma zobaczyć klikalny adres. Kan
 narzędzie, bo to ono skleja adres i sprawdza domenę. Przy okazji znacznik `[TREŚĆ …]`
 robi za filtr: odmowa i nieudane pobranie go nie mają, więc na liście źródeł ląduje
 wyłącznie to, co naprawdę zostało przeczytane.
+
+---
+
+## Jeden dostawca danych SEO — SE Ranking usunięty
+*16.09.2026*
+
+Dwóch dostawców to podwójny kod, podwójne fixtures i podwójne pytanie „skąd ta liczba".
+Zostaje DataForSEO — szerszy (9 endpointów wobec 5) i to on był domyślny.
+
+**Rozdzielenie okazało się czyste.** Każde wywołanie `seranking.*` siedziało wewnątrz
+`if dostawca == "seranking"`; ścieżka DataForSEO nie dotykała tego modułu w żadnym
+miejscu. Usunięcie to były wycinki gałęzi, nie przeplatanie kodu.
+
+**Nie tracimy Google AI Mode.** Przy pierwszym sprawdzeniu wyglądało na to, że tracimy:
+SE Ranking ma pięć silników wzmianek, DataForSEO cztery. Ale AI Mode jest u DataForSEO
+dostępny osobnym endpointem (`serp/google/ai_mode/live/advanced`) i chodzi w sekcji
+pytań klientów. Znika tylko z sekcji **wzmianek** — z dwóch miejsc zostaje jedno.
+
+**Jak to sprawdziliśmy — i dlaczego pierwszy punkt odniesienia trzeba było wyrzucić.**
+Przed usunięciem przejechaliśmy ścieżkę DataForSEO offline, na zapisanych odpowiedziach,
+i porównaliśmy wynik po zmianie. Pierwsza próba szła na fixtures elektromaniacy.pl
+i dała **same zera** — bo te pliki to zapisane BŁĘDY API (status 40201, puste konto),
+leżące w katalogu jak zwykłe dane. Punkt odniesienia z samych zer przeszedłby po każdej
+zmianie i nie mierzyłby niczego. Przepisany na tebim.pro (status 20000): ruch 1347,
+TOP 3 = 5, ośmiu konkurentów, 5 wzmianek, trzy pytania z różnymi wynikami. Po usunięciu
+— **suma kontrolna identyczna**. Harness odmawia teraz pracy na zapisanym błędzie.
+
+**Wniosek na przyszłość: fixtures mogą być zapisanymi awariami.** `dfs.wywolaj` zapisuje
+odpowiedź niezależnie od jej statusu, więc katalog `fixtures/` miesza prawdziwe dane
+z błędami konta. Kto będzie z nich korzystał, ma sprawdzać `status_code == 20000`,
+zanim cokolwiek z nich policzy.
+
+**Co zostaje mimo jednego dostawcy:**
+- pole `dostawca` w raporcie i w bazie — cztery zapisane audyty mają `"seranking"`
+  i muszą dalej dać się otworzyć;
+- pole `etykieta_czolo` — raport ma podpisywać liczbę nazwą metryki, a stare audyty
+  niosą tu inną wartość.
+
+**Cena tej decyzji.** Znika jedyna alternatywa, więc awaria albo puste saldo DataForSEO
+zabiera **cały** raport SEO. Przeżyje tylko sekcja pytań klientów, bo chodzi na naszym
+kluczu OpenAI — i to jest dziś jej najważniejsze uzasadnienie. Sprawdzone: przy pustym
+saldzie audyt zwraca czytelny błąd `typ: api`, a nie raport z zer.
+
+Test UI dorósł przy okazji o pięć przypadków: formularz audytu pojawia się dopiero po
+wybraniu firmy, więc największy szablon w aplikacji nie był sprawdzany wcale — a ta
+zmiana ruszyła w nim siedem miejsc.
