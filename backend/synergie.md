@@ -32,7 +32,21 @@ wprost na początku):
 - **Referral / polecający** — partner ma własny produkt lub SaaS i wspólnego klienta
   końcowego; nie sprzedaje GEO/SEO sam, tylko poleca (i my polecamy jego).
   Rozliczenie: prowizja lub wspólny pakiet.
-- Czasem pasują oba — wtedy to zaznacz i wskaż, który jest naturalniejszy.
+- Czasem pasują oba — wtedy to zaznacz i wskaż, który jest naturalniejszy, i dlaczego.
+
+## Zanim napiszesz synergie — ustal łańcuch klientów (to najważniejszy krok)
+
+Najlepsze synergie biorą się z prześledzenia, KOMU to wszystko ostatecznie służy.
+Zanim zaczniesz, odpowiedz sobie (na podstawie researchu):
+- **Kto jest klientem partnera?** (np. sklep e-commerce, placówka medyczna, marka)
+- **Kto jest klientem TEGO klienta?** (np. kupujący w sklepie, pacjent) — czyli
+  na kim naprawdę kończy się łańcuch.
+- **Jaki jest kaliber/profil klientów partnera?** (mali czy duzi, jaka branża,
+  jaki budżet, czy traktują temat strategicznie) — to decyduje, czy synergia jest
+  ogólnikiem, czy konkretem.
+
+Dobra synergia pokazuje, jak współpraca Last Agency z partnerem przekłada się aż
+na końcowy człon tego łańcucha — bo to właśnie robi wrażenie na spotkaniu.
 
 ## Format każdej synergii
 
@@ -69,3 +83,29 @@ Dla każdej synergii podaj:
 Dodaj jedno zdanie podsumowania: **dlaczego akurat ten partner i Last Agency to
 dobre dopasowanie** — jednym, mocnym zdaniem, które można powiedzieć na otwarcie
 spotkania.
+
+---
+
+## Przykład dobrze wypełnionej synergii (wzorzec formatu)
+
+Poniżej jak ma wyglądać POJEDYNCZA synergia — na przykładzie partnera, który
+buduje sklepy e-commerce. Trzymaj się tej głębokości i tego rozbicia:
+
+> **Domykacie lejek e-commerce z dwóch stron: technologia vs. widoczność**
+> - **Na czym polega:** Partner buduje i utrzymuje sklep — sprawia, że działa
+>   i konwertuje. Ale nie odpowiada za to, czy do sklepu trafia ruch z wyszukiwania
+>   i AI. Last Agency zaczyna dokładnie tam, gdzie kończy się rola partnera:
+>   sprowadza kupującego do sklepu, który on zbudował.
+> - **Wpływ na produkt partnera:** jego sklepy przestają być „szybkie, ale puste" —
+>   dostają paliwo. Sklep dopracowany technicznie + widoczny w Google/AI = pełny
+>   produkt, nie połowa.
+> - **Wpływ na wyniki:** Last Agency działa na górę lejka (ruch, widoczność),
+>   partner na dół (konwersja). Razem: więcej sesji × lepsza konwersja = wzrost
+>   sprzedaży, nie samego ruchu.
+> - **Co ma partner:** domyka ofertę „od widoczności po działający sklep" bez
+>   budowania działu SEO/GEO; kolejna cykliczna pozycja na fakturze.
+> - **Co ma jego klient (sklep):** nie musi osobno szukać „kogoś od SEO" i „kogoś
+>   od technologii" — jeden łańcuch odpowiedzialności: ruch → sklep → sprzedaż.
+
+Zwróć uwagę: synergia schodzi aż do klienta końcowego (sklepu) i jego korzyści,
+nie zatrzymuje się na „obie firmy zyskują". O to chodzi w każdym punkcie.
