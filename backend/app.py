@@ -1018,13 +1018,31 @@ NARZEDZIE_PODSTRONA = {
 }
 
 
+# Czat dostaje profil Last Agency jako blok stały — ten sam, którego używają maile.
+#
+# Bez niego agent nie wiedział, dla kogo pracuje: na pytanie o synergię odpowiadał
+# „nie mam dostępu do lastagency.pl, podaj czym się zajmujecie". Formalnie uczciwe,
+# praktycznie bezużyteczne — user musiał przepisywać własną ofertę do okienka,
+# żeby dostać odpowiedź o własnej firmie.
+#
+# Rozdział źródeł jest twardy: o BADANEJ firmie agent wie tylko to, co przeczyta na
+# jej stronie; o NAS — tylko z profilu. Narzędzie i tak nie wpuści go poza domenę
+# badanej firmy, więc naszej strony nie odwiedzi nawet gdyby chciał.
 zadanie_czat = claude.Zadanie(
     nazwa="czat-research",
     model=MOCNY,
     narzedzia=[NARZEDZIE_PODSTRONA],
+    staly=profil.pelny(),
     instrukcje=(
         "Odpowiadasz na pytania o KONKRETNĄ firmę, na podstawie jej strony." + _NOWA_LINIA +
-        "Masz dane z researchu oraz narzędzie otworz_podstrone do dociągania podstron." + _NOWA_LINIA +
+        "Masz dane z researchu oraz narzędzie otworz_podstrone do dociągania podstron."
+        + _NOWA_LINIA + _NOWA_LINIA +
+        "DWA ŹRÓDŁA, NIE MIESZAJ ICH:" + _NOWA_LINIA +
+        "- O BADANEJ firmie wiesz tylko to, co przeczytasz na jej stronie." + _NOWA_LINIA +
+        "- O LAST AGENCY (czyli o nas) wiesz z profilu powyżej — i to jest pełna "
+        "wiedza, jaką masz. Pytania o synergię, sens współpracy czy dopasowanie "
+        "partnera odpowiadasz zestawiając profil z tym, co wiesz o badanej firmie. "
+        "Nie proś użytkownika, żeby opisał Ci własną agencję." + _NOWA_LINIA +
         _NOWA_LINIA +
         "ZASADY:" + _NOWA_LINIA +
         "- Gdy odpowiedzi nie ma w danych z researchu, SPRÓBUJ otworzyć podstronę, "
@@ -1059,14 +1077,15 @@ zadanie_poprawka = claude.Zadanie(
 # trafia do `instrukcje`, czyli ZA blok cache'owany. Gdyby styl wszedł do prefiksu,
 # każdy z trzech maili unieważniałby cache poprzedniego.
 MAIL_STALY = profil.pelny() + _NOWA_LINIA * 2 + MAIL_SYSTEM
-if not profil.ma_prawdziwe_dowody():
-    # Dopóki nikt nie wpisał prawdziwych case studies, zakazujemy wprost powoływania
-    # się na wyniki. Bez tego model uzupełnia lukę tym, co brzmi wiarygodnie —
-    # a wymyślona liczba w pierwszym mailu do partnera to wpadka, nie literówka.
+if not profil.istnieje():
+    # Bez profilu narzędzie ma działać dalej, tylko bez wiedzy o nas — ale model musi
+    # o tym WIEDZIEĆ. Inaczej uzupełni lukę tym, co brzmi wiarygodnie, a wymyślona
+    # prowizja albo zmyślony zakres usług w pierwszym mailu do partnera to nie
+    # literówka, tylko wpadka przy pierwszym kontakcie.
     MAIL_STALY += (_NOWA_LINIA * 2 +
-                   "WAŻNE: nie znasz żadnych wyników ani case studies Last Agency. "
-                   "NIE powołuj się na liczby, wzrosty, nazwy klientów ani czas "
-                   "realizacji. Buduj wiarygodność samą propozycją współpracy.")
+                   "UWAGA: brakuje profilu Last Agency. NIE opisuj naszej oferty, "
+                   "warunków współpracy ani prowizji — nie znasz ich. Napisz mail "
+                   "oparty wyłącznie na tym, co wiesz o odbiorcy.")
 
 zadania_mail = [
     claude.Zadanie(nazwa=f"mail-{nazwa}", model=MOCNY,
@@ -1083,7 +1102,7 @@ def stan_cache() -> list[dict]:
 
     Cache poniżej progu nie zgłasza błędu, tylko po cichu nie działa, więc jedynym
     sposobem, żeby się o tym dowiedzieć, jest sprawdzić."""
-    return claude.sprawdz_cache([zadanie_ekstrakcja] + zadania_mail)
+    return claude.sprawdz_cache([zadanie_ekstrakcja, zadanie_czat] + zadania_mail)
 
 
 # ══════════════════════════════════════════════════════════════════════
