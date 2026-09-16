@@ -278,3 +278,28 @@ liczba w pierwszym mailu do partnera to nie literówka, tylko wpadka wizerunkowa
 **Czego NIE zrobiliśmy: nie dopchaliśmy profilu watą, żeby przekroczyć próg.** To
 kosztowałoby tokeny przy każdym wywołaniu, żeby zaoszczędzić na cache, i wsadzało
 modelowi wypełniacz do kontekstu. Cache włączy się sam, gdy profil urośnie treścią.
+
+### Uzupełnienie po pierwszym uruchomieniu na prawdziwym kluczu
+*16.09.2026, tego samego dnia*
+
+**Szacunek długości promptu mylił się o 40%.** Zakładaliśmy 2,7 znaku na token —
+wartość z intuicji o angielskim. Pomiar `count_tokens` na pięciu naszych promptach dał
+**1,83–1,93**: polski ma więcej tokenów na znak przez odmianę i ogonki. Skutek był
+konkretny i cichy: profil Last Agency wychodził na 931 tokenów przy prawdziwych 1300,
+więc kod **wyłączyłby cache dla bloku, który próg spokojnie przekracza** — i nikt by
+się nie dowiedział, bo objawem jest tylko wyższy rachunek. Stała poprawiona na 1,9,
+szacunek trafia teraz w ±2%. Rozstrzyga i tak `stan_cache()` prawdziwym pomiarem.
+
+**Cache przy zimnym starcie płaci trzy razy.** Trzy style maila lecą równolegle, więc
+przy pustym cache wszystkie trzy startują, zanim którakolwiek zdąży zapisać: trzy
+zapisy zamiast jednego zapisu i dwóch odczytów. Zmierzone. Przy ciepłym cache wszystkie
+trzy czytają (0 zapisów, 3 × 1876 odczytu). **Zostawiamy równolegle**: sekwencyjnie to
+44 s zamiast 26 s, a różnica w koszcie to ułamek centa raz na okno bezczynności.
+Wariant „pierwszy osobno, potem dwa równolegle" też sprawdzony — działa, ale nie warto
+komplikować kodu dla tej kwoty.
+
+**Źródła w czacie bierzemy z odpowiedzi narzędzia, nie z żądania modelu.** Model prosi
+o samą ścieżkę („/oferta"), a użytkownik ma zobaczyć klikalny adres. Kanoniczny URL zna
+narzędzie, bo to ono skleja adres i sprawdza domenę. Przy okazji znacznik `[TREŚĆ …]`
+robi za filtr: odmowa i nieudane pobranie go nie mają, więc na liście źródeł ląduje
+wyłącznie to, co naprawdę zostało przeczytane.

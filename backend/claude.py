@@ -33,6 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import asyncio
 import os
+import re
 import time
 
 import anthropic
@@ -52,10 +53,16 @@ PROGI_CACHE = {MOCNY: 1024, TANI: 2048}
 # Rachunek jest u dostawcy; to ma tylko dawać rząd wielkości przy testach.
 CENY = {MOCNY: (2.0, 10.0), TANI: (1.0, 5.0)}
 
-# Polski tekst w tokenizerze Claude: mniej więcej 2,7 znaku na token. Używamy tego
-# TYLKO do wstępnej oceny, czy blok ma szansę przejść próg cache — dokładny pomiar
-# robi sprawdz_cache() prawdziwym wywołaniem count_tokens.
-ZNAKI_NA_TOKEN = 2.7
+# Ile znaków polskiego tekstu przypada na jeden token. ZMIERZONE 16.09.2026 przez
+# count_tokens na pięciu naszych prawdziwych promptach: 1,83 / 1,87 / 1,87 / 1,93 /
+# 1,93. Pierwsza wersja zakładała 2,7 — wartość z intuicji o angielskim — i myliła
+# się o 40%: profil Last Agency wychodził na 931 tokenów przy prawdziwych 1300,
+# czyli kod wyłączyłby cache dla bloku, który próg spokojnie przekracza.
+#
+# Polski ma więcej tokenów na znak niż angielski (odmiana, ogonki), więc szacowanie
+# „po angielsku" zawsze zaniża. Używamy tego TYLKO do wstępnej oceny; rozstrzyga
+# sprawdz_cache() prawdziwym wywołaniem count_tokens.
+ZNAKI_NA_TOKEN = 1.9
 
 MAX_TOKENOW = 4096
 MAX_PETLI = 6          # ile razy czat może sięgnąć po narzędzie, zanim przerwiemy
@@ -167,6 +174,17 @@ def _wywolaj(z: Zadanie, wiadomosci: list[dict], tools=None, tool_choice=None):
         raise BladClaude(f"[{z.nazwa}] Brak połączenia z Claude: {e}") from e
 
 
+# Narzędzie, które faktycznie coś pobrało, zaczyna odpowiedź od znacznika
+# "[TREŚĆ <pełny adres>]". Odmowa i błąd pobrania go NIE mają — dzięki temu na
+# liście źródeł ląduje wyłącznie to, co naprawdę zostało przeczytane.
+RE_ZRODLO = re.compile(r"^\[TREŚĆ (https?://[^\]]+)\]")
+
+
+def _adres_z_tresci(tresc: str) -> str:
+    m = RE_ZRODLO.match(tresc)
+    return m.group(1) if m else ""
+
+
 def _tekst_z(odp) -> str:
     return "".join(b.text for b in odp.content
                    if getattr(b, "type", "") == "text").strip()
@@ -216,11 +234,15 @@ def _petla_narzedzi(z: Zadanie, wejscie: str) -> Wynik:
             # Źródła zbieramy TU, w miejscu wywołania narzędzia. Poprzednia wersja
             # wyciągała je z obiektów zwracanych przez SDK i cicho gubiła —
             # odpowiedzi wyglądały poprawnie, a lista źródeł była pusta.
-            dane = blok.input or {}
-            tresc = str(wykonaj[blok.name](**dane))
-            adres = dane.get("adres", "")
-            if adres and tresc.startswith("[TREŚĆ ") and adres not in odwiedzone:
-                odwiedzone.append(adres)
+            #
+            # Bierzemy adres z ODPOWIEDZI narzędzia, nie z tego, o co model poprosił:
+            # model podaje zwykle samą ścieżkę ("/oferta"), a użytkownikowi trzeba
+            # pokazać pełny, klikalny URL. Kanoniczną wersję zna narzędzie, bo to
+            # ono skleja adres i sprawdza domenę.
+            tresc = str(wykonaj[blok.name](**(blok.input or {})))
+            zrodlo = _adres_z_tresci(tresc)
+            if zrodlo and zrodlo not in odwiedzone:
+                odwiedzone.append(zrodlo)
             wyniki.append({"type": "tool_result", "tool_use_id": blok.id,
                            "content": tresc})
         wiadomosci.append({"role": "user", "content": wyniki})
