@@ -33,22 +33,35 @@ from starlette.staticfiles import StaticFiles
 import requests
 from bs4 import BeautifulSoup
 from tavily import TavilyClient
-from agents import Agent, Runner, WebSearchTool, function_tool
+from agents import Agent, Runner, WebSearchTool
 
 import audyt
 import baza
+import claude
 import mapy
 import krs as krs_api
 import dfs
 import geo
+import profil
 import seranking
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 
-MODEL = "gpt-5.4-mini"       # ekstrakcja i mail — potrzebna rzetelność
-MODEL_TANI = "gpt-5.4-nano"  # proste zadania (np. wygenerowanie zapytania)
+# ── Modele ────────────────────────────────────────────────────────────
+# Cała praca językowa idzie na Claude. Podział wg ryzyka, nie wg ceny: gdzie wynik
+# czyta człowiek albo trafia do maila do partnera, stoi Sonnet; klasyfikacja
+# i tagowanie idą na Haiku.
+MOCNY = claude.MOCNY
+TANI = claude.TANI
+
+# JEDYNY wyjątek — audyt GEO. `agent_pytajacy` nie używa modelu do pracy, tylko
+# go MIERZY: pyta „kogo polecasz" i sprawdza, czy padnie nazwa badanej firmy.
+# Klienci partnera pytają ChatGPT, więc pomiar musi chodzić na modelu OpenAI
+# z wyszukiwarką OpenAI. Podmiana na Claude nie zmieniłaby dostawcy, tylko
+# PRZEDMIOT POMIARU — raport przestałby mówić „jesteś widoczny w ChatGPT".
+MODEL_POMIARU_GEO = "gpt-5.4-mini"
 
 BRAK = "nie do ustalenia"    # PRD: uczciwy brak zamiast halucynacji
 
@@ -760,16 +773,24 @@ NIE orzekaj, czy firma jest konkurentem ani czy jest dobrym partnerem. Ta sama a
 z SEO w ofercie bywa jednym i drugim, zależnie od tego, po co do niej piszemy.
 Dostarczasz fakty — decyduje człowiek."""
 
-agent_ekstrakcja = Agent(
-    name="ekstrakcja",
-    instructions=EKSTRAKCJA_PROMPT,
-    output_type=Firma,
-    model=MODEL,
+# Ekstrakcja stoi na Sonnecie, mimo że formalnie jest „wyciąganiem pól". Powód:
+# te 22 pola są fundamentem wszystkiego dalej — karty, maila, kategorii, kolejki.
+# Błąd tutaj nie zostaje tutaj, tylko rozchodzi się po całym narzędziu.
+# Przy okazji: sam prompt ma ~1570 tokenów, więc mieści się w progu cache Sonneta
+# (1024). Na Haiku próg wynosi 2048 i cache by się nie włączył.
+zadanie_ekstrakcja = claude.Zadanie(
+    nazwa="ekstrakcja",
+    staly=EKSTRAKCJA_PROMPT,     # blok stały — to on idzie do cache
+    instrukcje="",
+    schemat=Firma,
+    model=MOCNY,
 )
 
-agent_zapytanie = Agent(
-    name="zapytanie",
-    instructions="""Dostajesz branżę i kilka usług firmy. Napisz JEDNO zapytanie do wyszukiwarki,
+zadanie_zapytanie = claude.Zadanie(
+    nazwa="zapytanie",
+    model=TANI,
+    max_tokenow=200,
+    instrukcje="""Dostajesz branżę i kilka usług firmy. Napisz JEDNO zapytanie do wyszukiwarki,
 które znajdzie inne firmy TEGO SAMEGO typu w Polsce.
 
 ZASADY (twarde):
@@ -785,7 +806,6 @@ ZASADY (twarde):
   Możesz je przeformułować na naturalną frazę wyszukiwarki, ale nie zmieniaj tematu.
 
 Zwróć TYLKO samo zapytanie, bez cudzysłowów i komentarza.""",
-    model=MODEL_TANI,
 )
 
 
@@ -793,9 +813,12 @@ class WariantyZapytan(BaseModel):
     zapytania: list[str]
 
 
-agent_warianty = Agent(
-    name="warianty",
-    instructions="""Dostajesz typ firmy. Wygeneruj 4 RÓŻNE frazy branżowe, po których
+zadanie_warianty = claude.Zadanie(
+    nazwa="warianty",
+    model=TANI,
+    schemat=WariantyZapytan,
+    max_tokenow=400,
+    instrukcje="""Dostajesz typ firmy. Wygeneruj 4 RÓŻNE frazy branżowe, po których
 da się znaleźć takie firmy.
 
 CEL: dotrzeć do firm, które NIE są w TOP10 na najbardziej oczywistą frazę. Jedno zapytanie
@@ -820,8 +843,6 @@ Przykład dla "agencja brandingowa" — cztery odrębne pozycje:
   2. studio brandingowe
   3. projektowanie identyfikacji wizualnej
   4. tworzenie logo marki""",
-    output_type=WariantyZapytan,
-    model=MODEL_TANI,
 )
 
 
@@ -835,6 +856,17 @@ class Prompty(BaseModel):
 # konto albo wyczerpać saldo i zabrać ją razem z resztą raportu. SE Ranking nie ma
 # odpowiednika tej funkcji (ich AI Search zwraca tylko prompty z własnej bazy),
 # więc bez tego przy wyborze SE Ranking sekcja w ogóle by nie działała.
+# ⚠ TEN JEDEN AGENT ZOSTAJE NA OPENAI. Nie przenoś go na Claude „dla spójności".
+#
+# Wszystkie pozostałe agenty WYKONUJĄ pracę — model jest dla nich narzędziem
+# i wymiana narzędzia zmienia jakość wyniku. Ten jeden jest BADANYM OBIEKTEM:
+# udaje asystenta, któremu klient partnera zadaje pytanie, a my sprawdzamy, czy
+# w odpowiedzi padnie nazwa badanej firmy. Cała sekcja GEO audytu mierzy właśnie to.
+#
+# Klienci pytają ChatGPT. Gdyby tu stanął Claude, raport nadal pokazywałby liczby
+# i nadal wyglądałby poprawnie — tyle że mówiłby „nie widać Cię w Claude" zamiast
+# „nie widać Cię w ChatGPT". Ten sam kształt, inne znaczenie; dokładnie ta klasa
+# błędu, którą w tym projekcie łapiemy najczęściej.
 agent_pytajacy = Agent(
     name="pytajacy",
     instructions=(
@@ -843,7 +875,7 @@ agent_pytajacy = Agent(
         "Pisz po polsku, rzeczowo, bez wstępów."
     ),
     tools=[WebSearchTool(search_context_size="medium")],
-    model=MODEL,
+    model=MODEL_POMIARU_GEO,
 )
 
 
@@ -868,9 +900,11 @@ class MarkiWOdpowiedziach(BaseModel):
 # Wyciąganie marek po **pogrubieniu** nie działa: model pogrubia też zwykłe frazy
 # („Certyfikacja PrestaShop", „Doświadczenie"), a prawdziwe nazwy firm bywają
 # w zwykłym tekście. Rozpoznanie nazwy własnej wymaga rozumienia języka — czyli LLM.
-agent_marki = Agent(
-    name="marki",
-    instructions="""Dostajesz ponumerowane odpowiedzi AI. Dla KAŻDEJ wypisz nazwy FIRM,
+zadanie_marki = claude.Zadanie(
+    nazwa="marki",
+    model=TANI,                  # rozpoznawanie nazw własnych — klasyfikacja, nie generowanie
+    schemat=MarkiWOdpowiedziach,
+    instrukcje="""Dostajesz ponumerowane odpowiedzi AI. Dla KAŻDEJ wypisz nazwy FIRM,
 które w niej wystąpiły jako polecani/wymieniani dostawcy usług.
 
 ZASADY:
@@ -879,16 +913,15 @@ ZASADY:
   miast, ogólnych fraz („Doświadczenie", „Certyfikacja", „Expert").
 - Jeśli w odpowiedzi nie ma żadnej firmy — pusta lista dla tej pozycji.
 - Zachowaj kolejność: lista wyników musi mieć tyle pozycji, ile dostałeś odpowiedzi.""",
-    output_type=MarkiWOdpowiedziach,
-    model=MODEL,
 )
 
 
-agent_prompty = Agent(
-    name="prompty-audyt",
-    instructions=audyt.PROMPT_GENERATORA.format(ile="{ile}").replace("{ile}", "5"),
-    output_type=Prompty,
-    model=MODEL,
+zadanie_prompty = claude.Zadanie(
+    nazwa="prompty-audyt",
+    model=TANI,
+    schemat=Prompty,
+    max_tokenow=800,
+    instrukcje=audyt.PROMPT_GENERATORA.format(ile="{ile}").replace("{ile}", "5"),
 )
 
 
@@ -949,13 +982,8 @@ STYLE_MAILI = [
 _czat_domena = ""
 
 
-@function_tool
 def otworz_podstrone(adres: str) -> str:
-    """Pobiera treść podstrony z serwisu badanej firmy.
-
-    Args:
-        adres: pełny URL albo sama ścieżka, np. "/oferta" lub "https://firma.pl/oferta".
-    """
+    """Pobiera treść podstrony z serwisu badanej firmy."""
     if not _czat_domena:
         return "Brak kontekstu firmy."
     pelny = adres if adres.lower().startswith("http") else urljoin("https://" + _czat_domena, adres)
@@ -970,9 +998,32 @@ def otworz_podstrone(adres: str) -> str:
     return f"[TREŚĆ {pelny}]" + _NOWA_LINIA + tekst_ze_strony(html)[:6000]
 
 
-agent_czat = Agent(
-    name="czat-research",
-    instructions=(
+# Opis narzędzia dla modelu. Schemat piszemy wprost, zamiast wyprowadzać go
+# z sygnatury funkcji — dzięki temu widać w jednym miejscu dokładnie to, co dostaje
+# model, i nie trzeba zgadywać, jak dekorator przetłumaczył docstring.
+NARZEDZIE_PODSTRONA = {
+    "name": "otworz_podstrone",
+    "description": ("Pobiera treść podstrony z serwisu badanej firmy. "
+                    "Działa WYŁĄCZNIE w obrębie jej domeny."),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "adres": {
+                "type": "string",
+                "description": 'Ścieżka albo pełny URL, np. "/oferta".',
+            }
+        },
+        "required": ["adres"],
+    },
+    "wykonaj": otworz_podstrone,
+}
+
+
+zadanie_czat = claude.Zadanie(
+    nazwa="czat-research",
+    model=MOCNY,
+    narzedzia=[NARZEDZIE_PODSTRONA],
+    instrukcje=(
         "Odpowiadasz na pytania o KONKRETNĄ firmę, na podstawie jej strony." + _NOWA_LINIA +
         "Masz dane z researchu oraz narzędzie otworz_podstrone do dociągania podstron." + _NOWA_LINIA +
         _NOWA_LINIA +
@@ -986,15 +1037,13 @@ agent_czat = Agent(
         "- Podaj, z której podstrony pochodzi odpowiedź." + _NOWA_LINIA +
         "- Pisz zwiezle i po polsku. Bez wstepow w rodzaju: oczywiscie, sprawdze."
     ),
-    tools=[otworz_podstrone],
-    model=MODEL,
 )
 
 
-
-agent_poprawka = Agent(
-    name="poprawka-maila",
-    instructions=(
+zadanie_poprawka = claude.Zadanie(
+    nazwa="poprawka-maila",
+    model=MOCNY,                 # poprawiany tekst idzie do partnera — bez oszczędzania
+    instrukcje=(
         "Poprawiasz GOTOWY mail sprzedażowy według polecenia użytkownika." + _NOWA_LINIA +
         "ZASADY:" + _NOWA_LINIA +
         "- Zmieniaj TYLKO to, o co prosi user. Reszta zostaje słowo w słowo." + _NOWA_LINIA +
@@ -1003,13 +1052,39 @@ agent_poprawka = Agent(
         "- Zachowaj język i formę zwracania się, chyba że polecenie mówi inaczej." + _NOWA_LINIA +
         "- Zwróć SAM mail: bez komentarza, bez wstępu, bez wyjaśnień co zmieniłeś."
     ),
-    model=MODEL,
 )
 
-agenci_mail = [
-    Agent(name=f"mail-{nazwa}", instructions=f"{MAIL_SYSTEM}\n\nSTYL: {opis}", model=MODEL)
+
+# Blok stały maili: profil Last Agency + zasady pisania. IDENTYCZNY dla wszystkich
+# trzech stylów — i to jest warunek, żeby cache miał sens. Styl jest zmienny, więc
+# trafia do `instrukcje`, czyli ZA blok cache'owany. Gdyby styl wszedł do prefiksu,
+# każdy z trzech maili unieważniałby cache poprzedniego.
+MAIL_STALY = profil.pelny() + _NOWA_LINIA * 2 + MAIL_SYSTEM
+if not profil.ma_prawdziwe_dowody():
+    # Dopóki nikt nie wpisał prawdziwych case studies, zakazujemy wprost powoływania
+    # się na wyniki. Bez tego model uzupełnia lukę tym, co brzmi wiarygodnie —
+    # a wymyślona liczba w pierwszym mailu do partnera to wpadka, nie literówka.
+    MAIL_STALY += (_NOWA_LINIA * 2 +
+                   "WAŻNE: nie znasz żadnych wyników ani case studies Last Agency. "
+                   "NIE powołuj się na liczby, wzrosty, nazwy klientów ani czas "
+                   "realizacji. Buduj wiarygodność samą propozycją współpracy.")
+
+zadania_mail = [
+    claude.Zadanie(nazwa=f"mail-{nazwa}", model=MOCNY,
+                   staly=MAIL_STALY, instrukcje=f"STYL: {opis}")
     for nazwa, opis in STYLE_MAILI
 ]
+
+
+def stan_cache() -> list[dict]:
+    """Czy bloki stałe naprawdę przekraczają próg cache — prawdziwym pomiarem,
+    nie szacunkiem. Odpalaj po każdej zmianie profilu:
+
+        python -c "import app; print(app.stan_cache())"
+
+    Cache poniżej progu nie zgłasza błędu, tylko po cichu nie działa, więc jedynym
+    sposobem, żeby się o tym dowiedzieć, jest sprawdzić."""
+    return claude.sprawdz_cache([zadanie_ekstrakcja] + zadania_mail)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1063,7 +1138,7 @@ async def api_research(request):
                 "error": "Nie udało się pobrać strony (blokada bota lub strona nieosiągalna).",
             })
 
-        wynik = await Runner.run(agent_ekstrakcja, f"URL: {url}\n\nTEKST ZE STRONY:\n{tekst}")
+        wynik = await claude.uruchom(zadanie_ekstrakcja, f"URL: {url}\n\nTEKST ZE STRONY:\n{tekst}")
         firma = wynik.final_output.model_dump()
         firma["url"] = url
         firma["zrodlo_danych"] = odwiedzone
@@ -1239,7 +1314,7 @@ async def api_szukaj(request):
         # najlepiej wypozycjonowanych, a szukamy tych mniej widocznych (główny ból z PRD).
         # Agent dostaje SAMĄ branżę — o mieście nie ma prawa wiedzieć, więc nie ma go
         # skąd zmyślić. Miejsce doklejamy niżej, już poza modelem.
-        r = await Runner.run(agent_warianty, f"Typ firmy: {branza}.")
+        r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
         warianty = [q for q in (zapytanie_z_miejscem(z, miasto)
                                 for z in (r.final_output.zapytania or [])) if q][:4]
         if not warianty:
@@ -1306,7 +1381,7 @@ async def api_similar(request):
                      "ponownie. Zaproponuj INNE UJĘCIE tej samej branży — synonim, węższą "
                      "specjalizację albo pokrewny typ firmy. Nie powtarzaj poprzedniej frazy.")
 
-        r = await Runner.run(agent_zapytanie, opis)
+        r = await claude.uruchom(zadanie_zapytanie, opis)
         # bez_lokalizacji, bo model mimo zakazu dopisuje "Polska" — a zmierzyliśmy,
         # że to słowo trafia w nazwy nagród i izb, nie w kraj. Tavily i tak jest
         # ograniczone do Polski parametrem country.
@@ -1354,7 +1429,7 @@ async def api_email(request):
             f"BAZA WIEDZY MAILINGU (struktura, zasady, przykłady):\n{baza_maili()}"
         )
         # 3 style równolegle — czas jak przy jednym mailu
-        wyniki = await asyncio.gather(*[Runner.run(a, kontekst) for a in agenci_mail])
+        wyniki = await asyncio.gather(*[claude.uruchom(z, kontekst) for z in zadania_mail])
         # Draft zapisujemy OD RAZU. Wcześniej żył tylko w przeglądarce — zamknięcie
         # karty kasowało go bezpowrotnie, mimo że napisanie kosztowało tokeny i czas.
         url = (firma.get("url") or "").strip()
@@ -1403,7 +1478,7 @@ async def api_audyt(request):
         opis = (f"Firma: {nazwa}\nBranża: {firma.get('branza','')}\n"
                 f"Usługi: {', '.join(firma.get('uslugi', [])[:10])}\n"
                 f"Miasto: {firma.get('miasto','')}\nOpis: {firma.get('opis','')}")
-        r = await Runner.run(agent_prompty, f"Wygeneruj {ile} pytań.\n\n{opis}")
+        r = await claude.uruchom(zadanie_prompty, f"Wygeneruj {ile} pytań.\n\n{opis}")
         pytania = (r.final_output.pytania or [])[:ile]
 
         # 2) Każde pytanie do KAŻDEGO wybranego modelu. Przy kilku modelach widać,
@@ -1441,7 +1516,7 @@ async def api_audyt(request):
                 f"[ODPOWIEDŹ {i}]\n{w['odpowiedz'][:1500]}" for i, w in enumerate(wiersze, 1)
             )
             try:
-                rm = await Runner.run(agent_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
+                rm = await claude.uruchom(zadanie_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
                 war = audyt.warianty_marki(nazwa, domena)
                 for w, marki in zip(wiersze, rm.final_output.marki_per_odpowiedz):
                     # ten sam filtr co w analizuj_odpowiedz — badana firma nie moze
@@ -1656,28 +1731,17 @@ async def api_czat(request):
             wejscie += rola + ": " + str(w.get("tresc") or "")[:1500] + _NOWA_LINIA
         wejscie += "PYTANIE: " + pytanie
 
-        w = await Runner.run(agent_czat, wejscie)
+        w = await claude.uruchom(zadanie_czat, wejscie)
 
         # Które podstrony agent naprawdę otworzył — user ma widzieć źródło,
         # a nie ufać, że model gdzieś zajrzał.
         #
-        # Wynik narzędzia przychodzi jako SŁOWNIK, nie obiekt. Pierwsza wersja
-        # czytała go przez getattr(raw_item, "output") i zawsze dostawała pustkę —
-        # odpowiedzi wyglądały poprawnie, ale lista źródeł była pusta mimo czterech
-        # otwartych podstron. Obsługujemy oba kształty.
-        odwiedzone = []
-        for item in w.new_items:
-            surowy = getattr(item, "raw_item", None)
-            if isinstance(surowy, dict):
-                tresc = str(surowy.get("output") or "")
-            else:
-                tresc = str(getattr(surowy, "output", "") or "")
-            for m in re.findall(r"\[TREŚĆ (https?://[^\]]+)\]", tresc):
-                if m not in odwiedzone:
-                    odwiedzone.append(m)
-
+        # Wcześniej trzeba było to odtwarzać z obiektów zwracanych przez SDK i raz
+        # się to już wyłożyło: wynik narzędzia przychodził jako słownik, odczyt szedł
+        # przez getattr, lista źródeł wychodziła pusta mimo czterech otwartych
+        # podstron. Teraz źródła notuje ten, kto wywołuje narzędzie — czyli my.
         return JSONResponse({"ok": True, "odpowiedz": str(w.final_output or ""),
-                             "zrodla": odwiedzone})
+                             "zrodla": w.odwiedzone})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
@@ -1724,7 +1788,7 @@ async def api_email_popraw(request):
 
         wejscie = ("MAIL DO POPRAWY:" + _NOWA_LINIA + stary["tresc"]
                    + _NOWA_LINIA + _NOWA_LINIA + "POLECENIE UŻYTKOWNIKA:" + _NOWA_LINIA + polecenie)
-        w = await Runner.run(agent_poprawka, wejscie)
+        w = await claude.uruchom(zadanie_poprawka, wejscie)
         tresc = str(w.final_output or "").strip()
         if not tresc:
             return JSONResponse({"ok": False, "error": "Model nie zwrócił treści — spróbuj inaczej sformułować."})

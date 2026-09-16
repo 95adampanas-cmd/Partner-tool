@@ -1,6 +1,12 @@
 # Wersje PRZYPIĘTE — bez pinów Render instaluje niezgodne wersje (lekcja z Partner-Findera)
 
-# Agent LLM
+# Silnik jezykowy — Claude robi cala prace
+anthropic==0.52.1
+
+# OpenAI zostaje WYLACZNIE pod audyt GEO: agent_pytajacy udaje asystenta,
+# ktorego pyta klient, i sprawdzamy, czy wymieni badana firme. Klienci pytaja
+# ChatGPT, wiec pomiar musi chodzic na modelu OpenAI. To nie jest pozostalosc
+# po migracji — patrz komentarz przy agent_pytajacy w app.py.
 openai-agents==0.17.7
 openai==2.44.0
 

@@ -230,3 +230,51 @@ i zawsze dostawała pustkę. Objaw był zdradliwy: odpowiedzi wyglądały popraw
 brakowało tylko źródeł — czyli awarii nie widać było tam, gdzie się patrzy.
 To kolejny przypadek tego samego wzorca co „fałszywe zera": brak danych, który
 wygląda jak poprawna odpowiedź.
+
+---
+
+## Przejście z GPT na Claude — z jednym wyjątkiem
+*16.09.2026*
+
+Cała praca językowa idzie na Claude: ekstrakcja, maile, czat, kategorie, warianty
+zapytań, prompty do audytu. Podział modeli wg ryzyka, nie wg ceny — Sonnet tam, gdzie
+wynik czyta człowiek albo trafia do maila do partnera; Haiku do klasyfikacji
+i tagowania.
+
+**`agent_pytajacy` zostaje na OpenAI i to nie jest niedokończona migracja.** On jako
+jedyny nie *używa* modelu, tylko go **mierzy**: udaje asystenta, któremu klient zadaje
+pytanie, a my sprawdzamy, czy padnie nazwa badanej firmy. Klienci partnera pytają
+ChatGPT. Po przeniesieniu na Claude raport dalej pokazywałby tabelę i dalej wyglądał
+poprawnie — tyle że mówiłby „nie widać Cię w Claude". Ten sam kształt, inne znaczenie.
+Test `sprawdz_modele()` pilnuje tego, bo to jest zmiana, którą ktoś zrobi w dobrej
+wierze, „dla spójności".
+
+**Natywne SDK Anthropic zamiast warstwy zgodności.** Osiem z dziewięciu zadań to jeden
+strzał prompt→wynik; tylko czat prowadzi pętlę z narzędziem. Przy takim rozkładzie
+adapter (LiteLLM pod Agents SDK) kosztowałby dokładnie to, po co przyszliśmy: cache
+promptu i Batch API są specyficzne dla Anthropic i przez adapter albo nie przechodzą,
+albo przechodzą bez efektu.
+
+**Output strukturalny przez wymuszony tool use.** Model musi wywołać narzędzie
+o zadanym schemacie, więc nie ma jak zwrócić prozy zamiast danych. Wybrane zamiast
+nowszych mechanizmów, bo działa na przypiętej wersji SDK i nie wymaga ruszania
+`pydantic-core` (próba upgrade'u wywróciłaby środowisko).
+
+**Pułapka cache, warta zapamiętania.** Anthropic cache'uje tylko prefiks dłuższy niż
+próg modelu — Sonnet 1024 tokeny, Haiku 2048. Krótszy blok z `cache_control` przechodzi
+**bez błędu i bez efektu**: kod wygląda, jakby cache działał, a rachunek mówi co innego.
+Dlatego `_da_sie_cachowac()` sprawdza długość i włącza cache tylko realnie, a test
+wypisuje stan każdego bloku. To ta sama klasa błędu co fałszywe zera — brak efektu ma
+być widoczny.
+
+**Profil Last Agency jako osobny plik.** Wcześniej kontekst „kim jesteśmy" był rozsypany
+po dwóch promptach, więc nie dało się go ani cache'ować (cache obejmuje prefiks — musi
+być jednym blokiem), ani poprawić w jednym miejscu. Teraz `profil.py`. Stan na dziś:
+sam profil ma ~930 tokenów, czyli **pod progiem**; sklejony z zasadami maila daje 1347
+i cache działa. Case studies zostały puste — `[DO UZUPEŁNIENIA]` — i dopóki tam stoją,
+prompt maila zawiera **jawny zakaz** powoływania się na jakiekolwiek wyniki. Wymyślona
+liczba w pierwszym mailu do partnera to nie literówka, tylko wpadka wizerunkowa.
+
+**Czego NIE zrobiliśmy: nie dopchaliśmy profilu watą, żeby przekroczyć próg.** To
+kosztowałoby tokeny przy każdym wywołaniu, żeby zaoszczędzić na cache, i wsadzało
+modelowi wypełniacz do kontekstu. Cache włączy się sam, gdy profil urośnie treścią.

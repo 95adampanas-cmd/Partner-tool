@@ -157,9 +157,67 @@ def sprawdz_kategorie() -> int:
     return len(brakuje) + len(nadmiar)
 
 
+def sprawdz_modele() -> int:
+    """Czy praca idzie na Claude, a pomiar GEO został na OpenAI.
+
+    Dwie rzeczy, które łatwo zepsuć w dobrej wierze:
+
+    1. Ktoś „ujednolica" agent_pytajacy i przenosi go na Claude. Nic nie wybucha,
+       testy przechodzą, raport dalej pokazuje tabelkę — tyle że mierzy widoczność
+       w Claude zamiast w ChatGPT. Klienci partnera pytają ChatGPT, więc od tego
+       momentu cała sekcja GEO odpowiada na inne pytanie, niż głosi jej nagłówek.
+
+    2. Ktoś skraca blok stały poniżej progu cache. Anthropic nie zgłasza wtedy
+       błędu — cache_control jest po prostu ignorowany. Kod wygląda identycznie,
+       rachunek rośnie dwukrotnie i nie ma jak tego zauważyć bez sprawdzenia.
+    """
+    import claude
+
+    bledy = 0
+    zadania = [getattr(app, n) for n in dir(app) if n.startswith("zadanie_")]
+    zadania += app.zadania_mail
+
+    for z in zadania:
+        if z.model.startswith("claude-"):
+            print(f"  OK   | {z.nazwa:16} -> {z.model}")
+        else:
+            print(f"  BŁĄD | {z.nazwa:16} nie jest na Claude: {z.model}")
+            bledy += 1
+
+    if app.agent_pytajacy.model == app.MODEL_POMIARU_GEO and "gpt" in app.MODEL_POMIARU_GEO:
+        print(f"  OK   | {'pytajacy (GEO)':16} -> {app.MODEL_POMIARU_GEO} "
+              f"— mierzy ChatGPT, ma tu zostać")
+    else:
+        print(f"  BŁĄD | pytajacy przestał mierzyć ChatGPT: {app.agent_pytajacy.model}")
+        bledy += 1
+
+    for z in zadania:
+        if not z.staly:
+            continue
+        prog = claude.PROGI_CACHE[z.model]
+        tok = len(z.staly) / claude.ZNAKI_NA_TOKEN
+        wlaczony = "cache_control" in claude._system(z)[0]
+        if wlaczony and tok >= prog:
+            print(f"  OK   | cache {z.nazwa:16} ~{tok:.0f} tok (próg {prog})")
+        elif not wlaczony:
+            # To NIE jest błąd — tak ma działać, gdy blok jest za krótki. Ma być
+            # tylko widoczne, żeby nikt nie żył w przekonaniu, że cache działa.
+            print(f"  UWAGA| cache {z.nazwa:16} WYŁĄCZONY, ~{tok:.0f} tok < {prog}")
+        else:
+            print(f"  BŁĄD | cache {z.nazwa:16} włączony mimo ~{tok:.0f} tok < {prog}")
+            bledy += 1
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
+
+    print("=" * 74)
+    print("MODELE — praca na Claude, pomiar GEO na OpenAI")
+    print("=" * 74)
+    bledy += sprawdz_modele()
+    print()
 
     print("=" * 74)
     print("KATEGORIE — czy backend i frontend nazywają je tak samo")
