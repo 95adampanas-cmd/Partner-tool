@@ -745,6 +745,17 @@ ma_seo = false, choćby słowo "SEO" padało na stronie kilkanaście razy.
 Google Ads, Meta Ads i inne kampanie płatne to NIE jest SEO — same z siebie nigdy
 nie dają ma_seo = true.
 
+GDZIE USŁUGA JEST OPISANA, MA ZNACZENIE — to rozstrzyga najczęstszą pomyłkę.
+Oferta firmy to jej MENU USŁUG. Osobna strona pod frazę ("Pozycjonowanie Kalisz",
+"SEO Wrocław"), linkowana tylko ze stopki albo z sitemapy i NIEOBECNA w menu usług,
+to landing pod lokalne wyszukiwanie, a nie pozycja w ofercie. Taka strona potrafi
+opisywać pełen proces — audyt, link building, comiesięczne raporty — i mimo to
+nie znaczyć, że firma tę usługę sprzedaje.
+
+Gdy zachodzi taka rozbieżność: menu usług wygrywa, ma_seo = false, a w seo_zakres
+napisz WPROST, że strona pozycjonowania istnieje, ale nie ma jej w menu usług.
+Człowiek ma zobaczyć rozbieżność, a nie sam werdykt.
+
 W seo_zakres napisz KRÓTKO, co dokładnie firma robi w obszarze SEO i skąd to wiadomo
 — po to, żeby człowiek mógł sprawdzić Twój wniosek. Gdy ma_seo = false, ale coś
 około-SEO w ofercie jest (audyt, optymalizacja), napisz co, zamiast "{BRAK}".

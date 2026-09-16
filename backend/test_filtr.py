@@ -205,6 +205,16 @@ def sprawdz_modele() -> int:
         print("  BŁĄD | mail: brak zastrzezenia — mail wyjdzie jako lista synergii")
         bledy += 1
 
+    # Regula "menu uslug wygrywa z landingiem ze stopki". Kosztowala nas bledna
+    # ocene Tebimu: strona /pozycjonowanie opisuje pelny proces (audyt, link
+    # building, comiesieczne raporty), ale wisi tylko w stopce i nie ma jej w menu
+    # USLUGI — to landing pod fraze "Pozycjonowanie Kalisz", nie pozycja w ofercie.
+    if "landing pod lokalne wyszukiwanie" in app.EKSTRAKCJA_PROMPT:
+        print("  OK   | ekstrakcja: menu uslug wygrywa z landingiem ze stopki")
+    else:
+        print("  BŁĄD | brak reguly o landingach — wroci blad z Tebimem")
+        bledy += 1
+
     # Kotwica na glownym profilu. Bez niej dluga lista uslug potrafi przykryc to,
     # czym firma JEST: z agencji PrestaShop robi sie "software house", a synergia
     # buduje sie na czyms, czym partner sie nie czuje.

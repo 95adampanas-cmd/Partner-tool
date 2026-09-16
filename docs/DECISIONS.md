@@ -349,3 +349,34 @@ saldzie audyt zwraca czytelny błąd `typ: api`, a nie raport z zer.
 Test UI dorósł przy okazji o pięć przypadków: formularz audytu pojawia się dopiero po
 wybraniu firmy, więc największy szablon w aplikacji nie był sprawdzany wcale — a ta
 zmiana ruszyła w nim siedem miejsc.
+
+---
+
+## Menu usług wygrywa z landingiem ze stopki
+*16.09.2026*
+
+Tebim ma stronę `/pozycjonowanie` opisującą pełny proces SEO: audyt, analiza
+konkurencji, link building, comiesięczne raporty, horyzont 2–3 miesięcy, estymacja
+kosztów. Na tej podstawie ekstrakcja postawiła `ma_seo = true` — i **to była pomyłka**.
+
+Rozstrzygnęło sprawdzenie, SKĄD ta strona jest linkowana: wyłącznie z
+`div.footer-menu-container`. Menu USŁUGI ma dziesięć pozycji i wszystkie dotyczą
+PrestaShopa; SEO nie ma tam wcale. Tytuł strony — „Pozycjonowanie **Kalisz** — SEO dla
+stron www i sklepów" — dopowiada resztę: to landing pod lokalną frazę, utrzymywany dla
+widoczności, nie pozycja w ofercie. Adam potwierdził od strony biznesowej: leady SEO
+Tebim przekazuje Last Agency w kanale referral.
+
+**Reguła, która z tego wynika i siedzi teraz w prompcie ekstrakcji:** ofertą firmy jest
+jej MENU USŁUG. Osobna strona pod frazę, nieobecna w menu, nie czyni usługi częścią
+oferty — choćby opisywała pełny proces. Przy rozbieżności wygrywa menu, a `seo_zakres`
+ma **nazwać rozbieżność wprost**, żeby człowiek zobaczył podstawę werdyktu, a nie sam
+werdykt.
+
+**Dlaczego to nie jest drobiazg.** Landing pod lokalną frazę to standardowa praktyka
+SEO — każda agencja, która sama siebie pozycjonuje, takie strony ma. Bez tej reguły
+narzędzie systematycznie zawyżałoby `ma_seo` u firm, które o SEO tylko piszą, a nie
+sprzedają go. Czyli dokładnie odwrotnie, niż chce definicja zawężona we wrześniu.
+
+**Jak to wykryliśmy:** nie testem, tylko konfrontacją z rzeczywistością — Adam zna tego
+partnera i zaprzeczył werdyktowi, a screen z menu usług rozstrzygnął spór. Ta sama
+lekcja, co przy fałszywych zerach: liczba była prawdziwa, znaczenie inne niż etykieta.
