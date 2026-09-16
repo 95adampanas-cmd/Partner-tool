@@ -205,6 +205,16 @@ def sprawdz_modele() -> int:
         print("  BŁĄD | mail: brak zastrzezenia — mail wyjdzie jako lista synergii")
         bledy += 1
 
+    # Kotwica na glownym profilu. Bez niej dluga lista uslug potrafi przykryc to,
+    # czym firma JEST: z agencji PrestaShop robi sie "software house", a synergia
+    # buduje sie na czyms, czym partner sie nie czuje.
+    if all("ZACZNIJ OD GŁÓWNEGO PROFILU" in x
+           for x in (app.CZAT_SYNERGIE, app.MAIL_SYNERGIE)):
+        print("  OK   | synergia zakotwiczona na branzy i kategorii, nie na liscie uslug")
+    else:
+        print("  BŁĄD | brak kotwicy profilu — lista uslug przykryje glowny profil")
+        bledy += 1
+
     for z in zadania:
         if not z.staly:
             continue

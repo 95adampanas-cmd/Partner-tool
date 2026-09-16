@@ -1002,12 +1002,33 @@ def otworz_podstrone(adres: str) -> str:
 # zastrzeżenia zamienia każdą odpowiedź w rozpisaną listę — także odpowiedź na
 # „czy obsługują B2B?". Dlatego oba miejsca dostają go z własnym ograniczeniem.
 
+# Kotwica na głównym profilu — wspólna dla obu zastosowań.
+#
+# Research zwraca listę usług, która przy każdej agencji jest długa: wdrożenia, UX,
+# integracje, audyty, hosting, szkolenia. Model, który czyta ją jak równą listę,
+# potrafi z agencji PrestaShop zrobić „software house" albo „firmę od audytów" —
+# i cała synergia buduje się wtedy na czymś, czym partner się nie czuje. Na spotkaniu
+# to widać natychmiast: rozmówca prostuje pierwsze zdanie i reszta traci wagę.
+#
+# Dlatego rozstrzyga branża i kategoria z researchu, a nie najdłuższa lista usług.
+KOTWICA_PROFILU = (
+    "ZACZNIJ OD GŁÓWNEGO PROFILU FIRMY." + _NOWA_LINIA +
+    "Rozstrzyga pole `branza` i `kategoria` z researchu — to jest to, czym firma JEST "
+    "i za co bierze pieniądze. Lista usług opisuje, co przy tym jeszcze robi, i nie "
+    "może przykryć głównego profilu." + _NOWA_LINIA +
+    "Przykład: agencja PrestaShop, która ma w usługach integracje i audyty, dalej jest "
+    "agencją PrestaShop — NIE software housem i NIE firmą audytową. Synergia ma się "
+    "opierać na tym, czym są, nie na najdłuższej pozycji z listy usług." + _NOWA_LINIA +
+    "Gdy usługa poboczna jest naprawdę istotna dla współpracy, nazwij ją jako poboczną, "
+    "zamiast przesuwać na nią cały opis partnera.")
+
+
 # Czat: pełny format, ale WYŁĄCZNIE na żądanie. Rozmowa ma zostać rozmową.
 CZAT_SYNERGIE = (
     "PONIŻSZA INSTRUKCJA OBOWIĄZUJE TYLKO WTEDY, gdy user prosi o synergie, "
     "powody do współpracy albo materiał na spotkanie. Przy każdym innym pytaniu "
     "ZIGNORUJ ten format i odpowiadaj normalnie, zwięźle." + _NOWA_LINIA * 2
-    + profil.synergie())
+    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + profil.synergie())
 
 # Mail: bierzemy SPOSÓB MYŚLENIA, nie format. Mail ma mieć kilka zdań i jeden
 # konkret — rozpisana tabelka synergii w pierwszym kontakcie to ulotka, nie list.
@@ -1018,7 +1039,7 @@ MAIL_SYNERGIE = (
     "ALE NIE PRZENOŚ TEGO FORMATU DO MAILA. Nie wypisuj listy synergii, nagłówków "
     "ani punktów „Wpływ na wyniki”. Z całej analizy wybierz JEDEN najmocniejszy "
     "powód i napisz go zwykłym zdaniem." + _NOWA_LINIA * 2
-    + profil.synergie())
+    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + profil.synergie())
 
 
 # Opis narzędzia dla modelu. Schemat piszemy wprost, zamiast wyprowadzać go
