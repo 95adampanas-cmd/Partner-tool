@@ -997,6 +997,30 @@ def otworz_podstrone(adres: str) -> str:
     return f"[TREŚĆ {pelny}]" + _NOWA_LINIA + tekst_ze_strony(html)[:6000]
 
 
+# ── Instrukcja synergii, w dwóch różnych zakresach ────────────────────
+# synergie.md to szablon FORMATU WYJŚCIA, nie wiedza o firmie. Wklejony bez
+# zastrzeżenia zamienia każdą odpowiedź w rozpisaną listę — także odpowiedź na
+# „czy obsługują B2B?". Dlatego oba miejsca dostają go z własnym ograniczeniem.
+
+# Czat: pełny format, ale WYŁĄCZNIE na żądanie. Rozmowa ma zostać rozmową.
+CZAT_SYNERGIE = (
+    "PONIŻSZA INSTRUKCJA OBOWIĄZUJE TYLKO WTEDY, gdy user prosi o synergie, "
+    "powody do współpracy albo materiał na spotkanie. Przy każdym innym pytaniu "
+    "ZIGNORUJ ten format i odpowiadaj normalnie, zwięźle." + _NOWA_LINIA * 2
+    + profil.synergie())
+
+# Mail: bierzemy SPOSÓB MYŚLENIA, nie format. Mail ma mieć kilka zdań i jeden
+# konkret — rozpisana tabelka synergii w pierwszym kontakcie to ulotka, nie list.
+MAIL_SYNERGIE = (
+    "JAK SZUKAĆ POWODU DO WSPÓŁPRACY — instrukcja analityczna. Zastosuj sposób "
+    "myślenia opisany niżej: rozpoznaj kanał (white-label czy referral), szukaj "
+    "komplementarności zamiast dublowania, nazwij korzyść dla KLIENTA partnera." + _NOWA_LINIA +
+    "ALE NIE PRZENOŚ TEGO FORMATU DO MAILA. Nie wypisuj listy synergii, nagłówków "
+    "ani punktów „Wpływ na wyniki”. Z całej analizy wybierz JEDEN najmocniejszy "
+    "powód i napisz go zwykłym zdaniem." + _NOWA_LINIA * 2
+    + profil.synergie())
+
+
 # Opis narzędzia dla modelu. Schemat piszemy wprost, zamiast wyprowadzać go
 # z sygnatury funkcji — dzięki temu widać w jednym miejscu dokładnie to, co dostaje
 # model, i nie trzeba zgadywać, jak dekorator przetłumaczył docstring.
@@ -1032,7 +1056,7 @@ zadanie_czat = claude.Zadanie(
     nazwa="czat-research",
     model=MOCNY,
     narzedzia=[NARZEDZIE_PODSTRONA],
-    staly=profil.pelny(),
+    staly=profil.pelny() + _NOWA_LINIA * 2 + CZAT_SYNERGIE,
     instrukcje=(
         "Odpowiadasz na pytania o KONKRETNĄ firmę, na podstawie jej strony." + _NOWA_LINIA +
         "Masz dane z researchu oraz narzędzie otworz_podstrone do dociągania podstron."
@@ -1043,6 +1067,8 @@ zadanie_czat = claude.Zadanie(
         "wiedza, jaką masz. Pytania o synergię, sens współpracy czy dopasowanie "
         "partnera odpowiadasz zestawiając profil z tym, co wiesz o badanej firmie. "
         "Nie proś użytkownika, żeby opisał Ci własną agencję." + _NOWA_LINIA +
+        "- Rozpisany format synergii stosujesz TYLKO wtedy, gdy user o nie poprosi. "
+        "Na zwykłe pytanie o firmę odpowiadasz zwyczajnie, dwoma zdaniami." + _NOWA_LINIA +
         _NOWA_LINIA +
         "ZASADY:" + _NOWA_LINIA +
         "- Gdy odpowiedzi nie ma w danych z researchu, SPRÓBUJ otworzyć podstronę, "
@@ -1076,7 +1102,8 @@ zadanie_poprawka = claude.Zadanie(
 # trzech stylów — i to jest warunek, żeby cache miał sens. Styl jest zmienny, więc
 # trafia do `instrukcje`, czyli ZA blok cache'owany. Gdyby styl wszedł do prefiksu,
 # każdy z trzech maili unieważniałby cache poprzedniego.
-MAIL_STALY = profil.pelny() + _NOWA_LINIA * 2 + MAIL_SYSTEM
+MAIL_STALY = (profil.pelny() + _NOWA_LINIA * 2 + MAIL_SYNERGIE
+              + _NOWA_LINIA * 2 + MAIL_SYSTEM)
 if not profil.istnieje():
     # Bez profilu narzędzie ma działać dalej, tylko bez wiedzy o nas — ale model musi
     # o tym WIEDZIEĆ. Inaczej uzupełni lukę tym, co brzmi wiarygodnie, a wymyślona

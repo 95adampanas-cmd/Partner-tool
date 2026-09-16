@@ -28,6 +28,7 @@ przekracza próg modelu (Sonnet 1024 tokeny). Sprawdzasz stan poleceniem:
 from pathlib import Path
 
 PLIK = Path(__file__).resolve().parent / "profil_last_agency.md"
+PLIK_SYNERGIE = Path(__file__).resolve().parent / "synergie.md"
 
 # Doklejane do profilu przy zadaniach, które piszą tekst wychodzący na zewnątrz.
 # Sam profil jest opisem firmy; to są zasady, jak o niej mówić.
@@ -53,6 +54,19 @@ def pelny() -> str:
     zamiast czytać z pamięci.
     """
     return PLIK.read_text(encoding="utf-8").strip() + "\n\n" + ZASADY_PISANIA
+
+
+def synergie() -> str:
+    """Instrukcja generowania synergii — jak zestawić profil z researchem partnera.
+
+    UWAGA NA ZAKRES. To jest szablon FORMATU WYJŚCIA, nie wiedza o firmie. Wklejony
+    bez zastrzeżenia każe modelowi odpowiadać rozpisaną listą synergii na każde
+    pytanie — także na „czy obsługują B2B?". Dlatego każde miejsce, które go używa,
+    dokłada własne ograniczenie: kiedy ten format obowiązuje, a kiedy nie.
+    """
+    if not PLIK_SYNERGIE.exists():
+        return ""
+    return PLIK_SYNERGIE.read_text(encoding="utf-8").strip()
 
 
 def istnieje() -> bool:

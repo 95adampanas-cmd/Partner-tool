@@ -191,6 +191,20 @@ def sprawdz_modele() -> int:
         print(f"  BŁĄD | pytajacy przestał mierzyć ChatGPT: {app.agent_pytajacy.model}")
         bledy += 1
 
+    # synergie.md to szablon FORMATU WYJSCIA. Bez ograniczenia zakresu zamienia
+    # kazda odpowiedz w rozpisana liste — takze odpowiedz na „czy obsluguja B2B?",
+    # i kazdy mail w ulotke. Oba miejsca musza niesc wlasne zastrzezenie.
+    if "TYLKO WTEDY" in app.CZAT_SYNERGIE.split("##")[0]:
+        print("  OK   | czat: format synergii ograniczony do pytan o synergie")
+    else:
+        print("  BŁĄD | czat: brak ograniczenia — format wycieknie na kazde pytanie")
+        bledy += 1
+    if "NIE PRZENOŚ TEGO FORMATU" in app.MAIL_SYNERGIE:
+        print("  OK   | mail: bierze sposob myslenia, nie format")
+    else:
+        print("  BŁĄD | mail: brak zastrzezenia — mail wyjdzie jako lista synergii")
+        bledy += 1
+
     for z in zadania:
         if not z.staly:
             continue
