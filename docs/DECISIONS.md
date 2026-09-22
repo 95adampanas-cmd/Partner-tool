@@ -514,3 +514,47 @@ sposobu, mówiąc o tym użytkownikowi wprost.
 mało. Żaden test tego nie łapał, bo testowaliśmy na szerokiej frazie („agencja
 interaktywna Leszno" dawała 60) i wszystko wyglądało dobrze. Im węższa fraza — a takie
 są w presetach — tym mocniej to cięło.
+
+---
+
+## Google jako trzecie źródło — przez DataForSEO, nie Custom Search
+*22.09.2026*
+
+Tavily i Google widzą inny wycinek internetu. Zmierzone na „agencja digital advisory":
+pierwsza dziewiątka z Tavily pokrywała się z pierwszą dziesiątką Google w **trzech
+domenach**. Żadne nie jest lepsze — razem dają więcej kandydatów niż każde osobno.
+
+**Zaczęliśmy od Google Custom Search API i był to błąd, którego dało się uniknąć.**
+Wybrałem je, bo „mają 100 darmowych zapytań dziennie" — z pamięci, bez sprawdzenia,
+czy to nadal prawda. Moduł powstał, przeszedł testy i był bezużyteczny: Google wygasza
+przeszukiwanie otwartej sieci. Od 20.01.2026 nowe wyszukiwarki nie mogą go włączyć,
+a całe API przestaje działać 01.01.2027. Gdy padło pytanie, czy da się to obejść,
+sprawdzenie zajęło trzy minuty — i trzeba je było zrobić na początku, nie na końcu.
+
+Następca, na który kieruje Google — Vertex AI Search, w międzyczasie przemianowany
+na **Agent Search** — też nie robi otwartej sieci. Ich własna instrukcja migracji nosi
+tytuł „Migrate from Custom Search **Site Restricted** JSON API" i opisuje produkt jako
+„Google-quality, **site-restricted** search": podajesz listę domen, które mają być
+przeszukiwane. To zamiennik dla wariantu, który i tak przeszukiwał tylko wskazane
+witryny.
+
+**Co zamiast: DataForSEO, które już mamy.** Ich `serp/google/organic/live/advanced`
+zwraca prawdziwe wyniki Google z polską lokalizacją, ~$0,002 za frazę. Wołaliśmy je
+od dawna w analizie luki GEO — trzeba było tylko opakować.
+
+Moduł zwraca kształt zgodny z Tavily (`url`, `title`, `content`), więc wyniki idą tym
+samym filtrem: jedno miejsce decyduje, co jest firmą, niezależnie od źródła.
+Bierzemy wyłącznie pozycje `type == "organic"` — SERP zawiera też `people_also_ask`,
+`video` i `popular_products`, a to nie są firmy, tylko elementy strony wyników.
+
+**Miasto doklejamy DO FRAZY, inaczej niż w Mapach.** Tam było to błędem, bo Places
+dopasowuje tekst dosłownie do wizytówki. Tutaj przeszukujemy treść stron, więc miasto
+w zapytaniu działa tak, jak człowiek by tego oczekiwał.
+
+**Jeden depozyt, dwie funkcje.** Ten sam rachunek obsługuje mikroaudyt i to źródło.
+Dziś saldo jest ujemne, więc oba zwracają czytelny błąd `typ: api` — nie raport z zer
+i nie pustą listę firm.
+
+**Lekcja, droższa niż powinna:** przy integracji z cudzym API najpierw sprawdzasz, czy
+ono nadal robi to, co pamiętasz, a dopiero potem piszesz kod. Wersja na Custom Search
+działała poprawnie — i to było najgorsze, bo nic nie sygnalizowało, że jest ślepa.

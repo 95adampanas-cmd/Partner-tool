@@ -1479,12 +1479,12 @@ async def api_szukaj(request):
                 partie = await asyncio.gather(*[
                     asyncio.to_thread(szukaj_google.szukaj, f, miasto) for f in frazy])
             except szukaj_google.BladGoogle as e:
-                return JSONResponse({"ok": False, "error": str(e)})
+                return JSONResponse({"ok": False, "error": str(e), "typ": "api"})
             surowe = [w for p in partie for w in p["wyniki"]]
             wynik = await znajdz_firmy_z_wynikow(surowe)
             return JSONResponse({"ok": True, "zrodlo": "google",
                                  "zapytanie": " | ".join(p["zapytanie"] for p in partie),
-                                 "zapytan_do_google": sum(p["zapytan"] for p in partie),
+                                 "koszt": round(sum(p["koszt"] for p in partie), 4),
                                  **wynik})
 
         if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):

@@ -292,9 +292,54 @@ def sprawdz_mapy() -> int:
     return bledy
 
 
+def sprawdz_zrodlo_google() -> int:
+    """Czy źródło „Google" poprawnie czyta SERP-a — na zapisanej odpowiedzi, bez kosztu.
+
+    Zaczynaliśmy to na Custom Search API i moduł był gotowy, zanim ktokolwiek sprawdził,
+    czy to API nadal robi to, co pamiętamy. Nie robiło: Google wygasza przeszukiwanie
+    całej sieci (nowe wyszukiwarki od 20.01.2026, całe API 01.01.2027). Kod działał
+    poprawnie i był bezużyteczny. Stąd ten test — na prawdziwej próbce odpowiedzi.
+    """
+    import szukaj_google, dfs
+
+    bledy = 0
+    prawdziwe = szukaj_google.dfs.wywolaj
+    szukaj_google.dfs.wywolaj = lambda *a, **k: dfs.wczytaj(
+        "audyt_luka_elektromaniacy.pl_serp_gps dla dziecka")
+    try:
+        r = szukaj_google.szukaj("gps dla dziecka")
+        w = r["wyniki"]
+        if w:
+            print(f"  OK   | SERP sparsowany: {len(w)} wyników organicznych, koszt ${r['koszt']}")
+        else:
+            print("  BŁĄD | parser nie wyciągnął żadnego wyniku z SERP-a")
+            bledy += 1
+        # Filtr dostaje url+title+content; brak któregokolwiek i firma przepada
+        # albo trafia na listę jako goła domena bez opisu.
+        braki = [k for k in ("url", "title", "content")
+                 if any(not x.get(k) for x in w)]
+        if braki:
+            print(f"  BŁĄD | wyniki bez pól: {braki}")
+            bledy += 1
+        else:
+            print("  OK   | każdy wynik ma url, tytuł i opis — kształt zgodny z Tavily")
+        # SERP zawiera też people_also_ask, video, popular_products — to nie są firmy.
+        if all("type" not in x for x in w):
+            print("  OK   | wzięte tylko pozycje organiczne")
+    finally:
+        szukaj_google.dfs.wywolaj = prawdziwe
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
+
+    print("=" * 74)
+    print("ŹRÓDŁO GOOGLE — czytanie SERP-a z DataForSEO")
+    print("=" * 74)
+    bledy += sprawdz_zrodlo_google()
+    print()
 
     print("=" * 74)
     print("MAPY — miasto jako obszar, nie jako tekst")
