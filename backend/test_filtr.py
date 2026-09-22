@@ -243,9 +243,64 @@ def sprawdz_modele() -> int:
     return bledy
 
 
+def sprawdz_mapy() -> int:
+    """Czy miasto idzie do Map jako OBSZAR, a nie jako tekst w zapytaniu.
+
+    To kosztowało nas 95% wyników. Places dopasowuje textQuery dosłownie, więc
+    „doradztwo e-commerce poznań" szukało wizytówek z Poznaniem w nazwie i zwracało
+    JEDNĄ firmę; ta sama fraza z obszarem Poznania zwraca 22. Objaw był niewidoczny:
+    wyniki przychodziły, tylko było ich absurdalnie mało, a nikt nie wiedział czemu.
+
+    Test jest offline — podmieniamy wywołanie sieciowe i sprawdzamy, CO byśmy wysłali.
+    """
+    import mapy
+
+    bledy = 0
+    wyslane = []
+    prawdziwe_zapytaj, prawdziwy_obszar = mapy._zapytaj, mapy.obszar
+    mapy._zapytaj = lambda tresc, pola=None: (wyslane.append(tresc) or {"places": []})
+    mapy.obszar = lambda nazwa: {
+        "nazwa": "Poznań", "km_ns": 24, "km_we": 23,
+        "prostokat": {"low": {"latitude": 52.2, "longitude": 16.7},
+                      "high": {"latitude": 52.5, "longitude": 17.1}}}
+    try:
+        mapy.szukaj("doradztwo e-commerce", "poznań")
+        t = wyslane[0]
+        if "poznań" in t["textQuery"].lower():
+            print(f"  BŁĄD | miasto wróciło do treści zapytania: {t['textQuery']!r}")
+            bledy += 1
+        else:
+            print(f"  OK   | fraza bez miasta: {t['textQuery']!r}")
+        if "locationBias" in t:
+            print("  OK   | miasto poszło jako obszar (locationBias)")
+        else:
+            print("  BŁĄD | brak locationBias — szukamy po całej Polsce")
+            bledy += 1
+
+        # Gdy obszaru nie da się rozpoznać, wracamy do starego sposobu — ale wtedy
+        # front MUSI o tym powiedzieć, inaczej user widzi jeden wynik bez wyjaśnienia.
+        wyslane.clear()
+        mapy.obszar = lambda nazwa: None
+        r = mapy.szukaj("doradztwo e-commerce", "Kostrzyca Dolna")
+        if r.get("obszar_nierozpoznany") and "kostrzyca" in wyslane[0]["textQuery"].lower():
+            print("  OK   | nierozpoznany obszar: stary sposób + flaga dla użytkownika")
+        else:
+            print("  BŁĄD | nierozpoznany obszar nie jest zgłaszany")
+            bledy += 1
+    finally:
+        mapy._zapytaj, mapy.obszar = prawdziwe_zapytaj, prawdziwy_obszar
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
+
+    print("=" * 74)
+    print("MAPY — miasto jako obszar, nie jako tekst")
+    print("=" * 74)
+    bledy += sprawdz_mapy()
+    print()
 
     print("=" * 74)
     print("MODELE — praca na Claude, pomiar GEO na OpenAI")

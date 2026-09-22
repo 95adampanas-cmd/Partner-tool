@@ -1450,9 +1450,15 @@ async def api_szukaj(request):
             # nie brak funkcji.
             wyniki = [{"url": u, "title": "", "content": ""} for u in z_map["adresy"]]
             wynik = await znajdz_firmy_z_wynikow(wyniki)
+            # Obszar pokazujemy użytkownikowi: rozpoznanie nazwy bywa nietrafione
+            # („powiat leszczyński" Google rozumie jako miasto Leszno), a bez tego
+            # wyniki cicho zmieniają znaczenie i nie ma jak tego zauważyć.
             return JSONResponse({"ok": True, "zapytanie": z_map["zapytanie"],
                                  "zrodlo": "mapy", "bez_strony": z_map["bez_strony"],
-                                 "zapytan_do_map": z_map["zapytan"], **wynik})
+                                 "zapytan_do_map": z_map["zapytan"],
+                                 "obszar": z_map.get("obszar"),
+                                 "obszar_nierozpoznany": z_map.get("obszar_nierozpoznany"),
+                                 **wynik})
 
         if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
             return JSONResponse({"ok": False, "error": "Brak klucza Tavily w środowisku."})

@@ -457,3 +457,60 @@ stron. Warte tego.
 **Lekcja:** limit dopisany „na wszelki wypadek" przy jednej ścieżce zostaje na zawsze
 i staje się niewidzialnym sufitem produktu. Ten kosztował nas 2/3 wyników z płatnego
 API i nie zgłaszał się niczym — bo interfejs uczciwie pokazywał to, co dostał.
+
+---
+
+## Miasto idzie do Map jako OBSZAR, nie jako tekst zapytania
+*22.09.2026*
+
+Adam pokazał Mapy Google w przeglądarce dla „doradztwo e-commerce" w Poznaniu —
+kilkanaście firm. Nasze narzędzie na to samo zapytanie zwracało **jedną**.
+
+Sprawdzenie surowej odpowiedzi API wykazało, że to nie nasz filtr: Google oddał jedną
+firmę. Przyczyna leżała w sposobie pytania. Doklejaliśmy miasto do treści zapytania
+(`"doradztwo e-commerce poznań"`), a Places dopasowuje `textQuery` **dosłownie** —
+szuka wizytówek, które mają Poznań w nazwie albo opisie. Zostawała jedna, która
+przypadkiem ma „Agencja e-commerce Poznań" w nazwie.
+
+Mapy w przeglądarce nigdy nie szukają „po tekście z miastem" — szukają w **wycinku
+mapy**. Places ma na to osobny parametr i my go nie używaliśmy.
+
+**Zmierzone na tej samej frazie:**
+
+| jak pytamy | wynik |
+|---|---|
+| miasto w treści zapytania | **1** |
+| obszar Poznania, `locationBias` | **22** |
+| obszar Poznania, `locationRestriction` | 21 |
+| obszar Wielkopolski | 22 |
+
+Wybraliśmy **bias, nie restriction**: firma z Lubonia pod Poznaniem to nadal dobry
+trop, a twarde odcięcie by ją wyrzuciło. Różnicą między 22 a 21 są właśnie obrzeża.
+
+**Kluczowy szczegół: sam parametr nie wystarczy.** Zapytanie z miastem w tekście
+ORAZ z `locationBias` dawało dalej 1 firmę — tekst wygrywa i zawęża wynik. Trzeba
+było przestać doklejać miasto do frazy.
+
+**Nazwy zostają nazwami.** Użytkownik dalej wpisuje „Poznań", „Leszno", „powiat
+gnieźnieński", „Wielkopolska” — nikt nie podaje współrzędnych. Google sam zamienia
+nazwę na prostokąt (`viewport`) i zna granice miast, powiatów i województw:
+Leszno 8×7 km, Poznań 24×23 km, powiat gnieźnieński 41×57 km, Wielkopolska 283×225 km.
+Rozpoznany obszar zapamiętujemy na czas życia procesu — granice się nie zmieniają,
+a każde rozpoznanie to osobne płatne zapytanie.
+
+**Dlaczego pokazujemy obszar w interfejsie.** Rozpoznanie bywa nietrafione:
+„powiat leszczyński" Google rozumie jako „Powiat Leszno" i oddaje prostokąt 8×7 km,
+czyli samo miasto. Bez pokazania, co zrozumiał, wyniki cicho zmieniają znaczenie.
+Teraz pod listą stoi „Obszar: Województwo wielkopolskie · 283 × 225 km".
+
+**Zerowy prostokąt to nie obszar.** Wpisane „Kostrzyca Dolna" (nazwa zmyślona) Google
+„rozpoznał" jako „Kostrzyca" o wymiarach 0×0 km i zwrócił trzy przypadkowe firmy —
+czyli wyglądało na działające. Prostokąt węższy niż 1 km odrzucamy i wracamy do starego
+sposobu, mówiąc o tym użytkownikowi wprost.
+
+**Efekt końcowy, przez całe API z filtrami:** Poznań 1 → **20** firm, Wielkopolska → **43**.
+
+**Lekcja:** objaw był niewidoczny, bo wyniki przychodziły — tylko było ich absurdalnie
+mało. Żaden test tego nie łapał, bo testowaliśmy na szerokiej frazie („agencja
+interaktywna Leszno" dawała 60) i wszystko wyglądało dobrze. Im węższa fraza — a takie
+są w presetach — tym mocniej to cięło.

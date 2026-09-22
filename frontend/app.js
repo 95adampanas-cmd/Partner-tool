@@ -1162,6 +1162,12 @@ function listaFirmHTML(data, naglowek) {
   }
   return `<div class="card">
     <div class="mono"><span class="sq"></span> ${esc(naglowek)} (${data.firmy.length})</div>
+    ${data.obszar ? `<p class="hint">Obszar: <b>${esc(data.obszar.nazwa)}</b>
+      · ${data.obszar.km_ns} × ${data.obszar.km_we} km — tak Google zrozumiał wpisane
+      miejsce. Nie zgadza się? Wpisz precyzyjniej (np. „powiat gnieźnieński").</p>` : ""}
+    ${data.obszar_nierozpoznany ? `<p class="ostrzezenie-inline">Nie rozpoznałem tego
+      miejsca na mapie, więc szukam po nazwie w treści — to daje ZNACZNIE mniej wyników.
+      Spróbuj nazwy miasta, powiatu albo województwa.</p>` : ""}
     <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
       data.z_seo ? ` · ${data.z_seo} z SEO w ofercie` : ""
     }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
