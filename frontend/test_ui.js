@@ -136,6 +136,13 @@ setTimeout(() => {
   sprawdz("Podobne: lista firm wzorcowych niepusta",
     nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));
 
+  // Przelacznik zrodel: pokazuje sie dopiero przy DWOCH podlaczonych. Test stubuje
+  // /api/zrodla bez pola `zrodla`, wiec sprawdzamy przede wszystkim, ze brak tego
+  // pola NIE wywala renderowania — kiedys wywalal, a wyjatek polykal .catch.
+  nav("szukaj");
+  sprawdz("Zrodla: brak pola w odpowiedzi nie wywala sekcji",
+    !!d.querySelector('.sekcja[data-sekcja="szukaj"]'));
+
   nav("rozmowa");
   sprawdz("Rozmowa: sekcja pokazuje wybór firmy",
     d.getElementById("rozmowa-box").innerHTML.includes("O której firmie rozmawiamy"));

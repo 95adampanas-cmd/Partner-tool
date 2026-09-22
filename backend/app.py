@@ -43,6 +43,7 @@ import krs as krs_api
 import dfs
 import geo
 import profil
+import szukaj_google
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
 
@@ -1460,6 +1461,32 @@ async def api_szukaj(request):
                                  "obszar_nierozpoznany": z_map.get("obszar_nierozpoznany"),
                                  **wynik})
 
+        # ── ŹRÓDŁO: GOOGLE (Custom Search) ──────────────────────────────────
+        # Trzecie źródło, bo Tavily i Google widzą inny wycinek internetu: na
+        # „agencja digital advisory" ich pierwsze dziesiątki pokrywały się w trzech
+        # domenach na dziewięć. Nie chodzi o to, które jest lepsze, tylko o to,
+        # że razem dają więcej kandydatów niż każde osobno.
+        if zrodlo == "google":
+            if not szukaj_google.dostepne():
+                return JSONResponse({"ok": False, "error":
+                    "Brak GOOGLE_CSE_KEY lub GOOGLE_CSE_ID w .env — szukanie przez Google wyłączone."})
+            # Warianty frazy jak przy Tavily: jedno zapytanie zwraca tylko czołówkę,
+            # a szukamy firm słabiej widocznych. Miasto dokleja Python, nie model.
+            r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
+            frazy = [q for q in (bez_lokalizacji(z) for z in
+                                 (r.final_output.zapytania or [])) if q][:3] or [branza]
+            try:
+                partie = await asyncio.gather(*[
+                    asyncio.to_thread(szukaj_google.szukaj, f, miasto) for f in frazy])
+            except szukaj_google.BladGoogle as e:
+                return JSONResponse({"ok": False, "error": str(e)})
+            surowe = [w for p in partie for w in p["wyniki"]]
+            wynik = await znajdz_firmy_z_wynikow(surowe)
+            return JSONResponse({"ok": True, "zrodlo": "google",
+                                 "zapytanie": " | ".join(p["zapytanie"] for p in partie),
+                                 "zapytan_do_google": sum(p["zapytan"] for p in partie),
+                                 **wynik})
+
         if not (os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")):
             return JSONResponse({"ok": False, "error": "Brak klucza Tavily w środowisku."})
 
@@ -1933,6 +1960,7 @@ async def api_zrodla(request):
     return JSONResponse({"ok": True, "zrodla": {
         "wyszukiwarka": bool(os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")),
         "mapy": mapy.dostepne(),
+        "google": szukaj_google.dostepne(),
     }})
 
 

@@ -376,27 +376,37 @@ let filtrKategorii = null;
 // Źródło firm. "wyszukiwarka" = Tavily (kto jest wypozycjonowany),
 // "mapy" = Google Maps (kto ma wizytówkę, niezależnie od SEO).
 let zrodlo = "wyszukiwarka";
-let zrodlaDostepne = { wyszukiwarka: true, mapy: false };
+let zrodlaDostepne = { wyszukiwarka: true, mapy: false, google: false };
 
 const ZRODLA = {
   wyszukiwarka: { nazwa: "Wyszukiwarka", ikona: "search",
                   opis: "Znajduje firmy widoczne w Google — czyli te, które już inwestują w SEO." },
+  google:       { nazwa: "Google", ikona: "external",
+                  opis: "Prawdziwy indeks Google. Widzi inny wycinek sieci niż Wyszukiwarka — na tej samej frazie pokrywają się mniej więcej w jednej trzeciej." },
   mapy:         { nazwa: "Mapy Google", ikona: "pin",
                   opis: "Znajduje każdą firmę z wizytówką, także bez SEO. Opis firmy pojawia się dopiero po researchu." },
 };
 
 fetch("/api/zrodla").then((r) => r.json()).then((d) => {
-  if (d.ok) { zrodlaDostepne = d.zrodla; renderZrodla(); }
+  // `|| zrodlaDostepne` NIE jest ozdobą: odpowiedź z ok:true, ale bez pola `zrodla`
+  // ustawiała undefined, renderZrodla wywalało się na odczycie właściwości, a wyjątek
+  // połykał .catch poniżej — przełącznik źródeł znikał bez śladu w konsoli.
+  // Ten sam błąd mieliśmy już przy kolejce.
+  if (d.ok) { zrodlaDostepne = d.zrodla || zrodlaDostepne; renderZrodla(); }
 }).catch(() => {});
 
 function renderZrodla() {
   const box = document.getElementById("zrodla-wyboru");
   if (!box) return;
   // Przy jednym podłączonym źródle przełącznik byłby przyciskiem bez wyboru.
-  if (!zrodlaDostepne.mapy) { box.innerHTML = ""; zrodlo = "wyszukiwarka"; return; }
+  const podlaczone = Object.keys(ZRODLA).filter((k) => zrodlaDostepne[k]);
+  if (podlaczone.length < 2) { box.innerHTML = ""; zrodlo = "wyszukiwarka"; return; }
+  // Źródło, które zniknęło z konfiguracji, nie może zostać zaznaczone — inaczej
+  // pierwsze kliknięcie „Szukaj" kończy się błędem o brakującym kluczu.
+  if (!zrodlaDostepne[zrodlo]) zrodlo = podlaczone[0];
   box.innerHTML = `
     <div class="mono"><i class="sq"></i>Skąd bierzemy firmy</div>
-    <div class="tagi wybieralne">${Object.entries(ZRODLA).map(([k, z]) => `
+    <div class="tagi wybieralne">${podlaczone.map((k) => [k, ZRODLA[k]]).map(([k, z]) => `
       <button class="tag${zrodlo === k ? " zaznaczony" : ""}" type="button"
               data-zrodlo="${k}" title="${escAttr(z.opis)}">
         <svg class="ico xs"><use href="#i-${z.ikona}"/></svg> ${esc(z.nazwa)}
