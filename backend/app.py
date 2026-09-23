@@ -1597,6 +1597,42 @@ async def api_szukaj(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+async def api_frazy(request):
+    """Szerokie ujęcia firmy jako gotowe frazy wyszukiwania — dla „Szukaj podobnych".
+
+    DLACZEGO MODEL, A NIE ROZDZIELANIE TEKSTU. Próbowałem rozbijać pole `branza`
+    wyrażeniem regularnym i to się nie broni przy prawdziwych danych. Wystarczy
+    spojrzeć, co mamy w bazie:
+
+        „agencja e-commerce (wdrożenia PrestaShop, Sylius, Akeneo PIM)"
+        „agencja marketingowa i brandingowa"
+        „agencja digital: strategia, branding, software i marketing (lead generation)"
+
+    Ukośniki, przecinki, nawiasy, dwukropki i „i" raz łączące technologie, a raz
+    przymiotniki. Rozbicie „agencja marketingowa i brandingowa" po „ i " daje
+    „agencja marketingowa brandingowa" — ciąg, którego nikt nie wpisze.
+
+    Ten sam model układa już warianty w „Szukaj po branży" i radzi sobie z każdą
+    z powyższych form. Zamiast drugiego, gorszego mechanizmu — używamy tego samego.
+    """
+    try:
+        body = await request.json()
+        branza = (body.get("branza") or "").strip()
+        if not branza or branza == BRAK:
+            return JSONResponse({"ok": True, "frazy": []})
+        r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
+        frazy, widziane = [], set()
+        for q in (r.final_output.zapytania or []):
+            q = " ".join((q or "").split())
+            if q and q.lower() not in widziane:
+                widziane.add(q.lower())
+                frazy.append(q)
+        return JSONResponse({"ok": True, "frazy": frazy[:4]})
+    except Exception as e:
+        # Kafelki to udogodnienie — ich brak nie może zablokować wyszukiwania.
+        return JSONResponse({"ok": True, "frazy": [], "error": str(e)})
+
+
 async def api_similar(request):
     """Funkcja 2 — szukaj podobnych firm (LLM tylko generuje zapytanie, filtr jest deterministyczny)."""
     try:
@@ -2210,6 +2246,7 @@ frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 app = Starlette(routes=[
     Route("/api/research", api_research, methods=["POST"]),
     Route("/api/similar", api_similar, methods=["POST"]),
+    Route("/api/frazy", api_frazy, methods=["POST"]),
     Route("/api/szukaj", api_szukaj, methods=["POST"]),
     Route("/api/email", api_email, methods=["POST"]),
     Route("/api/columns", api_columns, methods=["GET"]),

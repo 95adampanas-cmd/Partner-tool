@@ -583,6 +583,10 @@ let otwartaGrupa = null;
 let podobneKategoria = null;
 // Zrodlo dla "Szukaj podobnych" — osobne od tego w "Szukaj po branzy",
 // bo to dwa rozne zadania i user moze chciec innego zrodla w kazdym.
+// Frazy od modelu, per firma. Trzymamy na czas sesji, zeby nie pytac modelu
+// przy kazdym przerysowaniu formularza — a przerysowuje sie przy kazdym
+// zaznaczeniu taga.
+const frazyPodobnych = new Map();
 let zrodloPodobne = "wyszukiwarka";
 // Kategoria wybrana na liscie Firm. null = wszystkie.
 let filtrKategorii = null;
@@ -1315,15 +1319,38 @@ function renderPodobne() {
     </div>
   </div>`;
 
-  // Branża i kategoria jako tagi. Wcześniej dało się wybrać tylko pojedyncze usługi,
-  // więc "znajdź inne agencje PrestaShop" trzeba było składać z trzech szczegółów.
-  // Branża bywa zapisana jako "agencja e-commerce / agencja PrestaShop" — rozbijamy
-  // po ukośniku, bo to dwa osobne, sensowne ujęcia tej samej firmy.
-  const szerokie = [
-    ...(wpis.firma.branza || "").split("/").map((x) => x.trim()),
-    wpis.firma.kategoria,
-  ].filter((x) => x && x !== BRAK)
-   .filter((x, i, a) => a.indexOf(x) === i);
+  // Szerokie ujęcia firmy — kafelki, które idą do wyszukiwarki jako gotowa fraza.
+  //
+  // KATEGORIA TU NIE WCHODZI, choć wchodziła. „Budowa stron i sklepów" to nazwa
+  // NASZEJ szufladki z KATEGORIE_PARTNEROW, wymyślona na potrzeby interfejsu —
+  // żadna firma tak o sobie nie pisze, więc jako zapytanie jest bezużyteczna.
+  // Sprawdzone: fraza występuje w repo tylko w konfiguracji kategorii i w prompcie
+  // ekstrakcji, nigdzie w danych ze stron.
+  //
+  // Resztę układa MODEL, nie my. Próba rozbijania pola `branza` wyrażeniem
+  // regularnym nie broni się przy prawdziwych danych: mamy tam ukośniki, przecinki,
+  // nawiasy, dwukropki i „i" raz łączące technologie, a raz przymiotniki. Rozbicie
+  // „agencja marketingowa i brandingowa" po „ i " daje „agencja marketingowa
+  // brandingowa" — ciąg, którego nikt nie wpisze. Szczegóły w api_frazy.
+  const zapamietane = frazyPodobnych.get(wpis.firma.url);
+  const szerokie = zapamietane
+    ? zapamietane
+    // Zanim model odpowie, pokazujemy samą branżę — pole nie może być puste,
+    // bo user zdąży kliknąć „Szukaj" i zobaczy formularz bez żadnego ujęcia firmy.
+    : [(wpis.firma.branza || "").trim()].filter((x) => x && x !== BRAK);
+
+  if (!zapamietane && wpis.firma.branza && wpis.firma.branza !== BRAK) {
+    fetch("/api/frazy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branza: wpis.firma.branza }),
+    }).then((r) => r.json()).then((d) => {
+      if (d.ok && (d.frazy || []).length) {
+        frazyPodobnych.set(wpis.firma.url, d.frazy);
+        renderPodobne();
+      }
+    }).catch(() => {});
+  }
 
   const uslugi = (wpis.firma.uslugi || []).filter((u) => !szerokie.includes(u));
 

@@ -181,6 +181,20 @@ setTimeout(() => {
 
   // Kategorie maja byc w dwoch nazwanych sekcjach — przy 29 pozycjach jeden rzad
   // chipow to sciana. Wracamy na Wyszukiwarke, bo poprzedni przypadek zostawil Mapy.
+  // Kafelki "Cale ujecie firmy" w Szukaj podobnych. Dwie rzeczy, ktore byly zle:
+  // wchodzila tam NASZA kategoria ("Budowa stron i sklepow" — nikt tak o sobie nie
+  // pisze, wiec jako fraza jest bezuzyteczna), a dluga branza szla jednym kafelkiem
+  // i zapytanie bylo za waskie.
+  nav("podobne", zKlientami ? "klient" : null);
+  klik(d.querySelector("#podobne-wybor .sim-row button"));
+  const szerokieTagi = [...d.querySelectorAll(".tag-szeroki")].map((x) => x.textContent.trim());
+  sprawdz("Podobne: kafelki szerokie sie pojawily", szerokieTagi.length > 0,
+    szerokieTagi.join(" | "));
+  sprawdz("Podobne: NASZA kategoria nie jest fraza wyszukiwania",
+    !szerokieTagi.includes("Budowa stron i sklepow")
+      && !szerokieTagi.includes("Budowa stron i sklepów"),
+    szerokieTagi.join(" | "));
+
   nav("szukaj");
   klik(d.querySelector('[data-zrodlo="wyszukiwarka"]'));
   sprawdz("Presety: kategorie w dwoch nazwanych sekcjach",
