@@ -38,9 +38,12 @@ const FIRMY = [
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8000/" });
 const { window } = dom;
 window.fetch = (u) => Promise.resolve({
-  json: () => Promise.resolve(u.includes("/api/firmy")
-    ? { ok: true, firmy: FIRMY }
-    : { ok: true, kolumny: [], kategorie: [], kolejka: [], maile: [] }),
+  json: () => Promise.resolve(
+    u.includes("/api/firmy") ? { ok: true, firmy: FIRMY } :
+    // Dwa zrodla podlaczone, zeby przelacznik sie pokazal — inaczej caly test
+    // presetow dla Map leci pusta galezia i niczego nie sprawdza.
+    u.includes("/api/zrodla") ? { ok: true, zrodla: { wyszukiwarka: true, mapy: true, google: false } } :
+    { ok: true, kolumny: [], kategorie: [], kolejka: [], maile: [] }),
 });
 window.scrollTo = () => {};
 
@@ -142,6 +145,25 @@ setTimeout(() => {
   nav("szukaj");
   sprawdz("Zrodla: brak pola w odpowiedzi nie wywala sekcji",
     !!d.querySelector('.sekcja[data-sekcja="szukaj"]'));
+
+  // Presety zaleza od zrodla: Mapy maja wlasny, krotszy zestaw, bo szukaja po
+  // nazwach wizytowek, a nie po tresci stron. Po przelaczeniu zrodla lista kategorii
+  // musi sie PRZERYSOWAC — inaczej klikasz w kategorie z poprzedniego zestawu.
+  nav("szukaj");
+  const ileKategorii = () => d.querySelectorAll("#presety-branz [data-grupa]").length;
+  const przedZmiana = ileKategorii();
+  sprawdz("Presety: kategorie sie renderuja", przedZmiana > 0, `${przedZmiana} kategorii`);
+  const btnMapy = d.querySelector('[data-zrodlo="mapy"]');
+  if (btnMapy) {
+    klik(btnMapy);
+    sprawdz("Presety: Mapy maja INNY zestaw niz wyszukiwarka",
+      ileKategorii() !== przedZmiana, `${przedZmiana} -> ${ileKategorii()}`);
+    sprawdz("Presety: Mapy oznaczaja slabe kategorie",
+      d.querySelectorAll("#presety-branz .tag-slaby").length > 0,
+      `${d.querySelectorAll("#presety-branz .tag-slaby").length} slabych`);
+  } else {
+    sprawdz("Presety: brak przelacznika zrodel (jedno podlaczone)", true);
+  }
 
   nav("rozmowa");
   sprawdz("Rozmowa: sekcja pokazuje wybór firmy",

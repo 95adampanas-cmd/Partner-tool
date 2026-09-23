@@ -125,20 +125,23 @@ SYGNALY = [
 
 
 def sprawdz_presety() -> int:
-    """Czy presety wyszukiwania są dobrze zbudowane.
+    """Czy presety wyszukiwania są dobrze zbudowane — osobno dla każdego źródła.
 
-    CO SIĘ ZMIENIŁO 23.09.2026. Ten test wcześniej sprawdzał, czy nazwy grup
-    w presetach są identyczne z KATEGORIE_PARTNEROW. Było to słuszne, dopóki jedna
-    lista pełniła obie role — ale to właśnie był problem: dodanie frazy do szukania
-    wymagało dodania szufladki, do której trafiają zbadane firmy, i odwrotnie.
+    DWA ZESTAWY, BO DWA RÓŻNE SPOSOBY SZUKANIA. Wyszukiwarka i Google przeszukują
+    TREŚĆ stron, więc znoszą frazy wąskie („wdrożenia Consent Mode"). Mapy dopasowują
+    do NAZWY firmy i kategorii wizytówki, więc ta sama fraza zwraca tam zero — żadna
+    wizytówka się tak nie nazywa. Stąd osobna, krótsza i ogólniejsza lista dla Map.
 
-    Teraz są to dwie różne rzeczy i celowo się nie pokrywają:
-      * PRESETY (frontend)        — 26 kategorii fraz, po których SZUKASZ firm;
-      * KATEGORIE_PARTNEROW (app) — 10 szufladek, do których firma trafia PO researchu.
+    CO SIĘ ZMIENIŁO 23.09.2026. Ten test wcześniej sprawdzał, czy nazwy grup są
+    identyczne z KATEGORIE_PARTNEROW. Było to słuszne, dopóki jedna lista pełniła
+    obie role — ale to właśnie był problem: dodanie frazy do szukania wymagało
+    dodania szufladki, do której trafiają zbadane firmy. Teraz to dwie różne rzeczy:
+
+      * PRESETY (frontend)        — kategorie fraz, po których SZUKASZ firm;
+      * KATEGORIE_PARTNEROW (app) — szufladki, do których firma trafia PO researchu.
 
     Front grupuje zbadane firmy po wartości `firma.kategoria` nadanej przez backend,
-    a nie po nazwach presetów, więc rozdzielenie niczego nie rozspójnia. Sprawdzamy
-    więc to, co nadal może się zepsuć: kształt danych i duplikaty fraz.
+    a nie po nazwach presetów, więc rozdzielenie niczego nie rozspójnia.
     """
     import re
     from pathlib import Path
@@ -150,32 +153,42 @@ def sprawdz_presety() -> int:
         return 0
 
     tresc = plik.read_text(encoding="utf-8")
-    blok = tresc[tresc.index("partner: ["):tresc.index("klient: [")]
-    # Komentarze WYCINAMY PRZED parsowaniem. Bez tego wyrażenie łapie tekst
-    # w cudzysłowach ze środka komentarza i zgłasza duplikaty, których nie ma —
-    # przeżyłem to przy pierwszej analizie tej listy.
-    blok = re.sub(r"//[^\n]*", "", blok)
-    grupy = re.findall(r'\["([^"]+)",\s*"([^"]*)",\s*\[(.*?)\]\s*\]', blok, re.S)
+    granice = [("partner", "partner: [", "mapy: ["),
+               ("mapy", "mapy: [", "klient: [")]
 
     bledy = 0
-    frazy = []
-    for nazwa, glowna, surowe in grupy:
-        pod = [x for x in re.findall(r'"([^"]+)"', surowe) if x.strip()]
-        frazy += [glowna] + pod
-        if not glowna.strip():
-            print(f"  BŁĄD | kategoria bez frazy głównej: {nazwa!r}")
-            bledy += 1
-        if not pod:
-            print(f"  BŁĄD | kategoria bez podkategorii: {nazwa!r}")
-            bledy += 1
+    for etykieta, od, do in granice:
+        blok = tresc[tresc.index(od):tresc.index(do)]
+        # Komentarze WYCINAMY PRZED parsowaniem. Bez tego wyrażenie łapie tekst
+        # w cudzysłowach ze środka komentarza i zgłasza duplikaty, których nie ma —
+        # nabrałem się na to przy pierwszej analizie tej listy.
+        blok = re.sub(r"//[^\n]*", "", blok)
+        grupy = re.findall(r'\["([^"]+)",\s*"([^"]*)",\s*\[(.*?)\]\s*(?:,\s*true\s*)?\]', blok, re.S)
 
-    powt = [k for k, v in Counter(frazy).items() if v > 1]
-    if powt:
-        print(f"  BŁĄD | fraza powtórzona w kilku kategoriach: {powt}")
-        bledy += len(powt)
+        ile_fraz = 0
+        for nazwa, glowna, surowe in grupy:
+            pod = [x for x in re.findall(r'"([^"]+)"', surowe) if x.strip()]
+            ile_fraz += 1 + len(pod)
+            if not glowna.strip():
+                print(f"  BŁĄD | [{etykieta}] kategoria bez frazy głównej: {nazwa!r}")
+                bledy += 1
+            if not pod:
+                print(f"  BŁĄD | [{etykieta}] kategoria bez podkategorii: {nazwa!r}")
+                bledy += 1
+            # Powtórzenie W OBRĘBIE kategorii to błąd. MIĘDZY kategoriami — nie:
+            # w Mapach „firma informatyczna" trafnie opisuje i wdrożeniowca CRM,
+            # i ERP, bo wizytówki są ogólne.
+            powt = [k for k, v in Counter(pod).items() if v > 1]
+            if powt:
+                print(f"  BŁĄD | [{etykieta}] {nazwa!r} powtarza hasło: {powt}")
+                bledy += len(powt)
 
-    if not bledy:
-        print(f"  OK   | {len(grupy)} kategorii wyszukiwania, {len(frazy)} fraz, bez powtórzeń")
+        if not grupy:
+            print(f"  BŁĄD | [{etykieta}] nie sparsowałem ani jednej kategorii")
+            bledy += 1
+        else:
+            print(f"  OK   | [{etykieta}] {len(grupy)} kategorii, {ile_fraz} fraz")
+
     print(f"  OK   | {len(app.KATEGORIE_PARTNEROW)} szufladek dla zbadanych firm "
           f"(osobna lista, celowo inna niż presety)")
     return bledy

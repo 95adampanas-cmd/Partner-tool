@@ -808,3 +808,12 @@ button { font-family: var(--sans); }
   .status { border-color: #bbb !important; }
   a { color: #111; text-decoration: none; }
 }
+
+/* Kategoria slaba w Mapach. Przygaszona, nie przekreslona — da sie w nia kliknac
+   i czasem cos znajdzie; chodzi o to, zeby user wiedzial, czego sie spodziewac,
+   zanim kliknie, a nie po pustym wyniku. */
+.tag.tag-slaby {
+  opacity: .62;
+  border-style: dashed;
+}
+.tag.tag-slaby.zaznaczony { opacity: 1; }

@@ -386,6 +386,85 @@ const PRESETY = {
       "program afiliacyjny SaaS"
     ]],
   ],
+
+  // ── PRESETY DLA MAP GOOGLE — inne, i to nie jest kosmetyka ───────────
+  //
+  // Mapy dopasowują do NAZWY firmy i KATEGORII WIZYTÓWKI, nie do treści strony.
+  // Dlatego hasła są krótkie i ogólne: „projektant stron internetowych" zamiast
+  // „wdrożenia Framer". Fraza, która świetnie działa w Google, w Mapach zwraca zero,
+  // bo żadna wizytówka nie nazywa się „wdrożenia Consent Mode".
+  //
+  // Czwarty element `true` oznacza kategorię SŁABĄ w Mapach — jest, bo czasem coś
+  // znajdzie, ale wiedza o tym, że to kiepskie miejsce do szukania, jest warta tyle
+  // samo co sama fraza. Front pokazuje to przy kategorii, zamiast dać userowi
+  // odkrywać to metodą pustych wyników.
+  //
+  // „Programy partnerskie SaaS" NIE MA tu wcale — wizytówka firmy nie mówi o tym,
+  // że ma program partnerski. Ta kategoria istnieje tylko w Google/Tavily.
+  mapy: [
+    ["Strony www", "projektant stron internetowych", [
+      "agencja interaktywna", "software house", "firma programistyczna",
+      "tworzenie stron internetowych"
+    ]],
+    ["Sklepy internetowe", "tworzenie sklepów internetowych", [
+      "agencja e-commerce", "sklepy internetowe projektowanie", "agencja Shopify",
+      "wdrożenia sklepów internetowych"
+    ]],
+    ["Agencje digital / full-service", "agencja marketingowa", [
+      "agencja marketingu internetowego", "agencja digital marketingu",
+      "marketing internetowy", "agencja full-service"
+    ]],
+    ["Branding i PR", "agencja brandingowa", [
+      "agencja kreatywna", "studio graficzne", "projektowanie logo", "agencja PR",
+      "public relations"
+    ]],
+    ["Strategia i doradztwo", "doradztwo marketingowe", [
+      "konsultant ds. marketingu", "doradztwo biznesowe", "firma consultingowa",
+      "agencja strategiczna"
+    ]],
+    ["Social media", "agencja social media", [
+      "marketing w mediach społecznościowych", "social media marketing",
+      "agencja content marketingowa"
+    ]],
+    ["Performance", "agencja reklamowa", [
+      "agencja Google Ads", "reklama internetowa", "agencja performance marketingu"
+    ]],
+    ["Marketplace", "agencja Allegro", [
+      "obsługa Allegro", "agencja marketplace", "agencja Amazon"
+    ], true],
+    ["Ekspansja zagraniczna", "biuro tłumaczeń", [
+      "tłumaczenia stron internetowych", "lokalizacja oprogramowania", "doradztwo eksportowe"
+    ], true],
+    ["Fulfillment i logistyka", "fulfillment", [
+      "magazyn e-commerce", "usługi logistyczne dla e-commerce", "centrum logistyczne",
+      "operator logistyczny"
+    ]],
+    ["Wdrożenia narzędzi i analityka", "analityka internetowa", [
+      "agencja analityki internetowej", "Google Analytics wdrożenie"
+    ], true],
+    ["AI", "agencja AI", [
+      "sztuczna inteligencja dla firm", "wdrożenia AI", "chatboty dla firm"
+    ], true],
+    ["Automatyzacje", "automatyzacja marketingu", [
+      "marketing automation", "agencja e-mail marketingu",
+      "automatyzacja procesów biznesowych"
+    ], true],
+    ["CRM", "wdrożenia CRM", [
+      "firma informatyczna", "usługi informatyczne dla firm", "integrator systemów IT"
+    ]],
+    ["ERP", "wdrożenia ERP", [
+      "oprogramowanie dla firm", "firma informatyczna", "integrator systemów IT",
+      "systemy ERP dla firm"
+    ]],
+    ["Prawo e-commerce", "kancelaria prawa nowych technologii", [
+      "kancelaria prawna IT", "rzecznik patentowy", "kancelaria patentowa",
+      "radca prawny e-commerce"
+    ]],
+    ["SaaS i vendorzy", "producent oprogramowania", [
+      "firma programistyczna", "software house", "oprogramowanie dla e-commerce",
+      "oprogramowanie dla firm"
+    ], true],
+  ],
   klient: [
     ["Handel", "sklep internetowy", [
       "sklep internetowy", "hurtownia", "producent mebli", "producent odzieży",
@@ -542,21 +621,30 @@ function renderKolejke() {
   </div>`;
 }
 
+// Który zestaw presetów obowiązuje. Mapy mają własny, bo szukają po nazwach
+// wizytówek, a nie po treści stron — te same frazy dają tam zero wyników.
+// Ścieżka klientów ma swój niezależnie od źródła.
+function presetyDlaZrodla() {
+  if (tryb !== "partner") return PRESETY[tryb] || PRESETY.partner;
+  return zrodlo === "mapy" ? PRESETY.mapy : PRESETY.partner;
+}
+
 function renderPresety() {
-  const grupy = PRESETY[tryb] || PRESETY.partner;
+  const grupy = presetyDlaZrodla();
   const wybrana = otwartaGrupa !== null ? grupy[otwartaGrupa] : null;
 
   // Chipy, nie kafle — ten sam wygląd, co filtr kategorii w „Szukaj podobnych".
   // Kafle zajmowały pół ekranu, zanim cokolwiek wybrałeś; tu wybór jest jednym
   // rzędem, a miejsce zostaje na to, po co się tu przyszło.
-  const kafle = `<div class="tagi wybieralne">${grupy.map(([grupa, , pozycje], i) => `
-    <button class="tag${otwartaGrupa === i ? " zaznaczony" : ""}"
-            type="button" data-grupa="${i}" aria-pressed="${otwartaGrupa === i}">
+  const kafle = `<div class="tagi wybieralne">${grupy.map(([grupa, , pozycje, slabe], i) => `
+    <button class="tag${otwartaGrupa === i ? " zaznaczony" : ""}${slabe ? " tag-slaby" : ""}"
+            type="button" data-grupa="${i}" aria-pressed="${otwartaGrupa === i}"
+            ${slabe ? 'title="W Mapach ta kategoria daje mało wyników — lepiej szukać przez Wyszukiwarkę albo Google"' : ""}>
       ${esc(grupa)} <em class="chip-licznik">${pozycje.length}</em>
     </button>`).join("")}</div>`;
 
   const panel = !wybrana ? "" : (() => {
-    const [grupa, fraza, pozycje] = wybrana;
+    const [grupa, fraza, pozycje, slabe] = wybrana;
     return `
       <div class="preset-panel">
         <div class="preset-panel-head">
@@ -564,6 +652,9 @@ function renderPresety() {
           <button class="btn-lekki" type="button" data-grupa="${otwartaGrupa}">
             <svg class="ico xs"><use href="#i-x"/></svg>Zwiń</button>
         </div>
+        ${slabe ? `<p class="ostrzezenie-inline">W Mapach ta kategoria daje mało wyników —
+          wizytówki rzadko opisują się w ten sposób. Po takie firmy lepiej sięgnąć
+          przez <b>Wyszukiwarkę</b> albo <b>Google</b>.</p>` : ""}
         <button class="tag tag-glowny" data-preset="${escAttr(fraza)}" type="button"
                 title="Szuka szeroko w całej kategorii, zamiast jednej usługi">
           <svg class="ico xs"><use href="#i-target"/></svg>Cała kategoria: ${esc(fraza)}
@@ -882,7 +973,14 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   const btnZrodlo = e.target.closest("[data-zrodlo]");
-  if (btnZrodlo) { zrodlo = btnZrodlo.dataset.zrodlo; return renderZrodla(); }
+  if (btnZrodlo) {
+    zrodlo = btnZrodlo.dataset.zrodlo;
+    // Indeksy grup różnią się między zestawami (26 vs 17), więc otwarta grupa
+    // po przełączeniu wskazywałaby na zupełnie inną kategorię.
+    otwartaGrupa = null;
+    renderZrodla();
+    return renderPresety();
+  }
   const preset = e.target.closest("[data-preset]");
   if (preset) {
     document.getElementById("branza").value = preset.dataset.preset;
