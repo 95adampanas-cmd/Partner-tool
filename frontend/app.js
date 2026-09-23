@@ -108,6 +108,7 @@ function pokazSekcje(nazwa) {
   if (nazwa === "kolejka") renderKolejke();
   if (nazwa === "maile") renderMaile();
   if (nazwa === "rozmowa") renderRozmowa();
+  if (nazwa === "audytgeo") renderAudytGeo();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
@@ -1161,6 +1162,20 @@ document.addEventListener("click", (e) => {
   const dalej = e.target.closest(".szukaj-dalej");
   if (dalej) return szukajWgTagow(dalej, true);
 
+  const wg = e.target.closest(".wybierz-geo");
+  if (wg) {
+    geoWybrana = wg.dataset.id;
+    document.getElementById("audytgeo-raport").innerHTML = "";
+    return renderAudytGeo();
+  }
+  if (e.target.closest(".zmien-geo")) {
+    geoWybrana = null;
+    document.getElementById("audytgeo-raport").innerHTML = "";
+    return renderAudytGeo();
+  }
+  const genGeo = e.target.closest(".generuj-geo");
+  if (genGeo) return generujAudytGeo(genGeo);
+
   const wr = e.target.closest(".wybierz-rozmowe");
   if (wr) { rozmowaWybrana = wr.dataset.id; return renderRozmowa(); }
   if (e.target.closest(".zmien-rozmowe-firme")) { rozmowaWybrana = null; return renderRozmowa(); }
@@ -1182,7 +1197,15 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
-  if (e.target.id === "audyt-powtorzenia") { audytPowtorzenia = +e.target.value; return renderAudyt(); }
+  if (e.target.name === "geo-silnik") {
+    const v = e.target.value;
+    geoSilniki = e.target.checked
+      ? [...geoSilniki, v] : geoSilniki.filter((x) => x !== v);
+    return renderAudytGeo();
+  }
+  if (e.target.id === "geo-ile") { geoIle = +e.target.value; return renderAudytGeo(); }
+  if (e.target.id === "geo-powtorzenia") { geoPowtorzenia = +e.target.value; return renderAudytGeo(); }
+  if (e.target.id === "geo-podpowiedzi") { geoPodpowiedzi = e.target.checked; return renderAudytGeo(); }
   if (e.target.name === "platforma") {
     const v = e.target.value;
     audytPlatformy = e.target.checked
@@ -1683,10 +1706,6 @@ function renderAudyt() {
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
-      <label class="akcja check" title="Modele sa niedeterministyczne — ta sama fraza pytana ponownie daje inna odpowiedz">
-        <input type="range" id="audyt-powtorzenia" min="1" max="3" value="${audytPowtorzenia}"
-               style="width:70px"> Pytaj <b>${audytPowtorzenia}×</b>
-      </label>
       <label class="akcja check"><input type="checkbox" id="audyt-seo" ${audytSEO ? "checked" : ""}>
         Widoczność w Google <span class="cena">+$${KOSZT_SEO}</span></label>
       <label class="akcja check"><input type="checkbox" id="audyt-aio" ${audytAIO ? "checked" : ""}>
@@ -1712,7 +1731,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki, powtorzenia: audytPowtorzenia,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki,
                              ai_overview: audytAIO, seo: audytSEO, platformy: audytPlatformy }),
     });
     const data = await res.json();
@@ -2030,6 +2049,61 @@ function raportHTML(r) {
       <p class="metodyka">Obecność w serwisach z tej listy — katalogach, rankingach,
         zestawieniach branżowych — bezpośrednio zwiększa szansę na pojawienie się
         w odpowiedziach AI, bo to z nich model buduje rekomendacje.</p>
+    </section>` : ""}
+
+    <!-- CZY JESTEŚCIE TAM, SKĄD AI BIERZE ODPOWIEDZI -->
+    ${(r.obecnosc_w_zrodlach || []).length ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "Czy jesteście tam, skąd AI bierze odpowiedzi")}
+      <p>Model nie zmyśla odpowiedzi — składa je z konkretnych stron. Sprawdziliśmy
+        każdą z najczęściej cytowanych i to, czy Państwa firma jest na niej wymieniona.
+        Rozróżniamy przy tym dwie rzeczy, bo znaczą co innego: <b>ranking lub katalog</b>,
+        na który da się wejść, i <b>strona konkurenta</b>, która z natury Państwa nie
+        wymieni.</p>
+      <div class="przewin"><table class="rejestr">
+        <thead><tr><th>Źródło</th><th>Typ</th><th class="num">Cytowań</th><th>Jesteście?</th></tr></thead>
+        <tbody>${r.obecnosc_w_zrodlach.map((x) => `
+          <tr>
+            <td><a href="${escAttr(x.url)}" target="_blank" rel="noopener">${esc(x.domena)}</a>
+              ${x.tytul ? `<br><span class="skutek">${esc(przytnij(x.tytul, 90))}</span>` : ""}</td>
+            <td class="skutek">${x.typ === "ranking" ? "ranking / katalog" : "strona firmy"}</td>
+            <td class="num">${x.cytowan}</td>
+            <td>${x.stan === "jest" ? `<span class="status jest">tak</span>`
+                : x.stan === "brak" ? `<span class="status brak">nie</span>`
+                : `<span class="skutek">nie udało się pobrać</span>`}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
+      ${(() => {
+        const rank = r.obecnosc_w_zrodlach.filter((x) => x.typ === "ranking" && x.stan === "brak");
+        return rank.length
+          ? `<p class="uwaga"><b>Do zrobienia od razu:</b> model cytuje
+             ${rank.length === 1 ? "zestawienie" : `${rank.length} zestawienia`},
+             na ${rank.length === 1 ? "którym" : "których"} Państwa nie ma —
+             ${rank.map((x) => esc(x.domena)).join(", ")}. Obecność w takim miejscu
+             wchodzi do odpowiedzi AI, bo model czyta je przy każdym podobnym pytaniu.</p>`
+          : `<p class="hint">Wśród cytowanych źródeł nie ma rankingów ani katalogów —
+             model składa odpowiedzi głównie ze stron samych firm. To zmienia kierunek
+             działań: zamiast wchodzić na listy, trzeba zadbać o to, żeby własna strona
+             była dla modeli czytelna i jednoznaczna.</p>`;
+      })()}
+    </section>` : ""}
+
+    <!-- AI OVERVIEWS I AI MODE — DO SPRAWDZENIA RĘCZNIE -->
+    ${(r.reczne && (r.reczne.pozycje || []).length) ? `
+    <section class="r-strona">
+      ${naglowekSekcji(++nr, "AI Overviews i AI Mode — do sprawdzenia ręcznie")}
+      <p>${esc(r.reczne.instrukcja)}</p>
+      <div class="przewin"><table class="rejestr">
+        <thead><tr><th>Pytanie</th><th>AI Overview</th><th>AI Mode</th></tr></thead>
+        <tbody>${r.reczne.pozycje.map((x) => `
+          <tr>
+            <td>${esc(x.prompt)}</td>
+            <td><a href="${escAttr(x.google)}" target="_blank" rel="noopener">otwórz w Google</a></td>
+            <td><a href="${escAttr(x.ai_mode)}" target="_blank" rel="noopener">otwórz AI Mode</a></td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
     </section>` : ""}
 
     <!-- TECHNICZNE WARUNKI WIDOCZNOŚCI -->
@@ -2521,6 +2595,148 @@ async function zbadajZaznaczone(przycisk) {
 // Historia trzymana w pamięci przeglądarki, per firma. Świadomie NIE w bazie:
 // to narzędzie pracy nad jedną firmą, nie komunikator. Gdyby wnioski z rozmów
 // okazały się warte zachowania, dołożymy tabelę — ale nie zakładamy tego z góry.
+// ══ MODUŁ: AUDYT GEO ══════════════════════════════════════════════════
+// Osobna zakładka, nie wariant mikroaudytu. Tamten mierzy SEO i GEO przez
+// DataForSEO i pada, gdy skończą się środki. Ten mierzy WYŁĄCZNIE widoczność
+// w odpowiedziach AI i chodzi na kluczach, które już mamy.
+//
+// Raport renderujemy tą samą funkcją co mikroaudyt (`raportHTML`) — sekcje SEO
+// i AI Overviews po prostu się nie pojawią, bo nie ma dla nich danych. Dzięki temu
+// obie zakładki wyglądają spójnie i poprawka w jednym miejscu działa na oba.
+let geoWybrana = null;
+let geoPowtorzenia = 2;
+let geoIle = 8;
+let geoSilniki = ["chatgpt_wprost", "claude_wprost"];
+let geoWlasne = "";
+let geoPodpowiedzi = true;
+
+// Tylko silniki na NASZYCH kluczach — to definicja tego audytu.
+const GEO_SILNIKI = {
+  chatgpt_wprost: { nazwa: "ChatGPT", opis: "86,4% polskiego rynku zapytań do AI" },
+  claude_wprost: { nazwa: "Claude", opis: "0,71% rynku, ale drugi niezależny pomiar" },
+};
+
+function renderAudytGeo() {
+  const box = document.getElementById("audytgeo-wybor");
+  if (!box) return;
+  const firmy = firmyTrybu();
+
+  if (!firmy.length) {
+    box.innerHTML = `<div class="pusto">
+      <svg class="ico xl"><use href="#i-target"/></svg>
+      <p>Najpierw zbadaj jakąś firmę.<br><span>Audyt opiera się na danych
+        z researchu — bez nich nie ma z czego ułożyć pytań.</span></p></div>`;
+    return;
+  }
+
+  const wpis = firmy.find((t) => t.id === geoWybrana);
+
+  // ── Krok 1: wybór firmy ──
+  if (!wpis) {
+    box.innerHTML = `<div class="card">
+      <div class="mono"><span class="sq"></span> Kogo audytujemy</div>
+      <div class="similar-list">${firmy.map((t) => `
+        <div class="sim-row wybierz-geo" data-id="${t.id}">
+          <div class="sim-info">
+            <span class="sim-name">${esc(t.firma.nazwa)}</span>
+            <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
+          </div>
+          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>`).join("")}</div>
+    </div>`;
+    return;
+  }
+
+  // ── Krok 2: konfiguracja ──
+  // Koszt liczony z góry, bo płacimy za tokeny i rośnie iloczynem:
+  // silniki × pytania × powtórzenia. Przy trzech próbach i dwóch modelach to
+  // sześć wywołań na jedno pytanie i lepiej wiedzieć to PRZED kliknięciem.
+  const wywolan = geoSilniki.length * geoIle * geoPowtorzenia;
+  const koszt = (geoSilniki.reduce((s, k) =>
+    s + (k === "claude_wprost" ? 0.035 : 0.012), 0) * geoIle * geoPowtorzenia).toFixed(2);
+
+  box.innerHTML = `
+    <div class="card">
+      <div class="wzor-head">
+        <div>
+          <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
+          <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
+        </div>
+        <button class="btn-lekki zmien-geo" type="button">Zmień firmę</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="mono"><i class="sq"></i>Które modele pytamy</div>
+      <div class="akcje" style="margin-bottom:16px">
+        ${Object.entries(GEO_SILNIKI).map(([k, s]) => `
+          <label class="akcja check"><input type="checkbox" name="geo-silnik" value="${k}"
+            ${geoSilniki.includes(k) ? "checked" : ""}> ${esc(s.nazwa)}
+            <span class="cena">${esc(s.opis)}</span></label>`).join("")}
+      </div>
+      <p class="hint">Oba na naszych kluczach — ten audyt nie dotyka DataForSEO.
+        Przy jednym modelu nie da się odróżnić jego cechy od stanu rynku: na tym samym
+        pytaniu ChatGPT wymienił badaną firmę, a Claude nie i podał siedmiu konkurentów.</p>
+
+      <div class="mono"><i class="sq"></i>Pytania od handlowców</div>
+      <p class="hint">Po jednym w linii. To jedyne źródło, którego narzędzie nie wymyśli —
+        pytania, które klienci naprawdę zadają. Myślniki i numerację usuwam sam.</p>
+      <textarea id="geo-wlasne" rows="4" style="width:100%;margin-bottom:16px"
+        placeholder="Ile kosztuje wdrożenie?&#10;Czy robicie platformy B2B?&#10;Jak długo trwa migracja sklepu?">${esc(geoWlasne)}</textarea>
+
+      <div class="mono"><i class="sq"></i>Zakres</div>
+      <div class="akcje" style="margin-bottom:14px">
+        <label class="akcja check">
+          <input type="range" id="geo-ile" min="4" max="30" value="${geoIle}" style="width:110px">
+          <b>${geoIle}</b> pytań</label>
+        <label class="akcja check" title="Modele są niedeterministyczne — ta sama fraza pytana ponownie daje inną odpowiedź">
+          <input type="range" id="geo-powtorzenia" min="1" max="3" value="${geoPowtorzenia}" style="width:70px">
+          pytaj <b>${geoPowtorzenia}×</b></label>
+        <label class="akcja check"><input type="checkbox" id="geo-podpowiedzi"
+          ${geoPodpowiedzi ? "checked" : ""}> Dołóż podpowiedzi Google</label>
+      </div>
+      <p class="hint">Powtórzenia to nie ozdoba: przy trzech próbach tego samego pytania
+        model odpowiedział kolejno <b>nie, nie, tak</b>. Pojedynczy strzał był rzutem
+        monetą — trzy dają uczciwe „1 z 3, widoczność przypadkowa".</p>
+
+      <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>
+        · ${wywolan} wywołań (${geoSilniki.length} modele × ${geoIle} pytań × ${geoPowtorzenia})
+        · liczyć kilka minut.</p>
+      <button class="akcja glowna generuj-geo" type="button" style="margin-top:8px"
+        ${geoSilniki.length ? "" : "disabled"}>
+        <svg class="ico sm"><use href="#i-target"/></svg>Zrób audyt GEO</button>
+    </div>`;
+}
+
+async function generujAudytGeo(przycisk) {
+  const wpis = firmyTrybu().find((t) => t.id === geoWybrana);
+  if (!wpis) return;
+  const box = document.getElementById("audytgeo-raport");
+  const etykieta = przycisk.innerHTML;
+  przycisk.disabled = true;
+  przycisk.textContent = "Pytam modele… (kilka minut)";
+  box.innerHTML = "";
+  try {
+    const res = await fetch("/api/audyt-geo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firma: wpis.firma, ile_promptow: geoIle, powtorzenia: geoPowtorzenia,
+        silniki: geoSilniki, wlasne_prompty: geoWlasne, podpowiedzi: geoPodpowiedzi,
+      }),
+    });
+    const d = await res.json();
+    if (!d.ok) { box.innerHTML = errorHTML(d.error); return; }
+    box.innerHTML = raportHTML(d.raport);
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    box.innerHTML = errorHTML(e.message);
+  } finally {
+    przycisk.disabled = false;
+    przycisk.innerHTML = etykieta;
+  }
+}
+
 // ══ MODUŁ: ROZMOWA O FIRMIE ═══════════════════════════════════════════
 // Osobna sekcja, nie dodatek do karty firmy — ta sama zasada co przy mailach.
 // Dopytywanie to własny etap pracy: wchodzisz, wybierasz firmę, rozmawiasz.
@@ -2593,6 +2809,12 @@ function renderRozmowa() {
 
 // Enter wysyla pytanie. W czacie to odruch — bez tego trzeba siegac myszka po
 // kazdym zdaniu, a rozmowa ma byc szybsza od klikania po karcie firmy.
+// Zapamietujemy tresc na biezaco, ale NIE przerysowujemy — inaczej kursor
+// wypadalby z pola po kazdej literze (przerabialismy to przy filtrze presetow).
+document.addEventListener("input", (e) => {
+  if (e.target.id === "geo-wlasne") geoWlasne = e.target.value;
+});
+
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || !e.target.classList.contains("czat-pytanie")) return;
   e.preventDefault();

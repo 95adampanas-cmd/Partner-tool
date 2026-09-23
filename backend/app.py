@@ -36,6 +36,7 @@ from tavily import TavilyClient
 from agents import Agent, Runner, WebSearchTool
 
 import audyt
+import audyt_geo
 import baza
 import claude
 import mapy
@@ -1689,6 +1690,126 @@ async def api_email(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+async def api_audyt_geo(request):
+    """Audyt GEO bez płatnych dostawców danych — osobny produkt, osobna zakładka.
+
+    Pierwsza zakładka (`api_audyt`) mierzy SEO i GEO przez DataForSEO i pada, gdy
+    skończą się środki. Ta mierzy WYŁĄCZNIE widoczność w odpowiedziach AI i chodzi
+    na kluczach, które już mamy — płacimy tylko za tokeny.
+
+    Endpoint jest osobny, nie wariantem tamtego. Inaczej każda funkcja w ścieżce
+    audytu dostałaby gałąź `if tryb ==`, a pierwsza zakładka ma zostać nietknięta.
+    """
+    try:
+        body = await request.json()
+        firma = body.get("firma") or {}
+        nazwa = firma.get("nazwa") or ""
+        domena = domena_z_url(firma.get("url") or "").lower()
+        if not domena:
+            return JSONResponse({"ok": False, "error": "Brak adresu firmy."})
+
+        powtorzenia = max(1, min(3, int(body.get("powtorzenia") or 2)))
+        ile = max(1, min(30, int(body.get("ile_promptow") or 8)))
+
+        # Tylko silniki na NASZYCH kluczach — to definicja tego audytu.
+        wybrane = body.get("silniki") or ["chatgpt_wprost", "claude_wprost"]
+        silniki = [audyt.SILNIKI[k] for k in wybrane
+                   if k in audyt.SILNIKI and audyt.SILNIKI[k].get("wlasny_klucz")]
+        if not silniki:
+            return JSONResponse({"ok": False, "error":
+                "Ten audyt używa wyłącznie silników na własnych kluczach "
+                "(ChatGPT, Claude). Zaznacz co najmniej jeden."})
+
+        # ── Prompty z trzech źródeł ──────────────────────────────────────
+        # Kolejność nie jest przypadkowa: najpierw to, co wie CZŁOWIEK, potem to,
+        # co ludzie realnie wpisują w Google, a na końcu to, co wymyśli model.
+        # Pytania od handlowców są najcenniejsze i mają nie wypaść przez limit.
+        wlasne = audyt_geo.wlasne_prompty(body.get("wlasne_prompty") or "")
+        z_google = []
+        if bool(body.get("podpowiedzi", True)):
+            baza_frazy = firma.get("branza") or nazwa
+            z_google = await asyncio.to_thread(
+                audyt_geo.podpowiedzi_google, bez_lokalizacji(baza_frazy), 10)
+
+        prompty = list(wlasne)
+        for p in z_google:
+            if len(prompty) < ile and p.lower() not in {x.lower() for x in prompty}:
+                prompty.append(p)
+
+        if len(prompty) < ile:
+            import json as _json
+            opis = _json.dumps({k: firma.get(k) for k in
+                               ("nazwa", "branza", "uslugi", "miasto")}, ensure_ascii=False)
+            r = await claude.uruchom(zadanie_prompty,
+                                     f"Wygeneruj {ile - len(prompty)} pytań.\n\n{opis}")
+            for p in (r.final_output.pytania or []):
+                if len(prompty) < ile and p.lower() not in {x.lower() for x in prompty}:
+                    prompty.append(p)
+
+        zrodlo_promptow = {"wlasne": len(wlasne),
+                           "google": sum(1 for p in prompty if p in z_google),
+                           "model": max(0, len(prompty) - len(wlasne)
+                                        - sum(1 for p in prompty if p in z_google))}
+
+        # ── Pytamy modele, każdy prompt N razy ───────────────────────────
+        wiersze, koszt = [], 0.0
+        for opis_silnika in silniki:
+            pytaj = (zapytaj_claude_wprost if opis_silnika["silnik"][0] == "anthropic"
+                     else zapytaj_chatgpt_wprost)
+            for pytanie in prompty:
+                proby = []
+                for _ in range(powtorzenia):
+                    surowy = await pytaj(pytanie)
+                    proby.append(audyt.z_wlasnego_zapytania(
+                        surowy["tekst"], surowy["zrodla"], nazwa, domena, pytanie))
+                    koszt += opis_silnika["koszt"]
+                w = audyt.scal_powtorzenia(proby)
+                w["silnik_nazwa"] = opis_silnika["nazwa"]
+                w["silnik_udzial"] = opis_silnika["udzial"]
+                wiersze.append(w)
+
+        # ── Marki konkurencji przez model, nie regex ─────────────────────
+        try:
+            zlepek = _NOWA_LINIA.join(
+                f"{i}. {w['odpowiedz'][:2500]}" for i, w in enumerate(wiersze, 1))
+            rm = await claude.uruchom(zadanie_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
+            war = audyt.warianty_marki(nazwa, domena)
+            for w, marki in zip(wiersze, rm.final_output.marki_per_odpowiedz):
+                w["marki"] = [m for m in marki
+                              if not any(x in m.lower() for x in war)]
+        except Exception:
+            pass          # zostaje wersja z parsera — lepsze to niż brak
+
+        # ── Sekcje bez żadnego kosztu ────────────────────────────────────
+        zrodla = audyt.analiza_zrodel(wiersze, domena)
+        obecnosc = await asyncio.to_thread(
+            audyt_geo.obecnosc_w_zrodlach, wiersze, nazwa, domena)
+        try:
+            techniczne = await asyncio.to_thread(geo.audyt_geo, firma.get("url", ""), firma)
+        except Exception:
+            techniczne = None
+
+        raport = audyt.zbuduj_raport({**firma, "domena": domena}, wiersze, None, koszt, None)
+        raport["dostawca"] = "geo"
+        raport["silniki"] = [{"nazwa": s["nazwa"], "udzial": s["udzial"]} for s in silniki]
+        raport["zrodla"] = zrodla
+        raport["techniczne"] = techniczne
+        raport["obecnosc_w_zrodlach"] = obecnosc
+        raport["powtorzenia"] = powtorzenia
+        raport["zrodlo_promptow"] = zrodlo_promptow
+        raport["reczne"] = audyt_geo.checklista_reczna(prompty, nazwa)
+
+        try:
+            baza.zapisz_audyt(firma.get("url", ""), raport,
+                              (firma.get("tryb") or "partner"), "geo")
+        except Exception as e:
+            print(f"  (nie udalo sie zapisac audytu GEO: {e})")
+
+        return JSONResponse({"ok": True, "raport": raport})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
 async def api_audyt(request):
     """Funkcja 5 — mikroaudyt SEO/GEO. PŁATNE (DataForSEO), więc liczymy koszt i zwracamy go."""
     try:
@@ -2090,6 +2211,7 @@ app = Starlette(routes=[
     Route("/api/koszyk", api_koszyk, methods=["POST"]),
     Route("/api/audyty", api_audyty, methods=["GET"]),
     Route("/api/audyt", api_audyt, methods=["POST"]),
+    Route("/api/audyt-geo", api_audyt_geo, methods=["POST"]),
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),
 ])

@@ -201,6 +201,34 @@ setTimeout(() => {
   sprawdz("Rozmowa: czatu NIE ma juz w karcie firmy",
     !d.querySelector(".panel .czat-karta"));
 
+  // Audyt GEO — OSOBNA zakladka, nie wariant mikroaudytu. Pierwsza zakladka ma
+  // zostac nietknieta, wiec sprawdzamy jedno i drugie osobno.
+  nav("audytgeo");
+  sprawdz("Audyt GEO: sekcja pokazuje wybor firmy",
+    d.getElementById("audytgeo-wybor").innerHTML.includes("Kogo audytujemy"));
+  klik(d.querySelector("#audytgeo-wybor .sim-row button"));
+  const geoForm = d.getElementById("audytgeo-wybor").innerHTML;
+  sprawdz("Audyt GEO: jest pole na pytania od handlowcow",
+    !!d.getElementById("geo-wlasne"));
+  sprawdz("Audyt GEO: jest suwak powtorzen", !!d.getElementById("geo-powtorzenia"));
+  sprawdz("Audyt GEO: jest przelacznik podpowiedzi Google", !!d.getElementById("geo-podpowiedzi"));
+  sprawdz("Audyt GEO: sa DWA silniki na wlasnych kluczach",
+    d.querySelectorAll('input[name="geo-silnik"]').length === 2);
+  // Ten audyt nie moze dotykac DataForSEO — gdyby ktos dolozyl tu silnik przez
+  // dostawce, cala jego przewaga (dziala przy pustym saldzie) by zniknela.
+  // Szukamy ETYKIETY uzycia ("przez DataForSEO"), a nie samego slowa: w opisie
+  // formularza pada zdanie "ten audyt nie dotyka DataForSEO" i to jest obietnica,
+  // nie uzycie. Pierwsza wersja tego testu wywalala sie wlasnie na niej.
+  sprawdz("Audyt GEO: zaden silnik nie idzie przez DataForSEO",
+    !/przez DataForSEO/i.test(geoForm));
+  sprawdz("Audyt GEO: pokazuje koszt przed uruchomieniem", /Szacowany koszt/.test(geoForm));
+
+  // Pierwsza zakladka ma zostac JAK BYLA — bez suwaka powtorzen, ktory nalezy do GEO.
+  nav("audyt");
+  klik(d.querySelector("#audyt-wybor .sim-row button"));
+  sprawdz("Mikroaudyt: bez suwaka powtorzen (zostal jak byl)",
+    !d.getElementById("audyt-powtorzenia"));
+
   nav("maile");
   sprawdz("Maile: sekcja pokazuje wybór firmy",
     d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));
