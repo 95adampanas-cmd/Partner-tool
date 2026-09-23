@@ -165,6 +165,41 @@ setTimeout(() => {
     sprawdz("Presety: brak przelacznika zrodel (jedno podlaczone)", true);
   }
 
+  // Filtr fraz — glowna odpowiedz na "za duzo opcji". Przy 297 frazach wpisanie
+  // trzech liter ma byc szybsze niz przegladanie 29 kategorii.
+  // Wracamy na Wyszukiwarke — poprzedni przypadek zostawil zaznaczone Mapy, a filtr
+  // ma byc sprawdzony na pelnym zestawie (29 kategorii, 297 fraz), nie na skroconym.
+  nav("szukaj");
+  klik(d.querySelector('[data-zrodlo="wyszukiwarka"]'));
+  const wpisz = (v) => {
+    const pole = d.getElementById("preset-szukaj");
+    if (!pole) return false;
+    pole.value = v;
+    pole.dispatchEvent(new window.Event("input", { bubbles: true }));
+    return true;
+  };
+  sprawdz("Filtr: pole jest widoczne", !!d.getElementById("preset-szukaj"));
+  if (wpisz("shopify")) {
+    const trafienia = [...d.querySelectorAll("#presety-branz [data-preset]")]
+      .map((b) => b.textContent.toLowerCase());
+    sprawdz("Filtr: 'shopify' zwraca same pasujace frazy",
+      trafienia.length > 0 && trafienia.every((x) => x.includes("shopify")),
+      `${trafienia.length} trafien`);
+    // Po wpisaniu filtru lista kategorii ma zniknac — inaczej user widzi
+    // jednoczesnie wyniki filtrowania i pelne menu, czyli dwa razy to samo.
+    sprawdz("Filtr: chowa liste kategorii",
+      d.querySelectorAll("#presety-branz [data-grupa]").length === 0);
+    wpisz("qqqqq");
+    sprawdz("Filtr: brak trafien nie wywala sekcji",
+      d.getElementById("presety-branz").innerHTML.includes("Nic nie pasuje"));
+    wpisz("");
+    sprawdz("Filtr: wyczyszczenie przywraca kategorie",
+      d.querySelectorAll("#presety-branz [data-grupa]").length > 20,
+      `${d.querySelectorAll("#presety-branz [data-grupa]").length} kategorii`);
+    sprawdz("Filtr: kategorie sa w dwoch nazwanych sekcjach",
+      d.querySelectorAll("#presety-branz .preset-sekcja").length === 2);
+  }
+
   nav("rozmowa");
   sprawdz("Rozmowa: sekcja pokazuje wybór firmy",
     d.getElementById("rozmowa-box").innerHTML.includes("O której firmie rozmawiamy"));

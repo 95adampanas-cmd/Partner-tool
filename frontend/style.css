@@ -817,3 +817,27 @@ button { font-family: var(--sans); }
   border-style: dashed;
 }
 .tag.tag-slaby.zaznaczony { opacity: 1; }
+
+/* Filtr fraz. Pierwsza rzecz w sekcji, bo przy 297 frazach wpisanie trzech liter
+   jest szybsze niz jakiekolwiek menu. */
+.preset-filtr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.preset-filtr input {
+  flex: 1;
+  min-width: 0;
+}
+.preset-filtr .hint { white-space: nowrap; margin: 0; }
+
+/* Dwie nazwane sekcje kategorii zamiast jednego rzedu 29 chipow. */
+.preset-sekcja { margin-bottom: 14px; }
+.preset-sekcja-tytul {
+  display: block;
+  margin-bottom: 8px;
+  opacity: .62;
+  font-size: 11px;
+  letter-spacing: .08em;
+}

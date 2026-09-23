@@ -275,116 +275,177 @@ const PRESETY = {
   //
   // Mapy Google dostaną własny zestaw — tam szuka się inaczej (wizytówki, nie treść
   // stron), więc te same frazy nie zadziałają.
+  // ── PRESETY WYSZUKIWANIA — Wyszukiwarka i Google ─────────────────────
+  //
+  // Struktura od Adama (23.09.2026): 29 kategorii, 297 fraz. Każda kategoria ma
+  // JEDNĄ frazę główną (najszerszą) i podkategorie, które zawężają.
+  //
+  // Piąty element to SEKCJA — „uslugi" albo „saas". Przy 29 kategoriach jeden rząd
+  // chipów jest ścianą; podział na dwie nazwane grupy skraca skanowanie o połowę,
+  // a granica jest naturalna: firmy usługowe kontra producenci oprogramowania.
+  // (Czwarty element rezerwuje miejsce na flagę „słabe", której używają Mapy.)
+  //
+  // TO NIE SĄ kategorie, do których trafia zbadana firma. Tamtych jest dziesięć
+  // (KATEGORIE_PARTNEROW w app.py) i służą do szufladkowania firm PO researchu.
   partner: [
     ["Strony www", "tworzenie stron internetowych", [
-      "strony WordPress", "agencja Webflow", "agencja Framer", "software house",
-      "agencja interaktywna", "opieka nad stroną WordPress"
-    ]],
+      "projektowanie stron www", "strony www dla firm", "agencja interaktywna",
+      "agencja WordPress", "strony WordPress", "agencja Webflow", "agencja Framer",
+      "software house", "tworzenie aplikacji webowych", "tworzenie landing page",
+      "opieka nad stroną WordPress", "audyt dostępności WCAG"
+    ], null, "uslugi"],
     ["Sklepy internetowe", "tworzenie sklepów internetowych", [
-      "agencja Shopify", "wdrożenia Shoper", "wdrożenia IdoSell", "wdrożenia WooCommerce",
-      "wdrożenia PrestaShop", "wdrożenia Magento", "sklep B2B",
-      "migracja sklepu internetowego", "administracja sklepem internetowym"
-    ]],
+      "agencja e-commerce", "software house e-commerce", "agencja Shopify", "wdrożenia Shoper",
+      "wdrożenia IdoSell", "wdrożenia WooCommerce", "wdrożenia PrestaShop",
+      "wdrożenia Magento", "wdrożenia Shopware", "sklep B2B", "platforma B2B wdrożenie",
+      "migracja sklepu internetowego", "administracja sklepem internetowym",
+      "outsourcing e-commerce", "prowadzenie sklepu internetowego"
+    ], null, "uslugi"],
     ["Agencje digital / full-service", "agencja marketingowa", [
-      "agencja digital marketingu", "agencja marketingu internetowego", "agencja full-service",
-      "agencja 360", "marketing dla e-commerce", "marketing dla firm B2B"
-    ]],
+      "agencja digital marketingu", "agencja marketingu internetowego",
+      "agencja reklamy internetowej", "agencja full-service", "agencja 360",
+      "agencja marketingowa dla e-commerce", "marketing dla sklepów internetowych",
+      "agencja marketingu B2B", "marketing przemysłowy", "agencja lead generation",
+      "agencja growth marketingu", "marketing medyczny", "marketing dla deweloperów",
+      "marketing dla branży beauty", "marketing dla hoteli"
+    ], null, "uslugi"],
     ["Branding i PR", "agencja kreatywna", [
-      "agencja brandingowa", "agencja PR", "identyfikacja wizualna", "projektowanie logo",
-      "projektowanie opakowań", "agencja UX/UI"
-    ]],
+      "agencja brandingowa", "agencja komunikacji marketingowej", "agencja PR",
+      "public relations", "studio graficzne", "identyfikacja wizualna", "projektowanie logo",
+      "rebranding", "naming marki", "projektowanie opakowań", "agencja UX/UI", "audyt UX"
+    ], null, "uslugi"],
     ["Strategia i doradztwo", "doradztwo biznesowe", [
-      "doradztwo marketingowe", "agencja strategiczna", "strategia marketingowa",
-      "strategia e-commerce", "strategia marki", "audyt e-commerce",
-      "interim manager e-commerce", "CMO na godziny"
-    ]],
+      "konsulting e-commerce", "doradztwo e-commerce", "strategia e-commerce",
+      "audyt e-commerce", "doradztwo marketingowe", "konsultant marketingowy",
+      "agencja strategiczna", "strategia marketingowa", "strategia marki",
+      "doradztwo strategiczne", "interim manager e-commerce", "e-commerce manager na zlecenie",
+      "CMO na godziny", "fractional CMO", "szkolenia e-commerce", "szkolenia marketingowe",
+      "mentoring e-commerce", "rekrutacja e-commerce", "dotacje na marketing"
+    ], null, "uslugi"],
     ["Social media", "agencja social media", [
-      "prowadzenie social media dla firm", "content marketing", "influencer marketing",
-      "marketing na TikToku"
-    ]],
+      "prowadzenie social media dla firm", "agencja influencer marketingu",
+      "influencer marketing", "content marketing", "agencja contentowa",
+      "marketing na TikToku", "agencja TikTok", "UGC dla marek"
+    ], null, "uslugi"],
+    ["Content produktowy", "fotografia produktowa", [
+      "studio fotografii produktowej", "packshot", "wideo produktowe", "opisy produktów",
+      "copywriting e-commerce", "grafiki do sklepu internetowego"
+    ], null, "uslugi"],
     ["Performance", "reklama w internecie", [
-      "agencja Google Ads", "agencja Meta Ads", "reklama na Facebooku", "reklama na TikToku",
-      "kampanie produktowe Google", "agencja performance marketing"
-    ]],
+      "agencja Google Ads", "agencja PPC", "agencja SEM", "Google Partner agencja",
+      "agencja Meta Ads", "reklama na Facebooku", "reklama na TikToku", "agencja LinkedIn Ads",
+      "kampanie produktowe Google", "agencja performance marketing", "marketing afiliacyjny",
+      "sieć afiliacyjna"
+    ], null, "uslugi"],
     ["Marketplace", "obsługa marketplace", [
-      "agencja Allegro", "agencja Amazon", "sprzedaż na Amazon", "kampanie Allegro Ads",
+      "agencja Allegro", "obsługa konta Allegro", "kampanie Allegro Ads", "agencja Amazon",
+      "sprzedaż na Amazon", "Amazon FBA", "sprzedaż na Kaufland", "sprzedaż na eMAG",
       "integracja BaseLinker"
-    ]],
+    ], null, "uslugi"],
     ["Ekspansja zagraniczna", "ekspansja zagraniczna", [
-      "ekspansja zagraniczna e-commerce", "sprzedaż cross-border",
+      "ekspansja zagraniczna e-commerce", "sprzedaż cross-border", "sprzedaż do Niemiec",
+      "wejście na rynek niemiecki", "e-commerce Niemcy",
       "sklep internetowy na rynki zagraniczne", "lokalizacja sklepu internetowego",
-      "tłumaczenia stron internetowych", "doradztwo eksportowe"
-    ]],
+      "tłumaczenia stron internetowych", "tłumaczenia sklepów internetowych",
+      "doradztwo eksportowe", "internacjonalizacja firmy"
+    ], null, "uslugi"],
     ["Fulfillment i logistyka", "fulfillment", [
-      "fulfillment e-commerce", "magazyn dla sklepu internetowego", "logistyka e-commerce",
-      "obsługa zwrotów e-commerce", "dropshipping"
-    ]],
-    ["Wdrożenia narzędzi i analityka", "analityka internetowa", [
-      "wdrożenia Google Analytics 4", "wdrożenia Google Tag Manager", "raporty Looker Studio",
-      "wdrożenie Consent Mode", "integracje sklepu internetowego"
-    ]],
+      "fulfillment e-commerce", "magazyn fulfillment", "outsourcing logistyki e-commerce",
+      "operator logistyczny 3PL", "magazyn dla sklepu internetowego", "logistyka e-commerce",
+      "obsługa zwrotów e-commerce", "dropshipping", "wdrożenia WMS"
+    ], null, "uslugi"],
+    ["Księgowość i podatki", "biuro rachunkowe dla e-commerce", [
+      "księgowość sklepu internetowego", "księgowość e-commerce", "VAT OSS",
+      "doradca podatkowy e-commerce", "księgowość Amazon Allegro",
+      "rozliczenia sprzedaży zagranicznej"
+    ], null, "uslugi"],
+    ["Analityka i CRO", "analityka internetowa", [
+      "analityka e-commerce", "wdrożenia Google Analytics 4", "wdrożenia Google Tag Manager",
+      "server-side tracking", "wdrożenie Consent Mode", "raporty Looker Studio",
+      "raportowanie marketingowe", "business intelligence e-commerce",
+      "optymalizacja konwersji", "audyt UX sklepu", "testy A/B",
+      "integracje sklepu internetowego"
+    ], null, "uslugi"],
     ["AI", "AI dla firm", [
-      "agencja AI", "wdrożenie AI w firmie", "wdrożenia chatbotów", "asystent AI dla firm",
-      "szkolenia AI dla firm"
-    ]],
+      "agencja AI", "doradztwo AI", "wdrożenie AI w firmie", "wdrożenie ChatGPT w firmie",
+      "agenci AI", "automatyzacja AI", "wdrożenia chatbotów", "asystent AI dla firm",
+      "AI w e-commerce", "AI w marketingu", "szkolenia AI dla firm"
+    ], null, "uslugi"],
     ["Automatyzacje", "automatyzacja procesów biznesowych", [
-      "marketing automation", "automatyzacja sprzedaży", "agencja e-mail marketingu",
-      "wdrożenia n8n", "wdrożenia Make"
-    ]],
+      "automatyzacja marketingu", "marketing automation", "wdrożenia marketing automation",
+      "automatyzacja sprzedaży", "automatyzacja e-commerce", "agencja e-mail marketingu",
+      "wdrożenia n8n", "wdrożenia Make", "wdrożenia Zapier", "automatyzacje no-code",
+      "integracje API"
+    ], null, "uslugi"],
     ["CRM", "CRM dla firm", [
-      "wdrożenie systemu CRM", "integrator CRM", "partner wdrożeniowy CRM", "konsultant CRM",
-      "firma informatyczna CRM", "integracja CRM ze sklepem internetowym"
-    ]],
+      "wdrożenia CRM", "wdrożenie systemu CRM", "integrator CRM", "partner wdrożeniowy CRM",
+      "konsultant CRM", "doradztwo CRM", "firma informatyczna CRM",
+      "integracja CRM ze sklepem internetowym", "optymalizacja procesów sprzedaży"
+    ], null, "uslugi"],
     ["ERP", "ERP dla firm", [
-      "wdrożenie systemu ERP", "integrator ERP", "partner wdrożeniowy ERP", "konsultant ERP",
-      "firma informatyczna ERP", "integracja ERP ze sklepem internetowym", "wdrożenia PIM"
-    ]],
+      "wdrożenia ERP", "wdrożenie systemu ERP", "integrator ERP", "partner wdrożeniowy ERP",
+      "konsultant ERP", "firma informatyczna ERP", "ERP dla e-commerce",
+      "integracja ERP ze sklepem internetowym", "integracje systemów", "wdrożenia PIM",
+      "integracja EDI"
+    ], null, "uslugi"],
     ["Prawo e-commerce", "prawo nowych technologii", [
-      "prawnik e-commerce", "regulamin sklepu internetowego", "RODO dla sklepów internetowych",
+      "kancelaria e-commerce", "prawnik e-commerce", "obsługa prawna sklepu internetowego",
+      "regulamin sklepu internetowego", "RODO dla sklepów internetowych",
+      "prawo konsumenckie e-commerce", "GPSR", "dyrektywa Omnibus", "prawo reklamy",
       "rejestracja znaku towarowego", "rzecznik patentowy", "umowy IT", "prawo IT"
-    ]],
-    ["Platformy sklepowe (SaaS)", "oprogramowanie e-commerce", [
-      "platforma sklepów internetowych", "platforma sklepów B2B",
-      "sklep internetowy w abonamencie", "oprogramowanie do sklepu internetowego"
-    ]],
-    ["Sprzedaż wielokanałowa (SaaS)", "sprzedaż wielokanałowa", [
-      "system do sprzedaży wielokanałowej", "integrator marketplace",
+    ], null, "uslugi"],
+    ["Hosting i infrastruktura", "hosting dla sklepów internetowych", [
+      "hosting WordPress", "hosting WooCommerce", "serwery dla e-commerce",
+      "hosting zarządzany", "administracja serwerami", "CDN dla sklepu"
+    ], null, "uslugi"],
+    ["Platformy sklepowe", "oprogramowanie e-commerce", [
+      "platforma sklepów internetowych", "sklep internetowy SaaS",
+      "sklep internetowy w abonamencie", "platforma sklepów B2B",
+      "oprogramowanie do sklepu internetowego"
+    ], null, "saas"],
+    ["Sprzedaż wielokanałowa", "sprzedaż wielokanałowa", [
+      "system do sprzedaży wielokanałowej", "integrator marketplace", "integracje marketplace",
       "oprogramowanie do obsługi zamówień", "system PIM"
-    ]],
-    ["Opinie i zaufanie (SaaS)", "zbieranie opinii klientów", [
+    ], null, "saas"],
+    ["Opinie i zaufanie", "zbieranie opinii klientów", [
       "system opinii dla sklepów internetowych", "certyfikat zaufania sklepu internetowego",
       "opinie o produktach widget", "program recenzji produktów"
-    ]],
-    ["Marketing automation i e-mail (SaaS)", "narzędzia do marketing automation", [
-      "system do e-mail marketingu", "narzędzie do newslettera", "platforma SMS marketingu",
+    ], null, "saas"],
+    ["Marketing automation i e-mail", "narzędzia do marketing automation", [
+      "system do automatyzacji marketingu", "system do e-mail marketingu",
+      "narzędzie do newslettera", "platforma SMS marketingu", "powiadomienia web push",
       "platforma CDP", "marketing automation dla e-commerce"
-    ]],
-    ["Narzędzia dla sklepów (SaaS)", "aplikacje dla sklepów internetowych", [
+    ], null, "saas"],
+    ["Narzędzia dla sklepów", "aplikacje dla sklepów internetowych", [
       "wyszukiwarka produktowa dla sklepu", "rekomendacje produktowe", "live chat dla sklepu",
-      "program lojalnościowy e-commerce", "odzyskiwanie porzuconych koszyków"
-    ]],
-    ["Monitoring cen (SaaS)", "monitoring cen", [
+      "helpdesk dla e-commerce", "system do obsługi zwrotów",
+      "program lojalnościowy e-commerce", "odzyskiwanie porzuconych koszyków",
+      "system afiliacyjny dla sklepu", "generator opisów produktów AI"
+    ], null, "saas"],
+    ["Monitoring cen", "monitoring cen", [
       "monitoring cen konkurencji", "repricing", "automatyczna zmiana cen",
       "analiza cen e-commerce"
-    ]],
-    ["Monitoring marki (SaaS)", "monitoring internetu", [
+    ], null, "saas"],
+    ["Monitoring marki", "monitoring internetu", [
       "monitoring marki", "monitoring mediów społecznościowych", "social listening",
       "monitoring mediów"
-    ]],
-    ["CRM i sprzedaż (SaaS)", "system CRM", [
+    ], null, "saas"],
+    ["CRM i sprzedaż", "system CRM", [
       "polski system CRM", "CRM dla małych firm", "CRM dla e-commerce",
       "oprogramowanie do sprzedaży B2B"
-    ]],
+    ], null, "saas"],
     ["Vendorzy SaaS", "oprogramowanie SaaS", [
-      "polski SaaS dla e-commerce", "polski SaaS marketingowy", "aplikacje dla sklepów Shoper",
-      "aplikacje IdoSell", "integracje BaseLinker", "dodatki WooCommerce polska firma",
-      "startup SaaS Polska"
-    ]],
+      "polski SaaS dla e-commerce", "polski SaaS marketingowy", "narzędzia AI dla e-commerce",
+      "polski startup AI", "aplikacje dla sklepów Shoper", "aplikacje IdoSell",
+      "integracje BaseLinker", "moduły PrestaShop", "wtyczki WooCommerce polska firma",
+      "moduły Magento", "startup SaaS Polska"
+    ], null, "saas"],
     ["Programy partnerskie SaaS", "program partnerski", [
       "program partnerski dla agencji", "program partnerski dla agencji marketingowych",
-      "zostań partnerem e-commerce", "partner program agencja SaaS",
-      "program afiliacyjny SaaS"
-    ]],
+      "program partnerski dla software house", "program poleceń dla agencji",
+      "zostań partnerem technologicznym", "zostań partnerem e-commerce",
+      "partner program agencja SaaS", "program afiliacyjny SaaS"
+    ], null, "saas"],
   ],
 
   // ── PRESETY DLA MAP GOOGLE — inne, i to nie jest kosmetyka ───────────
@@ -624,6 +685,22 @@ function renderKolejke() {
 // Który zestaw presetów obowiązuje. Mapy mają własny, bo szukają po nazwach
 // wizytówek, a nie po treści stron — te same frazy dają tam zero wyników.
 // Ścieżka klientów ma swój niezależnie od źródła.
+let presetFiltr = "";
+
+// Pole filtru rysujemy w obu widokach (lista kategorii i wyniki filtrowania),
+// więc jest osobną funkcją — inaczej przy wpisywaniu znikałoby i wracało,
+// gubiąc kursor po każdej literze.
+function poleFiltru(ileTrafien) {
+  return `<div class="preset-filtr">
+    <input type="search" id="preset-szukaj" autocomplete="off"
+           placeholder="Filtruj frazy — np. shopify, allegro, prawnik…"
+           value="${escAttr(presetFiltr)}">
+    ${ileTrafien !== undefined
+      ? `<span class="hint">${ileTrafien} ${ileTrafien === 1 ? "fraza" : "fraz"}</span>`
+      : ""}
+  </div>`;
+}
+
 function presetyDlaZrodla() {
   if (tryb !== "partner") return PRESETY[tryb] || PRESETY.partner;
   return zrodlo === "mapy" ? PRESETY.mapy : PRESETY.partner;
@@ -636,12 +713,62 @@ function renderPresety() {
   // Chipy, nie kafle — ten sam wygląd, co filtr kategorii w „Szukaj podobnych".
   // Kafle zajmowały pół ekranu, zanim cokolwiek wybrałeś; tu wybór jest jednym
   // rzędem, a miejsce zostaje na to, po co się tu przyszło.
-  const kafle = `<div class="tagi wybieralne">${grupy.map(([grupa, , pozycje, slabe], i) => `
+  // ── Filtr ──
+  // Przy 297 frazach w 29 kategoriach przeglądanie przestaje działać: zanim
+  // znajdziesz „wdrożenia Shopware", przeczytasz pół listy. Wpisanie trzech liter
+  // jest szybsze niż każde menu, więc filtr jest tu pierwszą rzeczą, nie dodatkiem.
+  const szukane = presetFiltr.trim().toLowerCase();
+  if (szukane) {
+    const trafienia = [];
+    grupy.forEach(([grupa, glowna, pozycje]) => {
+      [glowna, ...pozycje].forEach((fraza, idx) => {
+        if (fraza.toLowerCase().includes(szukane)) {
+          trafienia.push({ fraza, grupa, glowna: idx === 0 });
+        }
+      });
+    });
+    // UWAGA: tu trzeba WPISAĆ do DOM, a nie zwrócić string. Pierwsza wersja robiła
+    // `return` i filtr po cichu nic nie robił — HTML powstawał i wyparowywał.
+    document.getElementById("presety-branz").innerHTML = `
+      <div class="card">
+        <div class="mono"><span class="sq"></span> Wybierz kategorię partnera</div>
+        ${poleFiltru(trafienia.length)}
+        ${trafienia.length ? `<div class="tagi wybieralne">${trafienia.slice(0, 60).map((x) => `
+          <button class="tag${x.glowna ? " tag-glowny" : ""}" type="button"
+                  data-preset="${escAttr(x.fraza)}" title="${escAttr(x.grupa)}">
+            ${esc(x.fraza)} <em class="chip-licznik">${esc(x.grupa)}</em>
+          </button>`).join("")}</div>
+          ${trafienia.length > 60 ? `<p class="hint">Pokazuję 60 z ${trafienia.length} —
+            wpisz więcej liter, żeby zawęzić.</p>` : ""}`
+          : `<p class="hint">Nic nie pasuje do „${esc(presetFiltr)}". Możesz też po prostu
+             wpisać własną frazę w pole wyszukiwania powyżej.</p>`}
+      </div>`;
+    return;
+  }
+
+  // ── Kategorie, w dwóch nazwanych sekcjach ──
+  // Jeden rząd 29 chipów to ściana. Granica „usługi kontra oprogramowanie" jest
+  // naturalna i skraca skanowanie o połowę. Mapy nie mają sekcji — tam wszystko
+  // ląduje w jednej grupie i to jest w porządku, bo jest ich 17.
+  const chip = ([grupa, , pozycje, slabe], i) => `
     <button class="tag${otwartaGrupa === i ? " zaznaczony" : ""}${slabe ? " tag-slaby" : ""}"
             type="button" data-grupa="${i}" aria-pressed="${otwartaGrupa === i}"
             ${slabe ? 'title="W Mapach ta kategoria daje mało wyników — lepiej szukać przez Wyszukiwarkę albo Google"' : ""}>
       ${esc(grupa)} <em class="chip-licznik">${pozycje.length}</em>
-    </button>`).join("")}</div>`;
+    </button>`;
+
+  const sekcje = [["uslugi", "Usługi i agencje"], ["saas", "SaaS i narzędzia"]];
+  const zSekcjami = grupy.some((g) => g[4]);
+  const kafle = poleFiltru() + (!zSekcjami
+    ? `<div class="tagi wybieralne">${grupy.map(chip).join("")}</div>`
+    : sekcje.map(([klucz, etykieta]) => {
+        const wybrane = grupy.map((g, i) => [g, i]).filter(([g]) => g[4] === klucz);
+        if (!wybrane.length) return "";
+        return `<div class="preset-sekcja">
+          <span class="mono preset-sekcja-tytul">${esc(etykieta)}</span>
+          <div class="tagi wybieralne">${wybrane.map(([g, i]) => chip(g, i)).join("")}</div>
+        </div>`;
+      }).join(""));
 
   const panel = !wybrana ? "" : (() => {
     const [grupa, fraza, pozycje, slabe] = wybrana;
@@ -978,6 +1105,7 @@ document.addEventListener("click", (e) => {
     // Indeksy grup różnią się między zestawami (26 vs 17), więc otwarta grupa
     // po przełączeniu wskazywałaby na zupełnie inną kategorię.
     otwartaGrupa = null;
+    presetFiltr = "";      // frazy są inne w każdym zestawie
     renderZrodla();
     return renderPresety();
   }
@@ -2454,6 +2582,18 @@ function renderRozmowa() {
 
 // Enter wysyla pytanie. W czacie to odruch — bez tego trzeba siegac myszka po
 // kazdym zdaniu, a rozmowa ma byc szybsza od klikania po karcie firmy.
+// Filtrowanie na bieżąco. `input`, nie `change` — `change` odpala się dopiero po
+// wyjściu z pola, więc lista aktualizowałaby się po fakcie.
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "preset-szukaj") return;
+  presetFiltr = e.target.value;
+  renderPresety();
+  // renderPresety przerysowuje pole, więc kursor trzeba przywrócić ręcznie —
+  // bez tego po pierwszej literze tracisz focus i dalej piszesz w próżnię.
+  const pole = document.getElementById("preset-szukaj");
+  if (pole) { pole.focus(); pole.setSelectionRange(pole.value.length, pole.value.length); }
+});
+
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || !e.target.classList.contains("czat-pytanie")) return;
   e.preventDefault();

@@ -163,7 +163,7 @@ def sprawdz_presety() -> int:
         # w cudzysłowach ze środka komentarza i zgłasza duplikaty, których nie ma —
         # nabrałem się na to przy pierwszej analizie tej listy.
         blok = re.sub(r"//[^\n]*", "", blok)
-        grupy = re.findall(r'\["([^"]+)",\s*"([^"]*)",\s*\[(.*?)\]\s*(?:,\s*true\s*)?\]', blok, re.S)
+        grupy = re.findall(r'\["([^"]+)",\s*"([^"]*)",\s*\[(.*?)\](?:\s*,[^\]]*)?\s*\]', blok, re.S)
 
         ile_fraz = 0
         for nazwa, glowna, surowe in grupy:
