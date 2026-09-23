@@ -377,6 +377,45 @@ def sprawdz_zrodlo_google() -> int:
     return bledy
 
 
+def sprawdz_audyt_bez_dataforseo() -> int:
+    """Czy da się zrobić audyt GEO bez DataForSEO — i czy powtórzenia liczą się dobrze.
+
+    Sekcja „pytania klientów" jest jedyną, która przeżywa awarię albo puste saldo
+    dostawcy SEO. Do tego potrzebuje silników na NASZYCH kluczach — i muszą być
+    co najmniej dwa, bo przy jednym nie da się odróżnić cechy modelu od stanu rynku.
+    Zmierzone na Tebimie: ChatGPT wymienił firmę, Claude nie i podał 7 konkurentów.
+    """
+    import audyt
+
+    bledy = 0
+    wlasne = {k: v for k, v in audyt.SILNIKI.items() if v.get("wlasny_klucz")}
+    if len(wlasne) >= 2:
+        print(f"  OK   | {len(wlasne)} silniki na własnych kluczach: {', '.join(wlasne)}")
+    else:
+        print(f"  BŁĄD | tylko {len(wlasne)} silnik bez DataForSEO — audyt zależny od dostawcy")
+        bledy += 1
+
+    # Scalanie prób. 1 z 3 to widoczność przypadkowa i musi być odróżnialna
+    # od 3 z 3 — inaczej powtarzanie pytań nie wnosi niczego poza kosztem.
+    proby = [
+        {"wspomniana": False, "cytowana": False, "zrodla": ["a.pl"], "marki": ["X"], "odpowiedz": "nie"},
+        {"wspomniana": False, "cytowana": False, "zrodla": ["b.pl"], "marki": ["Y"], "odpowiedz": "nie"},
+        {"wspomniana": True,  "cytowana": True,  "zrodla": ["a.pl", "c.pl"], "marki": ["X", "Z"], "odpowiedz": "TAK"},
+    ]
+    s = audyt.scal_powtorzenia(proby)
+    sprawdzenia = [
+        (s.get("trafien") == 1 and s.get("prob") == 3, "liczy 1 z 3 trafień"),
+        (s.get("wspomniana") is True, "jedno trafienie wystarcza do „wymieniona”"),
+        (len(s.get("zrodla") or []) == 3, "źródła scalone sumą, bez duplikatów"),
+        (len(s.get("marki") or []) == 3, "konkurenci scaleni sumą"),
+        (s.get("odpowiedz") == "TAK", "do raportu idzie próba Z trafieniem — to ona jest dowodem"),
+    ]
+    for ok, opis in sprawdzenia:
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+        bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -397,6 +436,12 @@ def sprawdz_regresje() -> int:
     print("MODELE — praca na Claude, pomiar GEO na OpenAI")
     print("=" * 74)
     bledy += sprawdz_modele()
+    print()
+
+    print("=" * 74)
+    print("AUDYT BEZ DATAFORSEO — silniki na własnych kluczach i powtórzenia")
+    print("=" * 74)
+    bledy += sprawdz_audyt_bez_dataforseo()
     print()
 
     print("=" * 74)

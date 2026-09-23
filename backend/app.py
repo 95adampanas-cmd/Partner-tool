@@ -946,6 +946,51 @@ agent_pytajacy = Agent(
 )
 
 
+# Ile razy Claude może sięgnąć do wyszukiwarki na jedno pytanie. Cztery wystarczają,
+# żeby zebrał kilkanaście źródeł; wyżej rośnie koszt, a odpowiedź już się nie zmienia.
+CLAUDE_SZUKAN = 4
+
+
+def _claude_wprost_sync(pytanie: str) -> dict:
+    """Claude pytany BEZPOŚREDNIO naszym kluczem, z wyszukiwarką po stronie Anthropic.
+
+    DRUGI mierzony asystent, nie drugie narzędzie. Cała sekcja „pytania klientów"
+    stała dotąd na jednym modelu, więc nie dało się odróżnić cechy tego modelu od
+    prawidłowości rynku: gdy ChatGPT nie wymieniał firmy, nie wiadomo było, czy jest
+    niewidoczna, czy po prostu ten jeden model tak ma.
+
+    Nie idzie przez claude.py, bo tam `Zadanie` opisuje nasze własne narzędzia,
+    a tu potrzebne jest narzędzie serwerowe Anthropic — inny kształt żądania.
+    """
+    odp = claude.klient().messages.create(
+        model=claude.MOCNY, max_tokens=1500,
+        tools=[{"type": "web_search_20250305", "name": "web_search",
+                "max_uses": CLAUDE_SZUKAN}],
+        messages=[{"role": "user", "content": pytanie}],
+    )
+    tekst = "".join(b.text for b in odp.content if getattr(b, "type", "") == "text")
+
+    # Źródła leżą w dwóch miejscach: w wynikach wyszukiwania i w cytowaniach
+    # doklejonych do tekstu. Bierzemy oba, bo pominięcie któregokolwiek zaniżałoby
+    # listę cytowanych domen — a to ona jest wnioskiem tej sekcji.
+    zrodla = []
+    for blok in odp.content:
+        for pod in (getattr(blok, "content", None) or []):
+            u = getattr(pod, "url", None)
+            if u and u not in zrodla:
+                zrodla.append(u)
+        for cyt in (getattr(blok, "citations", None) or []):
+            u = getattr(cyt, "url", None)
+            if u and u not in zrodla:
+                zrodla.append(u)
+    return {"tekst": tekst.strip(), "zrodla": zrodla}
+
+
+async def zapytaj_claude_wprost(pytanie: str) -> dict:
+    """Kształt zgodny z zapytaj_chatgpt_wprost — dalej obie ścieżki są nierozróżnialne."""
+    return await asyncio.to_thread(_claude_wprost_sync, pytanie)
+
+
 async def zapytaj_chatgpt_wprost(pytanie: str) -> dict:
     """Zwraca kształt zgodny z audyt.analizuj_odpowiedz — treść i cytowane URL-e."""
     wynik = await Runner.run(agent_pytajacy, pytanie)
@@ -1686,14 +1731,27 @@ async def api_audyt(request):
         # łącznie z sekcjami, które miał wypełnić drugi. Teraz da się ją pominąć.
         if not bool(body.get("pytania", True)):
             silniki = []
+        # Ile razy zadajemy KAŻDE pytanie. Modele są niedeterministyczne, więc jedna
+        # próba nie odróżnia nieobecności od przypadku. Sufit 3 — wyżej koszt rośnie
+        # liniowo, a rozróżnienie „stabilnie / przypadkiem / wcale" już mamy.
+        powtorzenia = max(1, min(3, int(body.get("powtorzenia") or 1)))
         for opis in silniki:
             for i, pytanie in enumerate(pytania, 1):
                 if opis.get("wlasny_klucz"):
-                    # własny klucz OpenAI — bez pośrednika, więc i bez jego awarii
-                    surowy = await zapytaj_chatgpt_wprost(pytanie)
-                    w = audyt.z_wlasnego_zapytania(
-                        surowy["tekst"], surowy["zrodla"], nazwa, domena, pytanie)
-                    koszt += opis["koszt"]
+                    # Własny klucz — bez pośrednika, więc i bez jego awarii.
+                    # Który dostawca, rozstrzyga pierwszy człon `silnik`.
+                    pytaj = (zapytaj_claude_wprost if opis["silnik"][0] == "anthropic"
+                             else zapytaj_chatgpt_wprost)
+                    # POWTÓRZENIA tylko tutaj. Przez DataForSEO każde powtórzenie
+                    # mnożyłoby rachunek u dostawcy; na własnym kluczu płacimy tylko
+                    # za tokeny i mamy kontrolę nad tym, ile razy pytamy.
+                    proby = []
+                    for _ in range(powtorzenia):
+                        surowy = await pytaj(pytanie)
+                        proby.append(audyt.z_wlasnego_zapytania(
+                            surowy["tekst"], surowy["zrodla"], nazwa, domena, pytanie))
+                        koszt += opis["koszt"]
+                    w = audyt.scal_powtorzenia(proby)
                 else:
                     nazwa_f = f"audyt_{domena}_{opis['silnik'][0]}_{i}"
                     odp = await asyncio.to_thread(

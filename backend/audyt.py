@@ -32,6 +32,13 @@ SILNIKI = {
     # działa niezależnie od tego, który dostawca SEO jest wybrany i czy ma środki.
     "chatgpt_wprost": {"silnik": ("openai", "wprost"), "nazwa": "ChatGPT (bezpośrednio)",
                        "udzial": 86.4, "koszt": 0.012, "wlasny_klucz": True},
+    # Claude pytany BEZPOŚREDNIO naszym kluczem Anthropic, z ich wyszukiwarką.
+    # Drugi silnik niezależny od DataForSEO — dzięki temu sekcja pytań klientów ma
+    # DWA modele, a nie jeden. Przy jednym nie dało się odróżnić cechy modelu od
+    # prawidłowości rynku. Udział rynkowy niski, ale to nie o zasięg tu chodzi:
+    # dwa niezależne pomiary tego samego są warte więcej niż jeden.
+    "claude_wprost": {"silnik": ("anthropic", "wprost"), "nazwa": "Claude (bezpośrednio)",
+                      "udzial": 0.71, "koszt": 0.035, "wlasny_klucz": True},
     "chatgpt":    {"silnik": ("chat_gpt", "o4-mini"), "nazwa": "ChatGPT",
                    "udzial": 86.4, "koszt": 0.109},
     "perplexity": {"silnik": ("perplexity", "sonar"), "nazwa": "Perplexity",
@@ -659,6 +666,53 @@ def wzmianki_ai_overview(domena: str, limit: int = 10, nazwa_fixture=None,
 # ══════════════════════════════════════════════════════════════════
 #  SKŁADANIE RAPORTU
 # ══════════════════════════════════════════════════════════════════
+def scal_powtorzenia(proby: list[dict]) -> dict:
+    """Kilka odpowiedzi na TO SAMO pytanie -> jeden wiersz z licznikiem trafień.
+
+    PO CO PYTAĆ WIĘCEJ NIŻ RAZ. Modele są niedeterministyczne: ta sama fraza zadana
+    ponownie daje inną odpowiedź i inny zestaw wymienionych firm. Pojedynczy strzał
+    mówi więc tyle co rzut monetą — „nie wymienili nas" może znaczyć „nie jesteście
+    widoczni" albo „tym razem trafiło inaczej".
+
+    Przy trzech próbach rozróżnienie jest jakościowe: 0/3 to nieobecność, 3/3 to
+    stabilna obecność, a 1/3 to widoczność przypadkowa — i akurat ta trzecia
+    odpowiedź jest najczęstsza i najciekawsza dla klienta.
+
+    Źródła i marki scalamy sumą: jeśli model wymienił konkurenta choć raz, to znaczy,
+    że go zna. Zgubienie tego przez uśrednianie zaniżałoby listę konkurencji.
+    """
+    if not proby:
+        return {}
+    pierwsza = dict(proby[0])
+    trafien = sum(1 for p in proby if p.get("wspomniana"))
+    cytowan = sum(1 for p in proby if p.get("cytowana"))
+
+    zrodla, marki = [], []
+    for p in proby:
+        for u in (p.get("zrodla") or []):
+            if u not in zrodla:
+                zrodla.append(u)
+        for m in (p.get("marki") or []):
+            if m not in marki:
+                marki.append(m)
+
+    # Do raportu bierzemy odpowiedź z próby, w której firma się POJAWIŁA — bo to ona
+    # jest dowodem. Gdy nie pojawiła się nigdy, pierwsza jest równie dobra.
+    z_trafieniem = next((p for p in proby if p.get("wspomniana")), proby[0])
+
+    pierwsza.update({
+        "odpowiedz": z_trafieniem.get("odpowiedz", ""),
+        "wspomniana": trafien > 0,
+        "cytowana": cytowan > 0,
+        "zrodla": zrodla,
+        "marki": marki,
+        "prob": len(proby),
+        "trafien": trafien,
+        "cytowan": cytowan,
+    })
+    return pierwsza
+
+
 def podsumuj(wiersze: list[dict], ai_overview: dict | None) -> dict:
     """Liczby na pierwszą stronę raportu — to je klient zapamięta."""
     ile = len(wiersze) or 1

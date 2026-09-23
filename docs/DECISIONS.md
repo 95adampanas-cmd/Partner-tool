@@ -558,3 +558,56 @@ i nie pustą listę firm.
 **Lekcja, droższa niż powinna:** przy integracji z cudzym API najpierw sprawdzasz, czy
 ono nadal robi to, co pamiętasz, a dopiero potem piszesz kod. Wersja na Custom Search
 działała poprawnie — i to było najgorsze, bo nic nie sygnalizowało, że jest ślepa.
+
+---
+
+## Audyt GEO bez DataForSEO — drugi silnik i powtórzenia
+*23.09.2026*
+
+Audyt stał dotąd na jednym dostawcy: puste saldo DataForSEO kładło cały raport poza
+sekcją „pytania klientów", która jako jedyna chodziła na naszym kluczu OpenAI. Adam
+poprosił o wariant, który działa wyłącznie na kluczach, które mamy.
+
+**Claude jako drugi mierzony asystent.** Sprawdzone: nasz klucz Anthropic obsługuje
+ich serwerowe narzędzie `web_search`, więc Claude odpowiada jak asystent z dostępem
+do sieci — 36 źródeł i konkretne polskie agencje przy pierwszym teście. Nie idzie to
+przez `claude.py`, bo tam `Zadanie` opisuje NASZE narzędzia, a tu potrzebne jest
+narzędzie serwerowe dostawcy — inny kształt żądania.
+
+**Nie chodzi o zasięg Claude (0,71% rynku), tylko o drugi niezależny pomiar.** Przy
+jednym modelu nie da się odróżnić jego cechy od stanu rynku. Zmierzone na Tebimie,
+to samo pytanie:
+
+| | firma wymieniona | źródeł | konkurentów |
+|---|---|---|---|
+| ChatGPT | **tak** | 1 | 0 |
+| Claude | **nie** | 9 | 7 |
+
+Dwa modele, przeciwne odpowiedzi. Przy jednym silniku raport twierdziłby jedno albo
+drugie z równym przekonaniem.
+
+**Powtórzenia: każde pytanie zadawane do trzech razy.** Modele są niedeterministyczne
+— ta sama fraza pytana ponownie daje inną odpowiedź i inny zestaw firm. Zmierzone na
+trzech próbach tego samego pytania: **NIE, NIE, TAK**. Pojedynczy strzał był więc
+rzutem monetą; trzy próby dają uczciwy wynik „1 z 3 — widoczność przypadkowa", i to
+jest inny wniosek niż „3 z 3". Przy okazji lista źródeł urosła z 9 do 26, a lista
+konkurentów z 7 do 18 — bo scalamy sumą: jeśli model wymienił konkurenta choć raz,
+to znaczy, że go zna.
+
+Powtórzenia działają **tylko na silnikach z własnym kluczem**. Przez DataForSEO każde
+powtórzenie mnożyłoby rachunek u dostawcy, a tu płacimy wyłącznie za tokeny.
+
+Do raportu trafia odpowiedź z próby, w której firma się POJAWIŁA — bo to ona jest
+dowodem. Gdy nie pojawiła się nigdy, pierwsza jest równie dobra.
+
+**Pełny audyt GEO bez DataForSEO, zmierzony:** 2 silniki × 2 pytania × 2 próby = 128 s
+i $0,188. Do tego sekcje, które i tak były darmowe: techniczny audyt GEO (`geo.py`,
+10 botów, robots.txt) i analiza cytowanych źródeł.
+
+**Czego wciąż brakuje z listy Adama:** własne prompty wpisywane ręcznie (pytania od
+handlowców), podpowiedzi Google jako źródło promptów, sprawdzenie czy klient figuruje
+na cytowanych stronach rankingów, oraz AI Overviews — te ostatnie bez SerpApi zostają
+robotą ręczną.
+
+**Czego NIE zrobiliśmy i dlaczego:** Perplexity i Gemini wymagają kluczy, których nie
+mamy. Zgodnie z poleceniem — bez nich, zamiast dokładać rachunki.

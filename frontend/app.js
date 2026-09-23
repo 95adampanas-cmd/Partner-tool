@@ -1182,6 +1182,7 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
+  if (e.target.id === "audyt-powtorzenia") { audytPowtorzenia = +e.target.value; return renderAudyt(); }
   if (e.target.name === "platforma") {
     const v = e.target.value;
     audytPlatformy = e.target.checked
@@ -1572,6 +1573,12 @@ const SILNIKI = {
   // danych SEO, to JEDYNA sekcja audytu, ktora przezyje jego awarie albo puste saldo.
   chatgpt_wprost: { nazwa: "ChatGPT (bezpośrednio)", udzial: "86,4%", koszt: 0.012,
                     wlasny: true },
+  // Drugi silnik na NASZYM kluczu. Nie chodzi o zasieg Claude (0,71% rynku), tylko
+  // o to, ze dwa niezalezne pomiary tego samego sa warte wiecej niz jeden: przy
+  // jednym modelu nie da sie odroznic jego cechy od stanu rynku. Zmierzone na
+  // Tebimie: ChatGPT wymienil firme, Claude nie — i podal 7 konkurentow.
+  claude_wprost:  { nazwa: "Claude (bezpośrednio)", udzial: "0,71%", koszt: 0.035,
+                    wlasny: true },
   chatgpt:    { nazwa: "ChatGPT",       udzial: "86,4%", koszt: 0.109, dfs: true },
   perplexity: { nazwa: "Perplexity",    udzial: "6,18%", koszt: 0.006, dfs: true },
   gemini:     { nazwa: "Google Gemini", udzial: "3,22%", koszt: 0.020, dfs: true },
@@ -1581,6 +1588,10 @@ const SILNIKI = {
   ai_mode:    { nazwa: "Google AI Mode", udzial: null,    koszt: 0.006, dfs: true,
                 opis: "tryb konwersacyjny wyszukiwarki" },
 };
+// Ile razy zadajemy kazde pytanie. Jedna proba nie odroznia nieobecnosci od
+// przypadku — zmierzone na Tebimie: 3 proby dostaly kolejno NIE, NIE, TAK.
+// Dotyczy tylko silnikow na naszym kluczu; przez DataForSEO mnozylyby rachunek.
+let audytPowtorzenia = 1;
 let audytSEO = true;
 
 // Każde pytanie idzie do każdego wybranego modelu, więc koszty się sumują.
@@ -1672,6 +1683,10 @@ function renderAudyt() {
 
     <div class="mono"><i class="sq"></i>Zakres audytu</div>
     <div class="akcje" style="margin-bottom:14px">
+      <label class="akcja check" title="Modele sa niedeterministyczne — ta sama fraza pytana ponownie daje inna odpowiedz">
+        <input type="range" id="audyt-powtorzenia" min="1" max="3" value="${audytPowtorzenia}"
+               style="width:70px"> Pytaj <b>${audytPowtorzenia}×</b>
+      </label>
       <label class="akcja check"><input type="checkbox" id="audyt-seo" ${audytSEO ? "checked" : ""}>
         Widoczność w Google <span class="cena">+$${KOSZT_SEO}</span></label>
       <label class="akcja check"><input type="checkbox" id="audyt-aio" ${audytAIO ? "checked" : ""}>
@@ -1697,7 +1712,7 @@ async function generujAudyt(przycisk) {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki,
+      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki, powtorzenia: audytPowtorzenia,
                              ai_overview: audytAIO, seo: audytSEO, platformy: audytPlatformy }),
     });
     const data = await res.json();
@@ -2090,14 +2105,22 @@ function liczba(wartosc, opis) {
 }
 
 function promptHTML(w, marka) {
+  // Przy kilku probach liczy sie NIE to, czy marka padla, tylko W ILU. 1 z 3 to
+  // widocznosc przypadkowa i to jest inny wniosek niz 3 z 3 — a wyglada tak samo,
+  // jesli pokazac samo "wymieniona".
+  const wiele = w.prob > 1;
   const status = w.wspomniana
-    ? `<span class="status jest">Marka wymieniona</span>`
-    : `<span class="status brak">Marka nieobecna</span>`;
+    ? `<span class="status jest">Marka wymieniona${wiele ? ` — ${w.trafien} z ${w.prob}` : ""}</span>`
+    : `<span class="status brak">Marka nieobecna${wiele ? ` — 0 z ${w.prob}` : ""}</span>`;
+  const chwiejna = wiele && w.trafien > 0 && w.trafien < w.prob;
   return `<article class="pytanie">
     <div class="pytanie-glowa">
       <h3>${esc(w.prompt)}</h3>
       ${status}${w.cytowana ? `<span class="status cyt">Strona cytowana</span>` : ""}
     </div>
+    ${chwiejna ? `<p class="hint">Widoczność <b>przypadkowa</b>: przy tym samym pytaniu
+      model raz wymienia markę, raz nie. To słabszy wynik niż stała obecność —
+      i mocniejszy niż całkowity brak.</p>` : ""}
     <blockquote>${formatujOdpowiedz(w.odpowiedz, marka)}</blockquote>
     <div class="pytanie-meta">
       <span>${esc(w.model)}</span>
