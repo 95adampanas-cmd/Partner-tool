@@ -462,69 +462,100 @@ const PRESETY = {
   //
   // „Programy partnerskie SaaS" NIE MA tu wcale — wizytówka firmy nie mówi o tym,
   // że ma program partnerski. Ta kategoria istnieje tylko w Google/Tavily.
+  // ── PRESETY DLA MAP GOOGLE — inne, i to nie jest kosmetyka ───────────
+  //
+  // Mapy dopasowują do NAZWY firmy i KATEGORII WIZYTÓWKI, nie do treści strony.
+  // Dlatego hasła są krótkie i ogólne: „projektant stron internetowych" zamiast
+  // „wdrożenia Framer". Fraza, która świetnie działa w Google, w Mapach zwraca zero,
+  // bo żadna wizytówka nie nazywa się „wdrożenia Consent Mode".
+  //
+  // PODZIAŁ NA SEKCJE JEST TU INNY NIŻ PRZY WYSZUKIWARCE. Tam dzielimy na usługi
+  // i SaaS, bo to naturalna granica rynku. Tu dzielimy na to, co w Mapach DZIAŁA,
+  // i co nie — bo przy wyborze źródła jest to najcenniejsza informacja, jaką mamy.
+  // Siedem kategorii jest słabych: wizytówki rzadko opisują się przez marketplace,
+  // analitykę czy AI, więc tam trzeba iść do Wyszukiwarki albo Google.
+  //
+  // Czwarty element  niesie tę samą flagę do stylu chipa i ostrzeżenia
+  // w panelu, piąty — przynależność do sekcji.
+  //
+  // „Programy partnerskie SaaS" NIE MA tu wcale — wizytówka firmy nie mówi o tym,
+  // że ma program partnerski. Ta kategoria istnieje tylko w Google/Tavily.
   mapy: [
     ["Strony www", "projektant stron internetowych", [
       "agencja interaktywna", "software house", "firma programistyczna",
-      "tworzenie stron internetowych"
-    ]],
+      "tworzenie stron internetowych", "strony www", "agencja WordPress"
+    ], null, "mocne"],
     ["Sklepy internetowe", "tworzenie sklepów internetowych", [
-      "agencja e-commerce", "sklepy internetowe projektowanie", "agencja Shopify",
-      "wdrożenia sklepów internetowych"
-    ]],
+      "agencja e-commerce", "software house e-commerce", "agencja Shopify",
+      "wdrożenia sklepów internetowych", "outsourcing e-commerce"
+    ], null, "mocne"],
     ["Agencje digital / full-service", "agencja marketingowa", [
-      "agencja marketingu internetowego", "agencja digital marketingu",
-      "marketing internetowy", "agencja full-service"
-    ]],
+      "agencja marketingu internetowego", "agencja reklamy internetowej",
+      "agencja digital marketingu", "marketing internetowy", "agencja marketingowa B2B",
+      "agencja marketingu medycznego"
+    ], null, "mocne"],
     ["Branding i PR", "agencja brandingowa", [
-      "agencja kreatywna", "studio graficzne", "projektowanie logo", "agencja PR",
-      "public relations"
-    ]],
+      "agencja kreatywna", "agencja komunikacji", "studio graficzne", "projektowanie logo",
+      "agencja PR", "public relations", "studio UX"
+    ], null, "mocne"],
     ["Strategia i doradztwo", "doradztwo marketingowe", [
-      "konsultant ds. marketingu", "doradztwo biznesowe", "firma consultingowa",
-      "agencja strategiczna"
-    ]],
+      "konsulting e-commerce", "doradztwo e-commerce", "konsultant ds. marketingu",
+      "doradztwo biznesowe", "firma consultingowa", "agencja strategiczna",
+      "szkolenia e-commerce", "szkolenia marketingowe"
+    ], null, "mocne"],
     ["Social media", "agencja social media", [
-      "marketing w mediach społecznościowych", "social media marketing",
+      "marketing w mediach społecznościowych", "agencja influencer marketingu",
       "agencja content marketingowa"
-    ]],
+    ], null, "mocne"],
+    ["Content produktowy", "fotografia produktowa", [
+      "studio fotografii produktowej", "packshot", "studio fotograficzne e-commerce",
+      "produkcja wideo reklamowego"
+    ], null, "mocne"],
     ["Performance", "agencja reklamowa", [
-      "agencja Google Ads", "reklama internetowa", "agencja performance marketingu"
-    ]],
+      "agencja Google Ads", "agencja SEM", "agencja PPC", "reklama internetowa",
+      "agencja performance marketingu"
+    ], null, "mocne"],
     ["Marketplace", "agencja Allegro", [
       "obsługa Allegro", "agencja marketplace", "agencja Amazon"
-    ], true],
+    ], true, "slabe"],
     ["Ekspansja zagraniczna", "biuro tłumaczeń", [
       "tłumaczenia stron internetowych", "lokalizacja oprogramowania", "doradztwo eksportowe"
-    ], true],
+    ], true, "slabe"],
     ["Fulfillment i logistyka", "fulfillment", [
-      "magazyn e-commerce", "usługi logistyczne dla e-commerce", "centrum logistyczne",
-      "operator logistyczny"
-    ]],
-    ["Wdrożenia narzędzi i analityka", "analityka internetowa", [
-      "agencja analityki internetowej", "Google Analytics wdrożenie"
-    ], true],
+      "magazyn fulfillment", "magazyn e-commerce", "usługi logistyczne dla e-commerce",
+      "operator logistyczny", "centrum logistyczne"
+    ], null, "mocne"],
+    ["Księgowość i podatki", "biuro rachunkowe e-commerce", [
+      "księgowość e-commerce", "biuro rachunkowe sklepy internetowe", "doradca podatkowy"
+    ], null, "mocne"],
+    ["Analityka i CRO", "analityka internetowa", [
+      "agencja analityki internetowej", "optymalizacja konwersji", "audyt UX"
+    ], true, "slabe"],
     ["AI", "agencja AI", [
-      "sztuczna inteligencja dla firm", "wdrożenia AI", "chatboty dla firm"
-    ], true],
+      "sztuczna inteligencja dla firm", "wdrożenia AI", "doradztwo AI", "chatboty dla firm"
+    ], true, "slabe"],
     ["Automatyzacje", "automatyzacja marketingu", [
       "marketing automation", "agencja e-mail marketingu",
       "automatyzacja procesów biznesowych"
-    ], true],
+    ], true, "slabe"],
     ["CRM", "wdrożenia CRM", [
       "firma informatyczna", "usługi informatyczne dla firm", "integrator systemów IT"
-    ]],
+    ], null, "mocne"],
     ["ERP", "wdrożenia ERP", [
-      "oprogramowanie dla firm", "firma informatyczna", "integrator systemów IT",
-      "systemy ERP dla firm"
-    ]],
+      "systemy ERP dla firm", "oprogramowanie dla firm", "firma informatyczna",
+      "integrator systemów IT"
+    ], null, "mocne"],
     ["Prawo e-commerce", "kancelaria prawa nowych technologii", [
-      "kancelaria prawna IT", "rzecznik patentowy", "kancelaria patentowa",
-      "radca prawny e-commerce"
-    ]],
+      "kancelaria e-commerce", "kancelaria prawna IT", "rzecznik patentowy",
+      "kancelaria patentowa", "radca prawny e-commerce"
+    ], null, "mocne"],
+    ["Hosting i infrastruktura", "hosting", [
+      "hosting stron internetowych", "administracja serwerami", "centrum danych"
+    ], true, "slabe"],
     ["SaaS i vendorzy", "producent oprogramowania", [
       "firma programistyczna", "software house", "oprogramowanie dla e-commerce",
       "oprogramowanie dla firm"
-    ], true],
+    ], true, "slabe"],
   ],
   klient: [
     ["Handel", "sklep internetowy", [
@@ -708,7 +739,14 @@ function renderPresety() {
       ${esc(grupa)} <em class="chip-licznik">${pozycje.length}</em>
     </button>`;
 
-  const sekcje = [["uslugi", "Usługi i agencje"], ["saas", "SaaS i narzędzia"]];
+  // Sekcje są inne dla każdego źródła, bo co innego jest w nich warte pokazania.
+  // Przy wyszukiwarce granica przebiega między firmami usługowymi a producentami
+  // oprogramowania. Przy Mapach ważniejsze jest, czy kategoria w ogóle tam działa —
+  // to oszczędza klikanie w rzeczy, które i tak zwrócą garść wyników.
+  const sekcje = zrodlo === "mapy"
+    ? [["mocne", "Dobrze działają w Mapach"],
+       ["slabe", "Słabe w Mapach — lepiej przez Wyszukiwarkę lub Google"]]
+    : [["uslugi", "Usługi i agencje"], ["saas", "SaaS i narzędzia"]];
   const zSekcjami = grupy.some((g) => g[4]);
   const kafle = (!zSekcjami
     ? `<div class="tagi wybieralne">${grupy.map(chip).join("")}</div>`

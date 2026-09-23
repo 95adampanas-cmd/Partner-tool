@@ -161,6 +161,20 @@ setTimeout(() => {
     sprawdz("Presety: Mapy oznaczaja slabe kategorie",
       d.querySelectorAll("#presety-branz .tag-slaby").length > 0,
       `${d.querySelectorAll("#presety-branz .tag-slaby").length} slabych`);
+    // Sekcje przy Mapach maja INNY podzial niz przy wyszukiwarce: nie uslugi/SaaS,
+    // tylko "dziala / nie dziala w Mapach". To najcenniejsza informacja przy
+    // wyborze, wiec musi byc widoczna w naglowku, a nie tylko w stylu chipa.
+    const naglowkiMap = [...d.querySelectorAll("#presety-branz .preset-sekcja-tytul")]
+      .map((x) => x.textContent);
+    sprawdz("Presety: Mapy maja wlasne nazwy sekcji",
+      naglowkiMap.some((x) => x.includes("Mapach")), naglowkiMap.join(" | "));
+    // Slabe kategorie maja byc RAZEM w jednej sekcji, a nie rozsiane po liscie —
+    // inaczej podzial nie oszczedza klikania, tylko dokłada ozdobnik.
+    const slabaSekcja = [...d.querySelectorAll("#presety-branz .preset-sekcja")]
+      .find((s) => s.querySelector(".preset-sekcja-tytul").textContent.includes("Słabe"));
+    sprawdz("Presety: slabe kategorie zebrane w jednej sekcji",
+      !!slabaSekcja && slabaSekcja.querySelectorAll(".tag-slaby").length ===
+        d.querySelectorAll("#presety-branz .tag-slaby").length);
   } else {
     sprawdz("Presety: brak przelacznika zrodel (jedno podlaczone)", true);
   }
