@@ -29,6 +29,7 @@ from pathlib import Path
 
 PLIK = Path(__file__).resolve().parent / "profil_last_agency.md"
 PLIK_SYNERGIE = Path(__file__).resolve().parent / "synergie.md"
+PLIK_BRANZE = Path(__file__).resolve().parent / "synergie_branze.md"
 
 # Doklejane do profilu przy zadaniach, które piszą tekst wychodzący na zewnątrz.
 # Sam profil jest opisem firmy; to są zasady, jak o niej mówić.
@@ -67,6 +68,24 @@ def synergie() -> str:
     if not PLIK_SYNERGIE.exists():
         return ""
     return PLIK_SYNERGIE.read_text(encoding="utf-8").strip()
+
+
+def synergie_branze() -> str:
+    """Gotowe ujęcia synergii dla konkretnych branż — materiał pisany przez człowieka.
+
+    RÓŻNICA WZGLĘDEM `synergie()`. Tamto mówi, JAK zbudować synergię: jakie sekcje,
+    jak głęboko, czego nie zmyślać. To jest TREŚĆ — jak nazwać komplementarność dla
+    agencji web dev, wdrożeniowca ERP czy firmy od repricingu, żeby brzmiało jak
+    rozmowa, a nie jak oferta.
+
+    Model ma dobrać sekcję po branży badanej firmy i użyć jej jako PODSTAWY, zamiast
+    wymyślać własną narrację. Konkrety o partnerze — usługi, klienci, realizacje —
+    dokłada z researchu. Dzięki temu ta sama myśl brzmi tak samo dobrze przy każdym
+    partnerze z tej branży, zamiast zależeć od tego, jak modelowi akurat wyszło.
+    """
+    if not PLIK_BRANZE.exists():
+        return ""
+    return PLIK_BRANZE.read_text(encoding="utf-8").strip()
 
 
 def istnieje() -> bool:

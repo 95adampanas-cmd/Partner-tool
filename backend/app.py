@@ -1079,6 +1079,24 @@ def otworz_podstrone(adres: str) -> str:
 # to widać natychmiast: rozmówca prostuje pierwsze zdanie i reszta traci wagę.
 #
 # Dlatego rozstrzyga branża i kategoria z researchu, a nie najdłuższa lista usług.
+# Gotowe ujęcia synergii dla branż — materiał pisany przez człowieka, nie przez model.
+#
+# PO CO TO, SKORO MAMY JUŻ INSTRUKCJĘ SYNERGII. Bo instrukcja mówi, JAK zbudować
+# synergię, a model i tak buduje ją za każdym razem od nowa — i za każdym razem
+# trochę inaczej. Te same myśli wychodziły raz mocno, raz jak ulotka, zależnie od
+# tego, jak akurat trafił. Tu ma gotowe sformułowania, sprawdzone przez człowieka:
+# ta sama treść brzmi tak samo dobrze przy każdym partnerze z danej branży.
+BRANZE_SYNERGII = (
+    "GOTOWE UJĘCIA SYNERGII DLA BRANŻ." + _NOWA_LINIA +
+    "Poniżej są sprawdzone sformułowania na to, jak Last Agency uzupełnia się "
+    "z każdym typem partnera. DOBIERZ sekcję pasującą do branży badanej firmy "
+    "i OPRZYJ SIĘ NA NIEJ — nie wymyślaj własnej narracji tam, gdzie jest gotowa." + _NOWA_LINIA +
+    "Konkrety o partnerze — jego usługi, klientów, realizacje — dokładasz z researchu. "
+    "Gotowe ujęcie daje myśl, research daje dowód." + _NOWA_LINIA +
+    "Gdy branża nie pasuje do żadnej sekcji, zbuduj synergię od zera i POWIEDZ WPROST, "
+    "że to ujęcie własne." + _NOWA_LINIA * 2 + profil.synergie_branze())
+
+
 KOTWICA_PROFILU = (
     "ZACZNIJ OD GŁÓWNEGO PROFILU FIRMY." + _NOWA_LINIA +
     "Rozstrzyga pole `branza` i `kategoria` z researchu — to jest to, czym firma JEST "
@@ -1096,7 +1114,8 @@ CZAT_SYNERGIE = (
     "PONIŻSZA INSTRUKCJA OBOWIĄZUJE TYLKO WTEDY, gdy user prosi o synergie, "
     "powody do współpracy albo materiał na spotkanie. Przy każdym innym pytaniu "
     "ZIGNORUJ ten format i odpowiadaj normalnie, zwięźle." + _NOWA_LINIA * 2
-    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + profil.synergie())
+    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + BRANZE_SYNERGII
+    + _NOWA_LINIA * 2 + profil.synergie())
 
 # Mail: bierzemy SPOSÓB MYŚLENIA, nie format. Mail ma mieć kilka zdań i jeden
 # konkret — rozpisana tabelka synergii w pierwszym kontakcie to ulotka, nie list.
@@ -1107,7 +1126,8 @@ MAIL_SYNERGIE = (
     "ALE NIE PRZENOŚ TEGO FORMATU DO MAILA. Nie wypisuj listy synergii, nagłówków "
     "ani punktów „Wpływ na wyniki”. Z całej analizy wybierz JEDEN najmocniejszy "
     "powód i napisz go zwykłym zdaniem." + _NOWA_LINIA * 2
-    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + profil.synergie())
+    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + BRANZE_SYNERGII
+    + _NOWA_LINIA * 2 + profil.synergie())
 
 
 # Opis narzędzia dla modelu. Schemat piszemy wprost, zamiast wyprowadzać go

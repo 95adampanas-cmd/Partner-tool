@@ -215,6 +215,15 @@ def sprawdz_modele() -> int:
         print("  BŁĄD | brak reguly o landingach — wroci blad z Tebimem")
         bledy += 1
 
+    # Gotowe ujecia synergii dla branz. Bez nich model buduje narracje od zera przy
+    # kazdym partnerze — raz mocno, raz jak ulotka. Z nimi ta sama mysl brzmi tak samo
+    # dobrze przy kazdej firmie z danej branzy.
+    if all("GOTOWE UJĘCIA SYNERGII" in x for x in (app.CZAT_SYNERGIE, app.MAIL_SYNERGIE)):
+        print("  OK   | gotowe ujecia branzowe podpiete do czatu i maili")
+    else:
+        print("  BŁĄD | brak ujec branzowych — model wymysla narracje od zera")
+        bledy += 1
+
     # Kotwica na glownym profilu. Bez niej dluga lista uslug potrafi przykryc to,
     # czym firma JEST: z agencji PrestaShop robi sie "software house", a synergia
     # buduje sie na czyms, czym partner sie nie czuje.
