@@ -124,6 +124,44 @@ SYGNALY = [
 ]
 
 
+# Tytuły artykułów o branży. To NIE są powody do odrzucenia firmy — cyrekdigital.com
+# czy grupa-icea.pl to realne agencje, artykułowy jest tylko tytuł, który zwróciła
+# wyszukiwarka. Trafienie zamienia nazwę na domenę, żeby na liście nie stało
+# „Agencja e-commerce — czym się zajmuje i jak ją wybrać?" zamiast nazwy firmy.
+#
+# Wszystkie sześć przypadków „ARTYKUŁ" to realne wyniki z przebiegu 24.09.2026,
+# które przeszły przez listę dosłownych fraz: zaimek rozbijał „jak wybrać",
+# kropka rozbijała „ vs ", a „czym się zajmuje" nie było na liście wcale.
+TYTULY_ARTYKULOW = [
+    ("Agencja e-commerce - czym się zajmuje i jak ją wybrać?", True,  "zaimek w środku frazy"),
+    ("Dobra agencja e-commerce. Jak ją znaleźć?",              True,  "zaimek + pytajnik"),
+    ("Agencja SEM - czym się zajmuje? | iCEA Group",           True,  "pytajnik NIE na końcu"),
+    ("Agencja SEM - jak wpływa na rozwój firmy?",              True,  "pytanie o wpływ"),
+    ("Agencja PrestaShop czy to najlepszy wybór?",             True,  'fraza: czy to'),
+    ("Agencja PrestaShop vs. samodzielne wdrożenie – co wybrać?", True, 'vs z kropka'),
+
+    ("Convertis | Agencja eCommerce",                          False, "nazwa firmy"),
+    ("Waynet lider wdrożeń PrestaShop",                        False, "nazwa firmy"),
+    ("Grupa 3 Agencja Reklamowa",                              False, "PUŁAPKA: liczba w nazwie"),
+    ("Studio 102 - agencja kreatywna",                         False, "PUŁAPKA: liczba + myślnik"),
+    ("Tebim - tworzenie sklepów internetowych",                False, "nazwa + opis usługi"),
+    ("Verseo - Agencja SEO & SEM",                             False, "nazwa firmy"),
+    ("Sellision - wdrożenia PrestaShop i platformy B2B",       False, "nazwa + opis usługi"),
+]
+
+
+def sprawdz_tytuly_artykulow() -> int:
+    """Czy rozpoznajemy tytuł artykułu, nie myląc go z nazwą firmy."""
+    bledy = 0
+    for tytul, ma_trafic, opis in TYTULY_ARTYKULOW:
+        trafil = bool(app.TYTUL_ARTYKULU.search(tytul))
+        ok = trafil == ma_trafic
+        bledy += not ok
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'artykuł' if trafil else 'nazwa firmy':11} "
+              f"| {opis:28} | {tytul[:40]}")
+    return bledy
+
+
 def sprawdz_presety() -> int:
     """Czy presety wyszukiwania są dobrze zbudowane — osobno dla każdego źródła.
 
@@ -442,6 +480,12 @@ def sprawdz_regresje() -> int:
     print("AUDYT BEZ DATAFORSEO — silniki na własnych kluczach i powtórzenia")
     print("=" * 74)
     bledy += sprawdz_audyt_bez_dataforseo()
+    print()
+
+    print("=" * 74)
+    print("TYTUŁY ARTYKUŁÓW — czy nie mylimy ich z nazwami firm")
+    print("=" * 74)
+    bledy += sprawdz_tytuly_artykulow()
     print()
 
     print("=" * 74)

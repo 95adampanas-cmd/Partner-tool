@@ -478,6 +478,22 @@ def normalizuj_url(url: str) -> str | None:
         return None
     return f"https://{domena_z_url(url)}"
 
+# Tytuł artykułu rozpoznany WZORCEM, nie listą dosłownych fraz.
+#
+# Lista podciągów (niżej) działa, dopóki tytuł jest napisany dokładnie tak, jak ją
+# zapisano. Zmierzone 24.09.2026 na 70 wynikach: sześć artykułów przeszło, bo
+#   „jak wybrać"  ≠  „jak JĄ wybrać"        — zaimek rozbija dopasowanie,
+#   „ vs "        ≠  „vs."                  — kropka zamiast spacji,
+#   „czym jest"   ≠  „czym się zajmuje"     — innego czasownika nie było na liście.
+#
+# NIE odrzucamy przez to firmy. cyrekdigital.com czy grupa-icea.pl to realne agencje;
+# artykułowy jest tylko TYTUŁ. Dlatego trafienie tutaj zamienia nazwę na domenę,
+# zamiast wyrzucać wynik — inaczej tracilibyśmy dobrych kandydatów za to, że Tavily
+# trafiło akurat w ich wpis blogowy.
+TYTUL_ARTYKULU = re.compile(
+    r"(?i)" + "\\?\\s*$|\\bjak\\b(?:\\s+\\w+){0,2}\\s+(wybra|znale|zbudowa|zrobi|dzia|wp\\w*ywa)|\\bczym\\b(?:\\s+\\w+){0,2}\\s+(jest|zajmuje)|\\bczy\\s+to\\b|\\bco\\s+wybra|\\bvs\\.?\\b|\\bporadnik|\\bprzewodnik|\\bkompendium|\\bile\\s+kosztuje|\\bkiedy\\s+warto"
+)
+
 # Tytuły artykułów, poradników i wydarzeń — to nie są firmy, tylko treści o branży.
 FRAZY_NIE_FIRMA = (
     "jak zbudowa", "jak wybra", "jak zrobi", "jak dziala", "jak działa", "poradnik",
@@ -675,7 +691,8 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10,
             continue
         opis = " ".join((r.get("content") or "").split())[:600]
         # tytuł artykułu/zestawienia nie opisuje firmy — lepiej pokazać domenę
-        if not tytul or any(f in tytul.lower() for f in FRAZY_NIE_FIRMA) or LISTICLE.search(tytul):
+        if (not tytul or any(f in tytul.lower() for f in FRAZY_NIE_FIRMA)
+                or LISTICLE.search(tytul) or TYTUL_ARTYKULU.search(tytul)):
             tytul = dom
         firmy.append({"nazwa": tytul[:60], "url": strona, "opis": opis,
                       "ma_seo": ma_sygnal_seo(tytul, opis)})
