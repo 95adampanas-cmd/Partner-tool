@@ -257,93 +257,135 @@ const PRESETY = {
   // Dwie firmy z listy (webmetric.com, stonehengeagency.com) SPRZEDAJĄ SEO i mimo to
   // są dobrymi partnerami. Dlatego odsiew konkurentów został usunięty, a SEO jest
   // tylko tagiem — patrz DECISIONS 2026-09-04.
+  // ── PRESETY WYSZUKIWANIA — Wyszukiwarka i Google ─────────────────────
+  //
+  // Struktura dostarczona przez Adama 23.09.2026: 26 kategorii, każda z JEDNĄ frazą
+  // główną (najszersza, dużo wyników) i podkategoriami, które zawężają.
+  //
+  // TO NIE SĄ kategorie, do których trafia zbadana firma. Tamtych jest dziesięć
+  // (KATEGORIE_PARTNEROW w app.py) i służą do szufladkowania firm PO researchu.
+  // Te służą do SZUKANIA. Wcześniej jedno i drugie było tą samą listą, przez co
+  // dodanie frazy wyszukiwania wymagało dodania szufladki — i odwrotnie.
+  //
+  // Poprzednia wersja miała 78 tagów w 10 grupach i mieszała poziomy: platformę
+  // („wdrożenia Shopify"), typ firmy („software house") i usługę („migracja sklepu")
+  // w jednym rzędzie chipów. Zmierzone przy okazji: tagi NIE były redundantne —
+  // „agencja brandingowa" i „agencja kreatywna" dawały 13% wspólnych domen, więc
+  // problemem nie była liczba, tylko brak porządku.
+  //
+  // Mapy Google dostaną własny zestaw — tam szuka się inaczej (wizytówki, nie treść
+  // stron), więc te same frazy nie zadziałają.
   partner: [
-    ["Budowa stron i sklepów", "agencja e-commerce", [
-      "wdrożenia Shopify", "wdrożenia PrestaShop", "wdrożenia WooCommerce",
-      "wdrożenia IdoSell", "tworzenie sklepów internetowych",
-      "projektowanie stron internetowych", "software house", "agencja interaktywna",
-      // Z usług 9 zbadanych partnerów: platformę B2B ma 4 z nich (Tebim, Devisu,
-      // Sellision, wecanfly), aplikacje mobilne 2. Migracje to u wecanfly osobna
-      // linia — pięć usług (WooCommerce, Magento, BigCommerce, Shopware, WordPress
-      // -> Shopify). Sklep po migracji zawsze traci widoczność, więc to naturalny
-      // moment na rozmowę o SEO.
-      "platforma B2B", "migracja sklepu internetowego", "aplikacje mobilne",
+    ["Strony www", "tworzenie stron internetowych", [
+      "strony WordPress", "agencja Webflow", "agencja Framer", "software house",
+      "agencja interaktywna", "opieka nad stroną WordPress"
     ]],
-    ["Utrzymanie i administracja", "opieka nad stroną internetową", [
-      // webinity.pl: opieka nad dziesiątkami serwisów naraz, bez budowania nowych.
-      // Kategorie white-label ("white label WordPress", "podwykonawca dla agencji")
-      // usunięte na wyraźną decyzję Adama 04.09.2026 — mimo że bravenew.agency
-      // z jego listy tak się opisuje.
-      "opieka nad stroną WordPress", "administracja sklepem internetowym",
+    ["Sklepy internetowe", "tworzenie sklepów internetowych", [
+      "agencja Shopify", "wdrożenia Shoper", "wdrożenia IdoSell", "wdrożenia WooCommerce",
+      "wdrożenia PrestaShop", "wdrożenia Magento", "sklep B2B",
+      "migracja sklepu internetowego", "administracja sklepem internetowym"
     ]],
-    ["Strategia i doradztwo", "konsulting e-commerce", [
-      "doradztwo e-commerce", "digital advisory", "interim management e-commerce",
-      "konsulting wzrostu e-commerce", "doradztwo strategiczne", "audyt e-commerce",
-      "doradztwo marketingowe", "doradztwo biznesowe",
-      "zarządzanie projektami IT", "analityka internetowa",
+    ["Agencje digital / full-service", "agencja marketingowa", [
+      "agencja digital marketingu", "agencja marketingu internetowego", "agencja full-service",
+      "agencja 360", "marketing dla e-commerce", "marketing dla firm B2B"
     ]],
-    ["Branding i kreacja", "agencja brandingowa", [
-      "agencja brandingowa", "agencja kreatywna", "branding produktowy",
-      // brantt ma w usługach „opracowanie strategii marki" i „budowa marki",
-      // adream „strategia komunikacji marki" — a żaden preset tego nie łapał.
-      // To praca sprzed identyfikacji wizualnej, robią ją inne firmy.
-      "strategia marki",
-      "projektowanie opakowań", "identyfikacja wizualna", "studio graficzne",
-      "agencja UX/UI", "optymalizacja konwersji CRO", "produkcja wideo",
-      "fotografia produktowa",
+    ["Branding i PR", "agencja kreatywna", [
+      "agencja brandingowa", "agencja PR", "identyfikacja wizualna", "projektowanie logo",
+      "projektowanie opakowań", "agencja UX/UI"
     ]],
-    ["Marketing poza SEO", "agencja marketingowa", [
-      // "zewnętrzny dyrektor marketingu" to przepisana pozycja Adama "Zew. Dyrektor
-      // Marketingu" — z OSOBY na USŁUGĘ. Narzędzie czyta strony firm, więc szuka
-      // firmy oferującej taką rolę, nie człowieka na stanowisku.
-      "agencja performance marketing", "agencja Google Ads", "agencja social media",
-      "agencja digital marketingu", "agencja PR", "marketing automation",
-      "influencer marketing", "e-mail marketing", "zewnętrzny dyrektor marketingu",
-      "content marketing",   // widoczni i brantt — oni piszą, my optymalizujemy
+    ["Strategia i doradztwo", "doradztwo biznesowe", [
+      "doradztwo marketingowe", "agencja strategiczna", "strategia marketingowa",
+      "strategia e-commerce", "strategia marki", "audyt e-commerce",
+      "interim manager e-commerce", "CMO na godziny"
     ]],
-    ["Sprzedaż i marketplace", "wsparcie sprzedaży e-commerce", [
-      // "outsourcing sprzedaży" — przepisany "Dyrektor sprzedaży", ta sama zasada.
-      // "porównywarka cen" ma tysiące podpiętych sklepów: jeden partner = dostęp
-      // do całego portfela sprzedawców.
-      "agencja marketplace", "sprzedaż na Amazon", "integracje marketplace",
-      "doradztwo sprzedaży B2B", "outsourcing sprzedaży", "porównywarka cen",
-      "ekspansja zagraniczna e-commerce",   // widoczni i Sellision
+    ["Social media", "agencja social media", [
+      "prowadzenie social media dla firm", "content marketing", "influencer marketing",
+      "marketing na TikToku"
     ]],
-    ["Technologia, integracje i resellerzy", "wdrożenia systemów IT", [
-      // Resellerzy z listy Adama. Nie ma ich wśród jego 35 najlepszych partnerów,
-      // więc profil jest nieprzetestowany — ale mocny: taka firma ma bazę klientów
-      // z wdrożonym systemem i nie ma czym zrobić im SEO.
-      // Nazwy POLSKIE, nie "reseller". Sprawdzone: "reseller CRM" zwracalo
-      // smartsalescrm.com, jetpackcrm.com i bigin.com — angielskie strony programów
-      // partnerskich. Polskie firmy piszą o sobie "autoryzowany partner" albo
-      // "partner wdrożeniowy".
-      "oprogramowanie dla sklepów", "SaaS e-commerce", "headless commerce",
-      "producent oprogramowania", "producent CMS",
-      "integrator ERP", "integrator PIM", "wdrożenia CRM", "integracje płatności",
-      "logistyka e-commerce",
-      "autoryzowany partner CRM", "partner wdrożeniowy", "integrator systemów IT",
-      "automatyzacja procesów",   // Growthmatic i Tribe47
+    ["Performance", "reklama w internecie", [
+      "agencja Google Ads", "agencja Meta Ads", "reklama na Facebooku", "reklama na TikToku",
+      "kampanie produktowe Google", "agencja performance marketing"
     ]],
-    ["AI i automatyzacja", "wdrożenia AI dla firm", [
-      "agencja AI", "wdrożenia chatbotów", "narzędzia AI dla firm",
+    ["Marketplace", "obsługa marketplace", [
+      "agencja Allegro", "agencja Amazon", "sprzedaż na Amazon", "kampanie Allegro Ads",
+      "integracja BaseLinker"
     ]],
-    ["Wiedza i usługi prawne", "obsługa prawna e-commerce", [
-      // "kancelaria prawa nowych technologii" to polska nazwa tego, co Adam
-      // zapisał jako "kancelarie ai" — pod hasłem "kancelaria AI" wyszukiwarka
-      // zwraca narzędzia AI dla prawników, nie kancelarie.
-      "kancelaria prawna e-commerce", "kancelaria prawa nowych technologii",
-      "regulaminy i RODO", "szkolenia e-commerce", "ekspert e-commerce",
+    ["Ekspansja zagraniczna", "ekspansja zagraniczna", [
+      "ekspansja zagraniczna e-commerce", "sprzedaż cross-border",
+      "sklep internetowy na rynki zagraniczne", "lokalizacja sklepu internetowego",
+      "tłumaczenia stron internetowych", "doradztwo eksportowe"
     ]],
-    ["Sieci i społeczności biznesowe", "organizacja zrzeszająca przedsiębiorców", [
-      // Inny mechanizm niż reszta: do tych organizacji się WSTĘPUJE, a nie pisze
-      // do nich z ofertą partnerstwa. Narzędzie pomaga je znaleźć i porównać,
-      // decyzja o członkostwie zapada poza nim (BNI, kluby biznesu, grupy zakupowe).
-      "stowarzyszenie branżowe", "klub biznesu", "grupa zakupowa",
-      "networking biznesowy", "sieć aniołów biznesu",
+    ["Fulfillment i logistyka", "fulfillment", [
+      "fulfillment e-commerce", "magazyn dla sklepu internetowego", "logistyka e-commerce",
+      "obsługa zwrotów e-commerce", "dropshipping"
+    ]],
+    ["Wdrożenia narzędzi i analityka", "analityka internetowa", [
+      "wdrożenia Google Analytics 4", "wdrożenia Google Tag Manager", "raporty Looker Studio",
+      "wdrożenie Consent Mode", "integracje sklepu internetowego"
+    ]],
+    ["AI", "AI dla firm", [
+      "agencja AI", "wdrożenie AI w firmie", "wdrożenia chatbotów", "asystent AI dla firm",
+      "szkolenia AI dla firm"
+    ]],
+    ["Automatyzacje", "automatyzacja procesów biznesowych", [
+      "marketing automation", "automatyzacja sprzedaży", "agencja e-mail marketingu",
+      "wdrożenia n8n", "wdrożenia Make"
+    ]],
+    ["CRM", "CRM dla firm", [
+      "wdrożenie systemu CRM", "integrator CRM", "partner wdrożeniowy CRM", "konsultant CRM",
+      "firma informatyczna CRM", "integracja CRM ze sklepem internetowym"
+    ]],
+    ["ERP", "ERP dla firm", [
+      "wdrożenie systemu ERP", "integrator ERP", "partner wdrożeniowy ERP", "konsultant ERP",
+      "firma informatyczna ERP", "integracja ERP ze sklepem internetowym", "wdrożenia PIM"
+    ]],
+    ["Prawo e-commerce", "prawo nowych technologii", [
+      "prawnik e-commerce", "regulamin sklepu internetowego", "RODO dla sklepów internetowych",
+      "rejestracja znaku towarowego", "rzecznik patentowy", "umowy IT", "prawo IT"
+    ]],
+    ["Platformy sklepowe (SaaS)", "oprogramowanie e-commerce", [
+      "platforma sklepów internetowych", "platforma sklepów B2B",
+      "sklep internetowy w abonamencie", "oprogramowanie do sklepu internetowego"
+    ]],
+    ["Sprzedaż wielokanałowa (SaaS)", "sprzedaż wielokanałowa", [
+      "system do sprzedaży wielokanałowej", "integrator marketplace",
+      "oprogramowanie do obsługi zamówień", "system PIM"
+    ]],
+    ["Opinie i zaufanie (SaaS)", "zbieranie opinii klientów", [
+      "system opinii dla sklepów internetowych", "certyfikat zaufania sklepu internetowego",
+      "opinie o produktach widget", "program recenzji produktów"
+    ]],
+    ["Marketing automation i e-mail (SaaS)", "narzędzia do marketing automation", [
+      "system do e-mail marketingu", "narzędzie do newslettera", "platforma SMS marketingu",
+      "platforma CDP", "marketing automation dla e-commerce"
+    ]],
+    ["Narzędzia dla sklepów (SaaS)", "aplikacje dla sklepów internetowych", [
+      "wyszukiwarka produktowa dla sklepu", "rekomendacje produktowe", "live chat dla sklepu",
+      "program lojalnościowy e-commerce", "odzyskiwanie porzuconych koszyków"
+    ]],
+    ["Monitoring cen (SaaS)", "monitoring cen", [
+      "monitoring cen konkurencji", "repricing", "automatyczna zmiana cen",
+      "analiza cen e-commerce"
+    ]],
+    ["Monitoring marki (SaaS)", "monitoring internetu", [
+      "monitoring marki", "monitoring mediów społecznościowych", "social listening",
+      "monitoring mediów"
+    ]],
+    ["CRM i sprzedaż (SaaS)", "system CRM", [
+      "polski system CRM", "CRM dla małych firm", "CRM dla e-commerce",
+      "oprogramowanie do sprzedaży B2B"
+    ]],
+    ["Vendorzy SaaS", "oprogramowanie SaaS", [
+      "polski SaaS dla e-commerce", "polski SaaS marketingowy", "aplikacje dla sklepów Shoper",
+      "aplikacje IdoSell", "integracje BaseLinker", "dodatki WooCommerce polska firma",
+      "startup SaaS Polska"
+    ]],
+    ["Programy partnerskie SaaS", "program partnerski", [
+      "program partnerski dla agencji", "program partnerski dla agencji marketingowych",
+      "zostań partnerem e-commerce", "partner program agencja SaaS",
+      "program afiliacyjny SaaS"
     ]],
   ],
-  // ⚠️ Zestaw startowy, do potwierdzenia z Adamem — kogo dokładnie chcemy
-  // pozyskiwać jako klientów, nie jest jeszcze ustalone (otwarte w ROADMAP).
   klient: [
     ["Handel", "sklep internetowy", [
       "sklep internetowy", "hurtownia", "producent mebli", "producent odzieży",
