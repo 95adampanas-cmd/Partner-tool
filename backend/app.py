@@ -535,7 +535,8 @@ TYTULY_ODRZUCAJACE = (
 )
 
 
-def tavily_search(zapytanie: str, max_results: int = 15) -> list:
+def tavily_search(zapytanie: str, max_results: int = 15,
+                  bez_domen: list[str] | None = None) -> list:
     """Wyszukiwanie ograniczone do Polski.
 
     Bez `country` całe klasy zapytań wracały z zagranicy, bo terminy branżowe są
@@ -553,8 +554,18 @@ def tavily_search(zapytanie: str, max_results: int = 15) -> list:
     key = os.environ.get("TAVILY_API_KEY") or os.environ.get("TVLY_API_KEY")
     if not key:
         return []
+    # `exclude_domains` mówi wyszukiwarce, czego NIE pokazywać — i to jest coś
+    # innego niż odsianie wyników po fakcie. Bez tego kolejna runda „Szukaj dalej"
+    # dostawała od Tavily w dużej części te same domeny co poprzednia, my je
+    # kasowaliśmy lokalnie i z piętnastu wyników zostawały trzy. Zapłacone za
+    # piętnaście, pokazane trzy. Zmierzone: po wykluczeniu czołówki 9 z 10 domen
+    # było nowych, a wykluczone nie wróciły ani razu.
+    #
+    # Tavily przyjmuje maksymalnie kilkadziesiąt domen; przy dłuższej historii
+    # bierzemy najnowsze, bo to one najpewniej wrócą na tę samą frazę.
     return TavilyClient(api_key=key).search(
         zapytanie, max_results=max_results, country="poland", topic="general",
+        exclude_domains=list(bez_domen)[-40:] if bez_domen else None,
     ).get("results", [])
 
 
@@ -1432,7 +1443,7 @@ async def znajdz_firmy(zapytanie: str, wlasna_domena: str = "",
     # dla usera to tak samo pusty ekran, więc tak samo trzeba spróbować krócej.
     for dlugosc in range(len(slowa), 1, -1):
         uzyte = " ".join(slowa[:dlugosc])
-        surowe = await asyncio.to_thread(tavily_search, uzyte, ile)
+        surowe = await asyncio.to_thread(tavily_search, uzyte, ile, sorted(pomin or []))
         wynik = await znajdz_firmy_z_wynikow(surowe, wlasna_domena, pomin)
         if wynik["firmy"]:
             break

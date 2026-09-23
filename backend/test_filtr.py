@@ -162,6 +162,62 @@ def sprawdz_tytuly_artykulow() -> int:
     return bledy
 
 
+def sprawdz_wykluczanie_domen() -> int:
+    """Czy „Szukaj dalej" mówi wyszukiwarce, czego NIE pokazywać.
+
+    Wcześniej kolejna runda dostawała od Tavily w dużej części te same domeny co
+    poprzednia, my kasowaliśmy je lokalnie i z piętnastu wyników zostawały trzy —
+    zapłacone za piętnaście, pokazane trzy. Stąd „kolejne rundy nic nie dają".
+
+    Test offline: podmieniamy klienta Tavily i sprawdzamy, CO byśmy wysłali.
+    """
+    import app as _a
+
+    bledy = 0
+    wyslane = {}
+
+    class AtrapaKlienta:
+        def __init__(self, api_key=None): pass
+        def search(self, zapytanie, **kw):
+            wyslane.update(kw)
+            wyslane["query"] = zapytanie
+            return {"results": []}
+
+    prawdziwy = _a.TavilyClient
+    _a.TavilyClient = AtrapaKlienta
+    try:
+        _a.tavily_search("agencja e-commerce", 15, ["verseo.pl", "icea.pl"])
+        wykluczone = wyslane.get("exclude_domains") or []
+        if "verseo.pl" in wykluczone and "icea.pl" in wykluczone:
+            print(f"  OK   | pokazane domeny lecą do Tavily jako wykluczenie ({len(wykluczone)})")
+        else:
+            print(f"  BŁĄD | wykluczenie nie dociera do Tavily: {wykluczone}")
+            bledy += 1
+
+        # Bez historii NIE wysyłamy pustej listy — niektóre API traktują ją inaczej
+        # niż brak parametru, a tu chodzi o zwykłe pierwsze wyszukiwanie.
+        wyslane.clear()
+        _a.tavily_search("agencja e-commerce", 15, [])
+        if wyslane.get("exclude_domains") is None:
+            print("  OK   | pierwsza runda idzie bez wykluczeń")
+        else:
+            print(f"  BŁĄD | pusta historia wysyła: {wyslane.get('exclude_domains')!r}")
+            bledy += 1
+
+        # Tavily ma limit na długość listy — przy długiej historii bierzemy najnowsze.
+        wyslane.clear()
+        _a.tavily_search("x", 15, [f"firma{i}.pl" for i in range(90)])
+        ile = len(wyslane.get("exclude_domains") or [])
+        if ile <= 40:
+            print(f"  OK   | długa historia przycięta do {ile} domen")
+        else:
+            print(f"  BŁĄD | wysyłamy {ile} domen, Tavily tego nie przyjmie")
+            bledy += 1
+    finally:
+        _a.TavilyClient = prawdziwy
+    return bledy
+
+
 def sprawdz_presety() -> int:
     """Czy presety wyszukiwania są dobrze zbudowane — osobno dla każdego źródła.
 
@@ -480,6 +536,12 @@ def sprawdz_regresje() -> int:
     print("AUDYT BEZ DATAFORSEO — silniki na własnych kluczach i powtórzenia")
     print("=" * 74)
     bledy += sprawdz_audyt_bez_dataforseo()
+    print()
+
+    print("=" * 74)
+    print("SZUKAJ DALEJ — czy wykluczamy pokazane domeny po stronie Tavily")
+    print("=" * 74)
+    bledy += sprawdz_wykluczanie_domen()
     print()
 
     print("=" * 74)

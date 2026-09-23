@@ -190,6 +190,15 @@ setTimeout(() => {
   const szerokieTagi = [...d.querySelectorAll(".tag-szeroki")].map((x) => x.textContent.trim());
   sprawdz("Podobne: kafelki szerokie sie pojawily", szerokieTagi.length > 0,
     szerokieTagi.join(" | "));
+  // Mapy sa DOMYSLNE w Szukaj podobnych, inaczej niz w Szukaj po branzy.
+  // Zmierzone na Sellision: wyszukiwarka 9 firm, Mapy 30, wspolnych 2 — Mapy
+  // rankinguja po wizytowce, wiec pokazuja firmy, ktore nie inwestuja w SEO.
+  const zaznaczoneZrodlo = [...d.querySelectorAll("[data-zrodlo-podobne]")]
+    .find((b) => b.classList.contains("zaznaczony"));
+  sprawdz("Podobne: Mapy sa domyslnym zrodlem",
+    !zaznaczoneZrodlo || zaznaczoneZrodlo.dataset.zrodloPodobne === "mapy",
+    zaznaczoneZrodlo ? zaznaczoneZrodlo.dataset.zrodloPodobne : "brak przelacznika");
+
   sprawdz("Podobne: NASZA kategoria nie jest fraza wyszukiwania",
     !szerokieTagi.includes("Budowa stron i sklepow")
       && !szerokieTagi.includes("Budowa stron i sklepów"),

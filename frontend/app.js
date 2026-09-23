@@ -587,6 +587,17 @@ let podobneKategoria = null;
 // przy kazdym przerysowaniu formularza — a przerysowuje sie przy kazdym
 // zaznaczeniu taga.
 const frazyPodobnych = new Map();
+// MAPY DOMYSLNIE — inaczej niz w "Szukaj po branzy", i to jest przemyslane.
+// Zmierzone na Sellision: wyszukiwarka dala 9 firm, Mapy 30, wspolnych tylko 2.
+// Dwadziescia osiem firm, ktorych wyszukiwarka nie znalazla wcale: prestashow.pl,
+// welescode.pl, eniverse.pl, dih.pl... To wynika z tego, JAK obie rankinguja:
+// wyszukiwarka premiuje tych, ktorzy zainwestowali w SEO, wiec przy branzy
+// marketingowej zawsze wraca ta sama czolowka. Mapy rankinguja po wizytowce,
+// gdzie SEO nie ma znaczenia — i tam sa wlasnie firmy mniej widoczne, czyli te,
+// ktore latwiej pozyskac jako partnera.
+// Wartosc startowa jest tymczasowa: `zrodlaDostepne` deklarowane jest NIZEJ, wiec
+// odczyt tutaj konczy sie bledem "Cannot access before initialization" i cala
+// aplikacja przestaje sie ladowac. Na Mapy przestawia nas odpowiedz /api/zrodla.
 let zrodloPodobne = "wyszukiwarka";
 // Kategoria wybrana na liscie Firm. null = wszystkie.
 let filtrKategorii = null;
@@ -610,7 +621,14 @@ fetch("/api/zrodla").then((r) => r.json()).then((d) => {
   // ustawiała undefined, renderZrodla wywalało się na odczycie właściwości, a wyjątek
   // połykał .catch poniżej — przełącznik źródeł znikał bez śladu w konsoli.
   // Ten sam błąd mieliśmy już przy kolejce.
-  if (d.ok) { zrodlaDostepne = d.zrodla || zrodlaDostepne; renderZrodla(); }
+  if (d.ok) {
+    zrodlaDostepne = d.zrodla || zrodlaDostepne;
+    // Dostepnosc zrodel przychodzi PO pierwszym renderze, wiec domyslne zrodlo dla
+    // "Szukaj podobnych" ustawiamy dopiero tutaj — inaczej stan zostalby na
+    // wyszukiwarce, bo w chwili deklaracji zmiennej o Mapach jeszcze nie wiemy.
+    if (zrodlaDostepne.mapy) zrodloPodobne = "mapy";
+    renderZrodla();
+  }
 }).catch(() => {});
 
 function renderZrodla() {
