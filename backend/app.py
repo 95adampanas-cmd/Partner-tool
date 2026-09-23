@@ -1797,7 +1797,6 @@ async def api_audyt_geo(request):
         raport["obecnosc_w_zrodlach"] = obecnosc
         raport["powtorzenia"] = powtorzenia
         raport["zrodlo_promptow"] = zrodlo_promptow
-        raport["reczne"] = audyt_geo.checklista_reczna(prompty, nazwa)
 
         try:
             baza.zapisz_audyt(firma.get("url", ""), raport,

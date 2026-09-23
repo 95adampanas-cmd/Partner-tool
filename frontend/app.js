@@ -2089,23 +2089,6 @@ function raportHTML(r) {
       })()}
     </section>` : ""}
 
-    <!-- AI OVERVIEWS I AI MODE — DO SPRAWDZENIA RĘCZNIE -->
-    ${(r.reczne && (r.reczne.pozycje || []).length) ? `
-    <section class="r-strona">
-      ${naglowekSekcji(++nr, "AI Overviews i AI Mode — do sprawdzenia ręcznie")}
-      <p>${esc(r.reczne.instrukcja)}</p>
-      <div class="przewin"><table class="rejestr">
-        <thead><tr><th>Pytanie</th><th>AI Overview</th><th>AI Mode</th></tr></thead>
-        <tbody>${r.reczne.pozycje.map((x) => `
-          <tr>
-            <td>${esc(x.prompt)}</td>
-            <td><a href="${escAttr(x.google)}" target="_blank" rel="noopener">otwórz w Google</a></td>
-            <td><a href="${escAttr(x.ai_mode)}" target="_blank" rel="noopener">otwórz AI Mode</a></td>
-          </tr>`).join("")}
-        </tbody>
-      </table></div>
-    </section>` : ""}
-
     <!-- TECHNICZNE WARUNKI WIDOCZNOŚCI -->
     ${r.techniczne && r.techniczne.ustalenia && r.techniczne.ustalenia.length ? `
     <section class="r-strona">

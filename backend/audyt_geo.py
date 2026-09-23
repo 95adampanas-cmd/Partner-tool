@@ -8,10 +8,13 @@ skończą się środki. Ten mierzy WYŁĄCZNIE widoczność w odpowiedziach AI i
 Trzymanie obu w jednym pliku skończyłoby się gałęziami `if tryb ==` w każdej funkcji,
 a pierwszy audyt ma zostać nietknięty.
 
-CZEGO TU NIE MA I DLACZEGO. AI Overviews i AI Mode wymagają odpytania Google z polską
-lokalizacją — bez DataForSEO albo SerpApi nie da się tego zrobić programowo. Zamiast
-udawać, że to działa, generujemy CHECKLISTĘ do przeklikania ręcznie. To uczciwsze niż
-pusta sekcja i szybsze niż wymyślanie promptów od nowa przy każdym audycie.
+CZEGO TU NIE MA I DLACZEGO. AI Overviews i AI Mode wymagają odpytania Google, a tego
+nie da się zrobić bez płatnego pośrednika. Sprawdzone 24.09.2026: zwykłe pobranie
+adresu wyników zwraca HTTP 200 i 92 tys. znaków, w których NIE MA ani jednego wyniku
+— Google ukrywa treść (`table,div,span,p{display:none}`) i renderuje ją JavaScriptem.
+Obejście wymaga headless browsera, rotacji proxy i łamania regulaminu Google, czyli
+osobnego projektu utrzymaniowego. Te dwie sekcje zostają w audycie 1, gdzie robi to
+DataForSEO.
 
 Perplexity i Gemini są pominięte, bo nie mamy do nich kluczy. Dokładanie rachunków
 bez pytania nie jest naszą decyzją.
@@ -183,33 +186,3 @@ def _warianty_marki(marka: str, domena: str) -> list[str]:
     formy.add(czysta)
     formy.add(czysta.replace(" ", ""))
     return [f for f in formy if len(f) >= 3]
-
-
-# ══════════════════════════════════════════════════════════════════════
-#  AI Overviews i AI Mode — checklista do ręcznego przeklikania
-# ══════════════════════════════════════════════════════════════════════
-# Bez DataForSEO ani SerpApi nie odpytamy Google programowo. Zamiast zostawiać pustą
-# sekcję albo — gorzej — udawać, że ją zmierzyliśmy, dajemy gotową listę do przejścia
-# ręcznie: link otwiera wyszukiwarkę z już wpisanym pytaniem.
-INSTRUKCJA_RECZNA = (
-    "AI Overviews i AI Mode sprawdzamy ręcznie — to jedyna sekcja, której nie da się "
-    "zmierzyć bez płatnego dostawcy. Otwórz każde pytanie w oknie incognito "
-    "z lokalizacją Polska, zrób zrzut ekranu odpowiedzi i zaznacz, czy marka się "
-    "pojawiła. Zrzut jest dowodem w raporcie dla klienta."
-)
-
-
-def checklista_reczna(prompty: list[str], marka: str) -> dict:
-    """Prompty z linkami do Google — dla AI Overviews i AI Mode."""
-    from urllib.parse import quote_plus
-
-    pozycje = []
-    for p in prompty:
-        q = quote_plus(p)
-        pozycje.append({
-            "prompt": p,
-            "google": f"https://www.google.com/search?q={q}&hl=pl&gl=pl",
-            # udm=50 to tryb konwersacyjny wyszukiwarki (AI Mode)
-            "ai_mode": f"https://www.google.com/search?q={q}&udm=50&hl=pl&gl=pl",
-        })
-    return {"instrukcja": INSTRUKCJA_RECZNA, "marka": marka, "pozycje": pozycje}
