@@ -2590,7 +2590,6 @@ let geoWybrana = null;
 let geoPowtorzenia = 2;
 let geoIle = 8;
 let geoSilniki = ["chatgpt_wprost", "claude_wprost"];
-let geoWlasne = "";
 let geoPodpowiedzi = true;
 
 // Tylko silniki na NASZYCH kluczach — to definicja tego audytu.
@@ -2661,12 +2660,6 @@ function renderAudytGeo() {
         Przy jednym modelu nie da się odróżnić jego cechy od stanu rynku: na tym samym
         pytaniu ChatGPT wymienił badaną firmę, a Claude nie i podał siedmiu konkurentów.</p>
 
-      <div class="mono"><i class="sq"></i>Pytania od handlowców</div>
-      <p class="hint">Po jednym w linii. To jedyne źródło, którego narzędzie nie wymyśli —
-        pytania, które klienci naprawdę zadają. Myślniki i numerację usuwam sam.</p>
-      <textarea id="geo-wlasne" rows="4" style="width:100%;margin-bottom:16px"
-        placeholder="Ile kosztuje wdrożenie?&#10;Czy robicie platformy B2B?&#10;Jak długo trwa migracja sklepu?">${esc(geoWlasne)}</textarea>
-
       <div class="mono"><i class="sq"></i>Zakres</div>
       <div class="akcje" style="margin-bottom:14px">
         <label class="akcja check">
@@ -2705,7 +2698,7 @@ async function generujAudytGeo(przycisk) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         firma: wpis.firma, ile_promptow: geoIle, powtorzenia: geoPowtorzenia,
-        silniki: geoSilniki, wlasne_prompty: geoWlasne, podpowiedzi: geoPodpowiedzi,
+        silniki: geoSilniki, podpowiedzi: geoPodpowiedzi,
       }),
     });
     const d = await res.json();
@@ -2792,12 +2785,6 @@ function renderRozmowa() {
 
 // Enter wysyla pytanie. W czacie to odruch — bez tego trzeba siegac myszka po
 // kazdym zdaniu, a rozmowa ma byc szybsza od klikania po karcie firmy.
-// Zapamietujemy tresc na biezaco, ale NIE przerysowujemy — inaczej kursor
-// wypadalby z pola po kazdej literze (przerabialismy to przy filtrze presetow).
-document.addEventListener("input", (e) => {
-  if (e.target.id === "geo-wlasne") geoWlasne = e.target.value;
-});
-
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || !e.target.classList.contains("czat-pytanie")) return;
   e.preventDefault();

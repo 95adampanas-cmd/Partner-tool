@@ -88,22 +88,6 @@ def podpowiedzi_google(fraza: str, limit: int = 20) -> list[str]:
     return wynik[:limit]
 
 
-def wlasne_prompty(tekst: str, limit: int = 30) -> list[str]:
-    """Pytania wpisane ręcznie — po jednym w linii.
-
-    To jedyne źródło promptów, którego narzędzie nie wymyśli: pytania, które klienci
-    naprawdę zadają handlowcom. Człowiek je zna, model nie.
-    """
-    linie = []
-    for l in (tekst or "").splitlines():
-        # Ludzie wklejają listy z myślnikami i numeracją — czyścimy, zamiast
-        # kazać im formatować.
-        l = re.sub(r"^\s*(?:[-–—*•]|\d+[.)])\s*", "", l).strip()
-        if len(l.split()) >= 2 and l.lower() not in {x.lower() for x in linie}:
-            linie.append(l)
-    return linie[:limit]
-
-
 # ══════════════════════════════════════════════════════════════════════
 #  Czy klient jest tam, skąd AI bierze odpowiedzi
 # ══════════════════════════════════════════════════════════════════════

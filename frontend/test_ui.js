@@ -208,8 +208,10 @@ setTimeout(() => {
     d.getElementById("audytgeo-wybor").innerHTML.includes("Kogo audytujemy"));
   klik(d.querySelector("#audytgeo-wybor .sim-row button"));
   const geoForm = d.getElementById("audytgeo-wybor").innerHTML;
-  sprawdz("Audyt GEO: jest pole na pytania od handlowcow",
-    !!d.getElementById("geo-wlasne"));
+  // Pole na wlasne prompty zostalo usuniete na zyczenie — pilnujemy, zeby nie
+  // wrocilo przypadkiem razem ze stanem, ktory nikogo juz nie obsluguje.
+  sprawdz("Audyt GEO: nie ma pola na wlasne prompty",
+    !d.getElementById("geo-wlasne"));
   sprawdz("Audyt GEO: jest suwak powtorzen", !!d.getElementById("geo-powtorzenia"));
   sprawdz("Audyt GEO: jest przelacznik podpowiedzi Google", !!d.getElementById("geo-podpowiedzi"));
   sprawdz("Audyt GEO: sa DWA silniki na wlasnych kluczach",

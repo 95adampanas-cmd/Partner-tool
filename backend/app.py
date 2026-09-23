@@ -1720,18 +1720,17 @@ async def api_audyt_geo(request):
                 "Ten audyt używa wyłącznie silników na własnych kluczach "
                 "(ChatGPT, Claude). Zaznacz co najmniej jeden."})
 
-        # ── Prompty z trzech źródeł ──────────────────────────────────────
-        # Kolejność nie jest przypadkowa: najpierw to, co wie CZŁOWIEK, potem to,
-        # co ludzie realnie wpisują w Google, a na końcu to, co wymyśli model.
-        # Pytania od handlowców są najcenniejsze i mają nie wypaść przez limit.
-        wlasne = audyt_geo.wlasne_prompty(body.get("wlasne_prompty") or "")
+        # ── Prompty z dwóch źródeł ───────────────────────────────────────
+        # Najpierw to, co ludzie realnie wpisują w Google, potem to, co wymyśli
+        # model. Kolejność ma znaczenie: podpowiedzi są zapisem prawdziwych zapytań,
+        # a wygenerowane to hipoteza, jak ludzie MOGLIBY pytać.
         z_google = []
         if bool(body.get("podpowiedzi", True)):
             baza_frazy = firma.get("branza") or nazwa
             z_google = await asyncio.to_thread(
                 audyt_geo.podpowiedzi_google, bez_lokalizacji(baza_frazy), 10)
 
-        prompty = list(wlasne)
+        prompty = []
         for p in z_google:
             if len(prompty) < ile and p.lower() not in {x.lower() for x in prompty}:
                 prompty.append(p)
@@ -1746,10 +1745,9 @@ async def api_audyt_geo(request):
                 if len(prompty) < ile and p.lower() not in {x.lower() for x in prompty}:
                     prompty.append(p)
 
-        zrodlo_promptow = {"wlasne": len(wlasne),
-                           "google": sum(1 for p in prompty if p in z_google),
-                           "model": max(0, len(prompty) - len(wlasne)
-                                        - sum(1 for p in prompty if p in z_google))}
+        z_google_ile = sum(1 for p in prompty if p in z_google)
+        zrodlo_promptow = {"google": z_google_ile,
+                           "model": max(0, len(prompty) - z_google_ile)}
 
         # ── Pytamy modele, każdy prompt N razy ───────────────────────────
         wiersze, koszt = [], 0.0
