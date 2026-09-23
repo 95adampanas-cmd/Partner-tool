@@ -685,22 +685,6 @@ function renderKolejke() {
 // Który zestaw presetów obowiązuje. Mapy mają własny, bo szukają po nazwach
 // wizytówek, a nie po treści stron — te same frazy dają tam zero wyników.
 // Ścieżka klientów ma swój niezależnie od źródła.
-let presetFiltr = "";
-
-// Pole filtru rysujemy w obu widokach (lista kategorii i wyniki filtrowania),
-// więc jest osobną funkcją — inaczej przy wpisywaniu znikałoby i wracało,
-// gubiąc kursor po każdej literze.
-function poleFiltru(ileTrafien) {
-  return `<div class="preset-filtr">
-    <input type="search" id="preset-szukaj" autocomplete="off"
-           placeholder="Filtruj frazy — np. shopify, allegro, prawnik…"
-           value="${escAttr(presetFiltr)}">
-    ${ileTrafien !== undefined
-      ? `<span class="hint">${ileTrafien} ${ileTrafien === 1 ? "fraza" : "fraz"}</span>`
-      : ""}
-  </div>`;
-}
-
 function presetyDlaZrodla() {
   if (tryb !== "partner") return PRESETY[tryb] || PRESETY.partner;
   return zrodlo === "mapy" ? PRESETY.mapy : PRESETY.partner;
@@ -713,39 +697,6 @@ function renderPresety() {
   // Chipy, nie kafle — ten sam wygląd, co filtr kategorii w „Szukaj podobnych".
   // Kafle zajmowały pół ekranu, zanim cokolwiek wybrałeś; tu wybór jest jednym
   // rzędem, a miejsce zostaje na to, po co się tu przyszło.
-  // ── Filtr ──
-  // Przy 297 frazach w 29 kategoriach przeglądanie przestaje działać: zanim
-  // znajdziesz „wdrożenia Shopware", przeczytasz pół listy. Wpisanie trzech liter
-  // jest szybsze niż każde menu, więc filtr jest tu pierwszą rzeczą, nie dodatkiem.
-  const szukane = presetFiltr.trim().toLowerCase();
-  if (szukane) {
-    const trafienia = [];
-    grupy.forEach(([grupa, glowna, pozycje]) => {
-      [glowna, ...pozycje].forEach((fraza, idx) => {
-        if (fraza.toLowerCase().includes(szukane)) {
-          trafienia.push({ fraza, grupa, glowna: idx === 0 });
-        }
-      });
-    });
-    // UWAGA: tu trzeba WPISAĆ do DOM, a nie zwrócić string. Pierwsza wersja robiła
-    // `return` i filtr po cichu nic nie robił — HTML powstawał i wyparowywał.
-    document.getElementById("presety-branz").innerHTML = `
-      <div class="card">
-        <div class="mono"><span class="sq"></span> Wybierz kategorię partnera</div>
-        ${poleFiltru(trafienia.length)}
-        ${trafienia.length ? `<div class="tagi wybieralne">${trafienia.slice(0, 60).map((x) => `
-          <button class="tag${x.glowna ? " tag-glowny" : ""}" type="button"
-                  data-preset="${escAttr(x.fraza)}" title="${escAttr(x.grupa)}">
-            ${esc(x.fraza)} <em class="chip-licznik">${esc(x.grupa)}</em>
-          </button>`).join("")}</div>
-          ${trafienia.length > 60 ? `<p class="hint">Pokazuję 60 z ${trafienia.length} —
-            wpisz więcej liter, żeby zawęzić.</p>` : ""}`
-          : `<p class="hint">Nic nie pasuje do „${esc(presetFiltr)}". Możesz też po prostu
-             wpisać własną frazę w pole wyszukiwania powyżej.</p>`}
-      </div>`;
-    return;
-  }
-
   // ── Kategorie, w dwóch nazwanych sekcjach ──
   // Jeden rząd 29 chipów to ściana. Granica „usługi kontra oprogramowanie" jest
   // naturalna i skraca skanowanie o połowę. Mapy nie mają sekcji — tam wszystko
@@ -759,7 +710,7 @@ function renderPresety() {
 
   const sekcje = [["uslugi", "Usługi i agencje"], ["saas", "SaaS i narzędzia"]];
   const zSekcjami = grupy.some((g) => g[4]);
-  const kafle = poleFiltru() + (!zSekcjami
+  const kafle = (!zSekcjami
     ? `<div class="tagi wybieralne">${grupy.map(chip).join("")}</div>`
     : sekcje.map(([klucz, etykieta]) => {
         const wybrane = grupy.map((g, i) => [g, i]).filter(([g]) => g[4] === klucz);
@@ -1105,7 +1056,6 @@ document.addEventListener("click", (e) => {
     // Indeksy grup różnią się między zestawami (26 vs 17), więc otwarta grupa
     // po przełączeniu wskazywałaby na zupełnie inną kategorię.
     otwartaGrupa = null;
-    presetFiltr = "";      // frazy są inne w każdym zestawie
     renderZrodla();
     return renderPresety();
   }
@@ -2582,18 +2532,6 @@ function renderRozmowa() {
 
 // Enter wysyla pytanie. W czacie to odruch — bez tego trzeba siegac myszka po
 // kazdym zdaniu, a rozmowa ma byc szybsza od klikania po karcie firmy.
-// Filtrowanie na bieżąco. `input`, nie `change` — `change` odpala się dopiero po
-// wyjściu z pola, więc lista aktualizowałaby się po fakcie.
-document.addEventListener("input", (e) => {
-  if (e.target.id !== "preset-szukaj") return;
-  presetFiltr = e.target.value;
-  renderPresety();
-  // renderPresety przerysowuje pole, więc kursor trzeba przywrócić ręcznie —
-  // bez tego po pierwszej literze tracisz focus i dalej piszesz w próżnię.
-  const pole = document.getElementById("preset-szukaj");
-  if (pole) { pole.focus(); pole.setSelectionRange(pole.value.length, pole.value.length); }
-});
-
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || !e.target.classList.contains("czat-pytanie")) return;
   e.preventDefault();
