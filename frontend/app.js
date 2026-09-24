@@ -95,6 +95,7 @@ function pokazSekcje(nazwa) {
     otwartaGrupa = null;   // numery grup należą do poprzedniej ścieżki
     podobneKategoria = null;
     filtrKategorii = null;
+    filtrKolejki = null;
     maileWybrana = null;
     maileAktywny = null;
     trybPokazany = tryb;
@@ -237,6 +238,8 @@ function kafel(liczba, etykieta, ikona, cel) {
 const formKryteria = document.getElementById("form-kryteria");
 const btnKryteria = document.getElementById("btn-kryteria");
 const szukajWynik = document.getElementById("szukaj-wynik");
+// Kategoria ostatniego wyszukiwania — jedziemy z nią do kolejki.
+let kategoriaZapytania = "";
 
 // Presety branż — OSOBNE dla każdej ścieżki. Wcześniej była jedna płaska lista,
 // renderowana raz przy starcie, więc w Klientach wyświetlały się kategorie
@@ -587,6 +590,9 @@ const frazyPodobnych = new Map();
 let zrodloPodobne = "wyszukiwarka";
 // Kategoria wybrana na liscie Firm. null = wszystkie.
 let filtrKategorii = null;
+// To samo dla kolejki. Osobna zmienna, bo obie listy bywaja otwarte
+// naprzemiennie i wspolny stan przenosilby filtr tam, gdzie go nie ustawiono.
+let filtrKolejki = null;
 
 // Źródło firm. "wyszukiwarka" = Tavily (kto jest wypozycjonowany),
 // "mapy" = Google Maps (kto ma wizytówkę, niezależnie od SEO).
@@ -656,11 +662,12 @@ function kolejkaTrybu() {
 wczytajKolejke();
 wczytajMaile();
 
-async function dodajDoKolejki(firmy, zapytanie, zrodloNazwa) {
+async function dodajDoKolejki(firmy, zapytanie, zrodloNazwa, kategoria) {
   const res = await fetch("/api/kolejka", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ firmy, tryb, zapytanie, zrodlo: zrodloNazwa }),
+    body: JSON.stringify({ firmy, tryb, zapytanie, zrodlo: zrodloNazwa,
+                           kategoria: kategoria || "" }),
   });
   const d = await res.json();
   await wczytajKolejke();
@@ -688,12 +695,36 @@ function renderKolejke() {
         <b>Dodaj do kolejki</b> — zostaną tu, dopóki ich nie zbadasz.</span></p></div>`;
     return;
   }
-  const zazn = moje.filter((k) => kolejkaZaznaczone.has(k.url)).length;
+  // Filtr kategorii — ten sam mechanizm co na liście Firm i w „Szukaj podobnych".
+  // Kolejka rośnie szybciej niż lista zbadanych: jedno kliknięcie „Dodaj wszystkie"
+  // wrzuca kilkadziesiąt firm, a import z katalogu potrafi wrzucić kilkaset.
+  // Kategoria jest tu tą, POD KTÓRĄ firmę znaleziono — research nadaje własną.
+  const kat = (k) => k.kategoria || "Bez kategorii";
+  const liczby = new Map();
+  moje.forEach((k) => liczby.set(kat(k), (liczby.get(kat(k)) || 0) + 1));
+  const widoczne = filtrKolejki ? moje.filter((k) => kat(k) === filtrKolejki) : moje;
+
+  const filtrKat = liczby.size <= 1 ? "" : `
+    <div class="filtr-kategorii tagi wybieralne">
+      <button class="tag${filtrKolejki ? "" : " zaznaczony"}" type="button"
+              data-kat-kolejka="">Wszystkie <em class="chip-licznik">${moje.length}</em></button>
+      ${[...liczby.entries()].map(([nazwa, ile]) => `
+        <button class="tag${filtrKolejki === nazwa ? " zaznaczony" : ""}" type="button"
+                data-kat-kolejka="${escAttr(nazwa)}">
+          ${esc(nazwa)} <em class="chip-licznik">${ile}</em>
+        </button>`).join("")}
+    </div>`;
+
+  // Zaznaczenie liczymy z WIDOCZNYCH, nie z całej kolejki. Inaczej „Zaznacz
+  // wszystkie" przy włączonym filtrze zaznaczałoby też firmy spoza niego —
+  // i „Zbadaj zaznaczone (40)" ruszyłoby research na czymś, czego nie widać.
+  const zazn = widoczne.filter((k) => kolejkaZaznaczone.has(k.url)).length;
   box.innerHTML = przelacznikTrybu(kolejka) + `<div class="card">
     <div class="mono"><span class="sq"></span> Czeka na research (${moje.length})</div>
+    ${filtrKat}
     <div class="masowy-pasek">
       <label class="zazn-wszystkie">
-        <input type="checkbox" id="zazn-wszystkie" ${zazn === moje.length && moje.length ? "checked" : ""}>
+        <input type="checkbox" id="zazn-wszystkie" ${zazn === widoczne.length && widoczne.length ? "checked" : ""}>
         <span>Zaznacz wszystkie</span>
       </label>
       <button class="akcja glowna zbadaj-zaznaczone" type="button" ${zazn ? "" : "disabled"}>
@@ -702,13 +733,14 @@ function renderKolejke() {
       <span class="hint">Po trzy naraz. Awaria jednej firmy nie zatrzymuje reszty.</span>
     </div>
     <div id="masowy-postep"></div>
-    <div class="similar-list">${moje.map((k) => `
+    <div class="similar-list">${widoczne.map((k) => `
       <div class="sim-row" data-url="${escAttr(k.url)}">
         <label class="zazn-firme">
           <input type="checkbox" class="zazn-kolejka" ${kolejkaZaznaczone.has(k.url) ? "checked" : ""}>
         </label>
         <div class="sim-info">
           <span class="sim-name">${esc(k.nazwa || hostname(k.url))}${
+            k.kategoria ? `<span class="tag-kat">${esc(k.kategoria)}</span>` : ""}${
             k.ma_seo ? `<span class="tag-seo">SEO</span>` : ""}</span>
           <a class="sim-url" href="${escAttr(k.url)}" target="_blank" rel="noopener">${esc(hostname(k.url))}<svg class="ico xs"><use href="#i-external"/></svg></a>
           ${k.opis ? `<span class="sim-opis">${esc(k.opis.slice(0, 150))}${k.opis.length > 150 ? "…" : ""}</span>` : ""}
@@ -728,6 +760,23 @@ function renderKolejke() {
 function presetyDlaZrodla() {
   if (tryb !== "partner") return PRESETY[tryb] || PRESETY.partner;
   return zrodlo === "mapy" ? PRESETY.mapy : PRESETY.partner;
+}
+
+// Z jakiej kategorii pochodzi ta fraza. Potrzebne kolejce: firma znaleziona,
+// a jeszcze niezbadana, nie ma własnej kategorii — nadaje ją dopiero research.
+// Do tego czasu jedyne, co o niej wiadomo, to CZEGO szukaliśmy, gdy się pojawiła.
+//
+// Czytamy z presetów zamiast pamiętać ostatnie kliknięcie, bo fraza w polu może
+// przyjść trzema drogami: z chipu kategorii, z chipu podkategorii i z klawiatury.
+// Zapamiętane kliknięcie kłamałoby w trzecim przypadku i po edycji frazy.
+function kategoriaDlaFrazy(fraza) {
+  const szukana = (fraza || "").trim().toLowerCase();
+  if (!szukana) return "";
+  for (const [nazwa, glowna, pod] of presetyDlaZrodla()) {
+    if (glowna.toLowerCase() === szukana) return nazwa;
+    if ((pod || []).some((x) => x.toLowerCase() === szukana)) return nazwa;
+  }
+  return "";
 }
 
 function renderPresety() {
@@ -806,6 +855,9 @@ formKryteria.addEventListener("submit", async (e) => {
   const branza = document.getElementById("branza").value.trim();
   const miasto = document.getElementById("miasto").value.trim();
   if (!branza) return;
+  // Bez miasta: „Poznań" nie jest częścią kategorii, a zapytanie z backendu
+  // przychodzi już sklejone i nie dałoby się go dopasować do presetu.
+  kategoriaZapytania = kategoriaDlaFrazy(branza);
 
   szukajWynik.innerHTML = loadingHTML("Szukam firm i sprawdzam, które strony żyją… ~10 s.");
   btnKryteria.disabled = true;
@@ -1085,6 +1137,11 @@ document.addEventListener("click", (e) => {
     filtrKategorii = katFirmy.dataset.katFirmy || null;
     return renderListeFirm();
   }
+  const katKolejki = e.target.closest("[data-kat-kolejka]");
+  if (katKolejki) {
+    filtrKolejki = katKolejki.dataset.katKolejka || null;
+    return renderKolejke();
+  }
   const katPodobne = e.target.closest("[data-kat-podobne]");
   if (katPodobne) {
     podobneKategoria = katPodobne.dataset.katPodobne || null;
@@ -1097,7 +1154,14 @@ document.addEventListener("click", (e) => {
     document.getElementById("podobne-wynik").innerHTML = "";
     return renderPodobne();
   }
-  const btnZrodlo = e.target.closest("[data-zrodlo]");
+  // ZAWĘŻONE DO KONTENERA PRZEŁĄCZNIKA, i to nie jest ozdobnik. Przycisk „Dodaj
+  // wszystkie do kolejki" nosił `data-zrodlo` (żeby zapamiętać, skąd wyniki) —
+  // a ten warunek stoi WYŻEJ w łańcuchu, więc przechwytywał jego kliknięcie,
+  // przestawiał źródło wyszukiwania i przerysowywał presety. Do kolejki nigdy
+  // nic nie doszło i nic o tym nie mówiło: przycisk wyglądał na klikalny,
+  // sekcja „Do zbadania" była pusta. Sam atrybut też zmieniłem na
+  // `data-kolejka-zrodlo` — dwie niezależne rzeczy nie mogą się nazywać tak samo.
+  const btnZrodlo = e.target.closest("#zrodla-wyboru [data-zrodlo]");
   if (btnZrodlo) {
     zrodlo = btnZrodlo.dataset.zrodlo;
     // Indeksy grup różnią się między zestawami (26 vs 17), więc otwarta grupa
@@ -1136,7 +1200,11 @@ document.addEventListener("click", (e) => {
   const zbZazn = e.target.closest(".zbadaj-zaznaczone");
   if (zbZazn) return zbadajZaznaczone(zbZazn);
   if (e.target.id === "zazn-wszystkie") {
-    const moje = kolejkaTrybu();
+    // Tylko WIDOCZNE. Przy włączonym filtrze kategorii zaznaczenie całej kolejki
+    // wysłałoby do researchu firmy, których user nie ma na ekranie — a research
+    // kosztuje i jest nieodwracalny.
+    const moje = kolejkaTrybu()
+      .filter((k) => !filtrKolejki || (k.kategoria || "Bez kategorii") === filtrKolejki);
     if (e.target.checked) moje.forEach((k) => kolejkaZaznaczone.add(k.url));
     else moje.forEach((k) => kolejkaZaznaczone.delete(k.url));
     return renderKolejke();
@@ -1451,6 +1519,15 @@ async function szukajWgTagow(przycisk, dalej = false) {
 }
 
 // Osobny renderer, bo lista podobnych narasta i ma własną stopkę z „Szukaj dalej".
+function kategoriaWzorca() {
+  // Kategoria firmy wzorcowej. W „Szukaj podobnych" nie ma pola z frazą — szukamy
+  // PO FIRMIE, więc to jej kategoria mówi, co tu zbieramy. Znalezione firmy idą
+  // do kolejki z tym samym tagiem i nie mieszają się z innym szukaniem.
+  const wpis = firmyTrybu().find((t) => t.id === podobneWybrana);
+  const k = wpis && wpis.firma.kategoria;
+  return k && k !== BRAK ? k : "";
+}
+
 function listaPodobnychHTML(data, ileNowych) {
   if (!podobnePokazane.length) {
     return `<div class="card"><p class="sim-err">Nie znalazłem firm dla „${esc(data.zapytanie)}".
@@ -1466,6 +1543,15 @@ function listaPodobnychHTML(data, ileNowych) {
     <div class="dalej-pasek">
       <button class="btn-lekki szukaj-dalej" type="button">
         <svg class="ico xs"><use href="#i-search"/></svg>Szukaj dalej — inne ujęcie branży
+      </button>
+      <!-- Tego przycisku tu NIE BYŁO, a to jedyna lista, która narasta przez kilka
+           rund. Dorobek kilku rund znikał przy przejściu do innej sekcji i zostawała
+           tylko ta firma, którą akurat zbadałeś. -->
+      <button class="btn-lekki do-kolejki-wszystkie" type="button"
+              data-zapytanie="${escAttr(data.zapytanie || "")}"
+              data-kolejka-zrodlo="${escAttr(zrodloPodobne)}"
+              data-kolejka-kategoria="${escAttr(kategoriaWzorca())}">
+        <svg class="ico xs"><use href="#i-inbox"/></svg>Dodaj wszystkie do kolejki
       </button>
       <span class="hint">${
         wyczerpane
@@ -1498,7 +1584,8 @@ function listaFirmHTML(data, naglowek) {
     <div class="dalej-pasek">
       <button class="btn-lekki do-kolejki-wszystkie" type="button"
               data-zapytanie="${escAttr(data.zapytanie || "")}"
-              data-zrodlo="${escAttr(data.zrodlo || "wyszukiwarka")}">
+              data-kolejka-zrodlo="${escAttr(data.zrodlo || "wyszukiwarka")}"
+              data-kolejka-kategoria="${escAttr(kategoriaZapytania)}">
         <svg class="ico xs"><use href="#i-inbox"/></svg>Dodaj wszystkie do kolejki
       </button>
       <span class="hint">Wyniki znikają razem z zapytaniem. W kolejce zostaną,
@@ -2330,7 +2417,8 @@ async function dodajWszystkieDoKolejki(przycisk) {
   przycisk.disabled = true;
   przycisk.textContent = "Dodaję…";
   try {
-    const doszlo = await dodajDoKolejki(firmy, przycisk.dataset.zapytanie, przycisk.dataset.zrodlo);
+    const doszlo = await dodajDoKolejki(firmy, przycisk.dataset.zapytanie,
+      przycisk.dataset.kolejkaZrodlo, przycisk.dataset.kolejkaKategoria);
     // Mówimy ILE realnie doszło: reszta to firmy już zbadane albo już w kolejce.
     przycisk.innerHTML = doszlo
       ? `<svg class="ico xs"><use href="#i-check"/></svg>Dodano ${doszlo} z ${firmy.length}`
@@ -2550,7 +2638,9 @@ async function zmienStanMaila(id, akcja, dane) {
 const MASOWO_NARAZ = 3;
 
 async function zbadajZaznaczone(przycisk) {
-  const doZbadania = kolejkaTrybu().filter((k) => kolejkaZaznaczone.has(k.url));
+  const doZbadania = kolejkaTrybu()
+    .filter((k) => (!filtrKolejki || (k.kategoria || "Bez kategorii") === filtrKolejki))
+    .filter((k) => kolejkaZaznaczone.has(k.url));
   if (!doZbadania.length) return;
 
   const postep = document.getElementById("masowy-postep");

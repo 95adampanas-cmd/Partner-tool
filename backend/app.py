@@ -2296,7 +2296,8 @@ async def api_kolejka(request):
     doszlo = await asyncio.to_thread(
         baza.dodaj_do_kolejki, body.get("firmy") or [],
         (body.get("tryb") or "partner").lower(),
-        body.get("zrodlo") or "", body.get("zapytanie") or "")
+        body.get("zrodlo") or "", body.get("zapytanie") or "",
+        body.get("kategoria") or "")
     return JSONResponse({"ok": True, "doszlo": doszlo})
 
 

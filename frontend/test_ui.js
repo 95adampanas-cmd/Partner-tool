@@ -37,14 +37,31 @@ const FIRMY = [
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8000/" });
 const { window } = dom;
-window.fetch = (u) => Promise.resolve({
-  json: () => Promise.resolve(
-    u.includes("/api/firmy") ? { ok: true, firmy: FIRMY } :
-    // Dwa zrodla podlaczone, zeby przelacznik sie pokazal — inaczej caly test
-    // presetow dla Map leci pusta galezia i niczego nie sprawdza.
-    u.includes("/api/zrodla") ? { ok: true, zrodla: { wyszukiwarka: true, mapy: true, google: false } } :
-    { ok: true, kolumny: [], kategorie: [], kolejka: [], maile: [] }),
-});
+// Zapis zadan do backendu. Bez tego nie da sie sprawdzic, czy klikniecie
+// W OGOLE dotarlo do /api/kolejka — a wlasnie to bylo zepsute: przycisk
+// "Dodaj wszystkie do kolejki" przechwytywal inny warunek w obsludze klikniec
+// i zamiast dodawac firmy przestawial zrodlo wyszukiwania.
+const zadania = [];
+const ZNALEZIONE = [
+  { url: "https://sklep-alfa.pl", nazwa: "Alfa", opis: "wdrozenia Shopify", ma_seo: false },
+  { url: "https://sklep-beta.pl", nazwa: "Beta", opis: "sklepy PrestaShop", ma_seo: true },
+];
+window.fetch = (u, opcje) => {
+  zadania.push({ url: u, metoda: (opcje && opcje.method) || "GET",
+                 body: opcje && opcje.body ? JSON.parse(opcje.body) : null });
+  return Promise.resolve({
+    json: () => Promise.resolve(
+      u.includes("/api/firmy") ? { ok: true, firmy: FIRMY } :
+      u.includes("/api/szukaj") ? { ok: true, firmy: ZNALEZIONE, zapytanie: "tworzenie sklepów internetowych", zrodlo: "wyszukiwarka" } :
+      u.includes("/api/kolejka") && (!opcje || !opcje.method || opcje.method === "GET")
+        ? { ok: true, kolejka: [] } :
+      u.includes("/api/kolejka") ? { ok: true, doszlo: ZNALEZIONE.length } :
+      // Dwa zrodla podlaczone, zeby przelacznik sie pokazal — inaczej caly test
+      // presetow dla Map leci pusta galezia i niczego nie sprawdza.
+      u.includes("/api/zrodla") ? { ok: true, zrodla: { wyszukiwarka: true, mapy: true, google: false } } :
+      { ok: true, kolumny: [], kategorie: [], kolejka: [], maile: [] }),
+  });
+};
 window.scrollTo = () => {};
 
 const bledyJS = [];
@@ -211,7 +228,7 @@ setTimeout(() => {
   // Kategoria jest dzis TA SAMA nazwa co kategoria wyszukiwania w PRESETY,
   // ale to wciaz ETYKIETA CHIPU, a nie zapytanie: nikt nie wpisuje w Google
   // "Sklepy internetowe", zeby znalezc agencje. Na zapytanie nadaje sie fraza
-  // glowna tej kategorii ("tworzenie sklepow internetowych"), nie sam tag.
+  // glowna tej kategorii ("tworzenie sklepów internetowych"), nie sam tag.
   sprawdz("Podobne: NASZA kategoria nie jest fraza wyszukiwania",
     !szerokieTagi.includes("Sklepy internetowe")
       && !szerokieTagi.includes("Budowa stron i sklepów"),
@@ -286,6 +303,47 @@ setTimeout(() => {
   sprawdz("Eksport: sekcja renderuje się bez błędu",
     d.getElementById("eksport-box").innerHTML.length > 0);
 
+  // ── Kolejka: czy przycisk w ogole cokolwiek wysyla ─────────────────
+  // To jest regresja z 24.09.2026. Przycisk miał atrybut `data-zrodlo`, ten sam,
+  // ktorym oznaczone sa przelaczniki zrodel — a warunek dla przelacznika stoi
+  // wyzej w obsludze klikniec. Kazde klikniecie "Dodaj wszystkie do kolejki"
+  // przestawialo wiec zrodlo wyszukiwania i przerysowywalo presety. Kolejka
+  // zostawala pusta i nic nie mowilo, ze cos poszlo nie tak.
+  nav("szukaj", "partner");
+  d.getElementById("branza").value = "tworzenie sklepów internetowych";
+  d.getElementById("form-kryteria").dispatchEvent(
+    new window.Event("submit", { bubbles: true, cancelable: true }));
+
+  setTimeout(() => {
+    const przycisk = d.querySelector(".do-kolejki-wszystkie");
+    sprawdz("Kolejka: wyniki maja przycisk dodania do kolejki", !!przycisk);
+
+    const zrodloPrzed = (d.querySelector("#zrodla-wyboru .tag.zaznaczony") || {}).textContent;
+    klik(przycisk);
+
+    setTimeout(() => {
+      const dodania = zadania.filter((z) => z.url.includes("/api/kolejka") && z.metoda === "POST");
+      sprawdz("Kolejka: klikniecie wysyla firmy do /api/kolejka",
+        dodania.length === 1 && (dodania[0].body.firmy || []).length === ZNALEZIONE.length,
+        dodania.length ? `${(dodania[0].body.firmy || []).length} firm` : "zadnego zadania");
+
+      sprawdz("Kolejka: dodanie NIE przestawia zrodla wyszukiwania",
+        (d.querySelector("#zrodla-wyboru .tag.zaznaczony") || {}).textContent === zrodloPrzed,
+        `${zrodloPrzed} -> ${(d.querySelector("#zrodla-wyboru .tag.zaznaczony") || {}).textContent}`);
+
+      // Tag kategorii dla firm, ktore dopiero czekaja na research. Fraza pochodzi
+      // z presetu "Sklepy internetowe", wiec kolejka ma to zapamietac — inaczej
+      // po dodaniu 200 firm z pieciu branz nie da sie ich rozdzielic.
+      sprawdz("Kolejka: firmy dostaja kategorie z presetu",
+        dodania.length === 1 && dodania[0].body.kategoria === "Sklepy internetowe",
+        dodania.length ? JSON.stringify(dodania[0].body.kategoria) : "brak");
+
+      podsumuj();
+    }, 60);
+  }, 60);
+}, 400);
+
+function podsumuj() {
   let zle = 0;
   console.log("");
   wyniki.forEach((w) => {
@@ -296,4 +354,4 @@ setTimeout(() => {
   console.log(`  błędy JS: ${bledyJS.length ? bledyJS.join(" | ") : "brak"}`);
   console.log(`  WYNIK: ${wyniki.length - zle}/${wyniki.length}`);
   process.exit(zle || bledyJS.length ? 1 : 0);
-}, 400);
+}

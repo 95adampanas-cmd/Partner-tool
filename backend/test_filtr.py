@@ -628,6 +628,34 @@ def sprawdz_boty_ai() -> int:
     return bledy
 
 
+def sprawdz_kolejke() -> int:
+    """Czy kolejka umie przechować kategorię, pod którą firmę znaleziono.
+
+    DLACZEGO TO OSOBNY TEST. Kolumnę dokładaliśmy do TABELI, KTÓRA JUŻ ISTNIEJE,
+    a `CREATE TABLE IF NOT EXISTS` w takim wypadku nie robi nic — schemat w kodzie
+    wyglądałby poprawnie, a baza u kogoś, kto używał narzędzia wcześniej, zostałaby
+    stara. Każde dodanie do kolejki kończyłoby się wtedy błędem 500. Sprawdzamy
+    więc FAKTYCZNY schemat bazy, nie treść pliku.
+    """
+    import baza
+
+    bledy = 0
+    kolumny = {r["name"] for r in baza._polacz().execute("PRAGMA table_info(kolejka)")}
+    for pole in ("kategoria", "zapytanie", "zrodlo"):
+        ok = pole in kolumny
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | kolejka ma kolumnę {pole}")
+        bledy += not ok
+
+    # Kategoria z wiersza musi wygrywać z kategorią partii — inaczej import
+    # z katalogu wrzuciłby 180 firm z różnych branż pod jedną etykietę.
+    import inspect
+    sygn = inspect.signature(baza.dodaj_do_kolejki).parameters
+    ok = "kategoria" in sygn
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | dodaj_do_kolejki przyjmuje kategorię")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -660,6 +688,12 @@ def sprawdz_regresje() -> int:
     print("BOTY AI — czy odróżniamy trenowanie modelu od odpowiadania klientowi")
     print("=" * 74)
     bledy += sprawdz_boty_ai()
+    print()
+
+    print("=" * 74)
+    print("KOLEJKA — czy uniesie kategorię, pod którą firmę znaleziono")
+    print("=" * 74)
+    bledy += sprawdz_kolejke()
     print()
 
     print("=" * 74)

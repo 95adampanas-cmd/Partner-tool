@@ -38,7 +38,21 @@ def _polacz() -> sqlite3.Connection:
         _polaczenie.execute("PRAGMA journal_mode=WAL")
         _utworz(_polaczenie)
         _przenies_konkurent_na_ma_seo(_polaczenie)
+        _dodaj_kategorie_do_kolejki(_polaczenie)
     return _polaczenie
+
+
+def _dodaj_kategorie_do_kolejki(db: sqlite3.Connection) -> None:
+    """Migracja: kolumna `kategoria` w kolejce.
+
+    CREATE TABLE IF NOT EXISTS nie dopisuje kolumn do tabeli, ktora juz istnieje —
+    u kazdego, kto uzywal narzedzia wczesniej, kolejka zostalaby bez tego pola
+    i kazdy INSERT konczylby sie bledem. Stad jawny ALTER, wykonywany raz.
+    """
+    kolumny = {r["name"] for r in db.execute("PRAGMA table_info(kolejka)")}
+    if "kategoria" not in kolumny:
+        db.execute("ALTER TABLE kolejka ADD COLUMN kategoria TEXT")
+        db.commit()
 
 
 def _przenies_konkurent_na_ma_seo(db: sqlite3.Connection) -> None:
@@ -113,6 +127,11 @@ def _utworz(db: sqlite3.Connection) -> None:
             ma_seo   INTEGER NOT NULL DEFAULT 0,
             zrodlo   TEXT,                     -- wyszukiwarka / mapy
             zapytanie TEXT,                    -- fraza, ktora ja znalazla
+            -- Kategoria, POD KTORA firma zostala znaleziona. Nie jest tym samym co
+            -- `kategoria` zbadanej firmy: ta powstaje z researchu, a ta mowi tylko,
+            -- czego wtedy szukalismy. Do czasu researchu to jedyna informacja
+            -- porzadkujaca kolejke — bez niej 180 wpisow to jedna plaska lista.
+            kategoria TEXT,
             dodana   TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_kolejka_tryb ON kolejka(tryb);
@@ -239,7 +258,8 @@ def statystyki() -> dict:
 #  KOLEJKA — kandydaci przed researchem
 # ══════════════════════════════════════════════════════════════════
 def dodaj_do_kolejki(firmy: list[dict], tryb: str = "partner",
-                     zrodlo: str = "", zapytanie: str = "") -> int:
+                     zrodlo: str = "", zapytanie: str = "",
+                     kategoria: str = "") -> int:
     """Dopisuje kandydatow. Zwraca ile REALNIE doszlo.
 
     Firma juz zbadana do kolejki nie trafia — kolejka ma pokazywac robote do
@@ -256,12 +276,16 @@ def dodaj_do_kolejki(firmy: list[dict], tryb: str = "partner",
             url = (f.get("url") or "").strip()
             if not url or url in zbadane:
                 continue
+            # Kategoria z wiersza wygrywa z ta podana dla calej partii: przy
+            # imporcie z jednego zrodla kazda firma moze byc z innej branzy.
+            kat = (f.get("kategoria") or kategoria or "").strip()
             kur = db.execute("""
-                INSERT INTO kolejka (url, tryb, nazwa, opis, ma_seo, zrodlo, zapytanie, dodana)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO kolejka (url, tryb, nazwa, opis, ma_seo, zrodlo,
+                                     zapytanie, kategoria, dodana)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(url) DO NOTHING
             """, (url, tryb, f.get("nazwa") or "", (f.get("opis") or "")[:600],
-                  1 if f.get("ma_seo") else 0, zrodlo, zapytanie, _teraz()))
+                  1 if f.get("ma_seo") else 0, zrodlo, zapytanie, kat, _teraz()))
             doszlo += kur.rowcount or 0
         db.commit()
         return doszlo
