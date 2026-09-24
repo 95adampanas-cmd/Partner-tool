@@ -18,50 +18,49 @@ wpływa na jego produkt/usługę, jego wyniki i zadowolenie jego klientów.
 
 ## Ile synergii
 
-Podaj **tyle, ile realnie wynika z danych — nie mniej, nie więcej.** Nie ma
-sztywnej liczby. Jeśli są trzy mocne synergie, podaj trzy. Jeśli jest siedem,
-podaj siedem. Jedna naciągana synergia psuje wiarygodność całości — lepiej mniej,
-ale prawdziwych. Nie dopisuj punktów „na siłę", żeby dobić do okrągłej liczby.
+**Najwyżej trzy. Jeśli obroni się jedna — podaj jedną.**
 
-## Najpierw rozpoznaj kanał
+Bierz tylko te, które da się wyjaśnić JEDNYM zdaniem i z którymi partner zgodzi się
+od razu, bez prowadzenia go przez tok rozumowania. Synergia wymagająca trzech kroków
+wyjaśnienia nie jest synergią — jest pomysłem, i na spotkaniu słychać różnicę.
 
-Na podstawie profilu partnera określ, który kanał współpracy pasuje (i powiedz to
-wprost na początku):
-- **White-label** — partner ma klientów, którym może sprzedawać GEO/SEO pod własną
-  marką (agencje, konsulting, software house, freelancerzy). Rozliczenie: 15% + marża.
-- **Referral / polecający** — partner ma własny produkt lub SaaS i wspólnego klienta
-  końcowego; nie sprzedaje GEO/SEO sam, tylko poleca (i my polecamy jego).
-  Rozliczenie: prowizja lub wspólny pakiet.
-- Czasem pasują oba — wtedy to zaznacz i wskaż, który jest naturalniejszy, i dlaczego.
+Nie buduj punktów na pobocznych ścieżkach oferty partnera ani na tym, co robi
+rzadko. Jedna naciągana synergia podważa wiarygodność pozostałych — materiał ma
+służyć rozmowie, a nie robić wrażenie długością.
 
-## Zanim napiszesz synergie — ustal łańcuch klientów (to najważniejszy krok)
+## O czym NIE piszesz
 
-Najlepsze synergie biorą się z prześledzenia, KOMU to wszystko ostatecznie służy.
-Zanim zaczniesz, odpowiedz sobie (na podstawie researchu):
-- **Kto jest klientem partnera?** (np. sklep e-commerce, placówka medyczna, marka)
-- **Kto jest klientem TEGO klienta?** (np. kupujący w sklepie, pacjent) — czyli
-  na kim naprawdę kończy się łańcuch.
-- **Jaki jest kaliber/profil klientów partnera?** (mali czy duzi, jaka branża,
-  jaki budżet, czy traktują temat strategicznie) — to decyduje, czy synergia jest
-  ogólnikiem, czy konkretem.
+Nie klasyfikuj kanału współpracy. Żadnego „kanał: white-label", „referral" ani
+„model polecający". Nie wspominaj o rabacie 15%, prowizji ani marży.
 
-Dobra synergia pokazuje, jak współpraca Last Agency z partnerem przekłada się aż
-na końcowy człon tego łańcucha — bo to właśnie robi wrażenie na spotkaniu.
+Pisz po prostu o **współpracy**. Jak się rozliczymy, ustala się w rozmowie —
+materiał przygotowany PRZED nią, który z góry przypisuje partnera do szufladki,
+brzmi jak oferta wysłana przed poznaniem drugiej strony. Te informacje są
+w profilu Last Agency po to, żebyś rozumiał, jak działamy, a nie po to, żeby
+je ogłaszać z własnej inicjatywy.
+
+## Zanim napiszesz — sprawdź, komu to służy
+
+Zastanów się, kto jest klientem partnera i jakiego jest kalibru (mali czy duzi,
+jaka branża, czy traktują temat strategicznie). To decyduje, czy synergia jest
+konkretem, czy ogólnikiem.
+
+To jest TŁO, nie obowiązkowy krok do rozpisania. Wcześniejsza wersja kazała
+schodzić aż do klienta klienta w każdym punkcie — i model schodził tam nawet
+wtedy, gdy nie było po co, dopisując konstrukcje, które formalnie wynikają
+z researchu, a w rozmowie brzmią jak naciąganie. Zejdź niżej tylko wtedy, gdy
+to naprawdę wzmacnia punkt.
 
 ## Format każdej synergii
 
-Dla każdej synergii podaj:
+Krótko. Trzy linijki, nie pięć akapitów:
 
 **[Krótki tytuł synergii]**
-- **Na czym polega** — jak Last Agency i partner się uzupełniają (gdzie kończy się
-  jedno, zaczyna drugie). Konkretnie, w odniesieniu do TEGO partnera, nie ogólnie.
-- **Wpływ na produkt/usługę partnera** — jak nasza usługa wzmacnia to, co oni robią.
-- **Wpływ na wyniki** — na jakie metryki to działa (leady, konwersje, ruch,
-  retencja, przychód) i po której stronie.
-- **Co z tego ma partner** — konkretna korzyść dla niego.
-- **Co z tego ma jego klient końcowy** — to jest kluczowe na spotkaniu: pokaż, że
-  na współpracy zyskuje przede wszystkim KLIENT partnera (lepsze wyniki, lepsze
-  doświadczenie), a nie tylko obie firmy.
+- **Na czym polega** — gdzie kończy się partner, a zaczyna Last Agency. Dwa,
+  najwyżej trzy zdania, w odniesieniu do TEGO partnera.
+- **Co z tego ma partner** — jedno konkretne zdanie.
+- **Co z tego ma jego klient** — jedno zdanie, i tylko jeśli jest co powiedzieć.
+  Lepiej pominąć niż dopisać zdanie, które pasowałoby do każdej firmy.
 
 ## Zasady
 
@@ -86,26 +85,19 @@ spotkania.
 
 ---
 
-## Przykład dobrze wypełnionej synergii (wzorzec formatu)
+## Przykład dobrze wypełnionej synergii (wzorzec głębokości)
 
-Poniżej jak ma wyglądać POJEDYNCZA synergia — na przykładzie partnera, który
-buduje sklepy e-commerce. Trzymaj się tej głębokości i tego rozbicia:
+Tak ma wyglądać POJEDYNCZA synergia — na przykładzie partnera, który buduje sklepy
+e-commerce. Zwróć uwagę na długość: to jest cały punkt, nie jego początek.
 
-> **Domykacie lejek e-commerce z dwóch stron: technologia vs. widoczność**
+> **Domykacie lejek z dwóch stron: technologia i widoczność**
 > - **Na czym polega:** Partner buduje i utrzymuje sklep — sprawia, że działa
->   i konwertuje. Ale nie odpowiada za to, czy do sklepu trafia ruch z wyszukiwania
->   i AI. Last Agency zaczyna dokładnie tam, gdzie kończy się rola partnera:
->   sprowadza kupującego do sklepu, który on zbudował.
-> - **Wpływ na produkt partnera:** jego sklepy przestają być „szybkie, ale puste" —
->   dostają paliwo. Sklep dopracowany technicznie + widoczny w Google/AI = pełny
->   produkt, nie połowa.
-> - **Wpływ na wyniki:** Last Agency działa na górę lejka (ruch, widoczność),
->   partner na dół (konwersja). Razem: więcej sesji × lepsza konwersja = wzrost
->   sprzedaży, nie samego ruchu.
-> - **Co ma partner:** domyka ofertę „od widoczności po działający sklep" bez
->   budowania działu SEO/GEO; kolejna cykliczna pozycja na fakturze.
-> - **Co ma jego klient (sklep):** nie musi osobno szukać „kogoś od SEO" i „kogoś
->   od technologii" — jeden łańcuch odpowiedzialności: ruch → sklep → sprzedaż.
+>   i konwertuje. Nie odpowiada za to, czy do sklepu trafia ruch z wyszukiwania
+>   i z AI. Last Agency zaczyna dokładnie tam, gdzie kończy się jego rola.
+> - **Co z tego ma partner:** domyka ofertę „od widoczności po działający sklep"
+>   bez budowania u siebie kompetencji SEO/GEO.
+> - **Co z tego ma jego klient:** nie szuka osobno kogoś od technologii i kogoś
+>   od ruchu — jeden łańcuch odpowiedzialności zamiast dwóch dostawców.
 
-Zwróć uwagę: synergia schodzi aż do klienta końcowego (sklepu) i jego korzyści,
-nie zatrzymuje się na „obie firmy zyskują". O to chodzi w każdym punkcie.
+Gdyby dało się tu dopisać czwarty punkt tylko dlatego, że format ma miejsce —
+nie dopisuj go.

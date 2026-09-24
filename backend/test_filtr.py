@@ -656,6 +656,58 @@ def sprawdz_kolejke() -> int:
     return bledy
 
 
+def sprawdz_synergie() -> int:
+    """Czy prompty synergii nie klasyfikują kanału i nie każą schodzić za głęboko.
+
+    SKĄD TO SIĘ WZIĘŁO. Model otwierał każdą analizę zdaniem „Kanał: white-label,
+    z zastrzeżeniem" i rozliczał współpracę na rabat 15% plus marża — zanim
+    ktokolwiek z partnerem porozmawiał. Do tego format wymuszał pięć akapitów na
+    synergię i zejście aż do klienta klienta, więc model dorabiał konstrukcje
+    w rodzaju „widoczność w AI jako element due diligence przy przejęciach":
+    formalnie wynika z researchu, w rozmowie brzmi jak naciąganie.
+
+    Testujemy PROMPT, nie odpowiedź modelu — odpowiedzi nie da się przypiąć do
+    asercji, ale można sprawdzić, czy instrukcja w ogóle do modelu dociera. Bo to
+    właśnie jest tryb awarii: ktoś podmienia plik `synergie.md` albo przestawia
+    kolejność sklejania i zasady cicho wypadają z promptu.
+    """
+    bledy = 0
+
+    for nazwa, tekst in (("czat", app.CZAT_SYNERGIE), ("mail", app.MAIL_SYNERGIE)):
+        ok = "NIE KLASYFIKUJ KANAŁU" in tekst
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] zakaz nazywania kanału jest w prompcie")
+        bledy += not ok
+
+        ok = "NIE NACIĄGAJ" in tekst and "NAJWYŻEJ trzy" in tekst
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] limit trzech synergii jest w prompcie")
+        bledy += not ok
+
+        # Zasady mają iść PO instrukcji formatu. Przy sprzeczności model trzyma się
+        # tego, co przeczytał ostatnie — a plik `synergie.md` dalej opisuje format.
+        ok = tekst.rindex("NIE KLASYFIKUJ KANAŁU") > tekst.rindex("Format każdej synergii")
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] zasady stoją po opisie formatu")
+        bledy += not ok
+
+    # Styl ekspercki kazał wprost nazwać mechanizm współpracy — to był drugi kanał,
+    # którym „white-label" wchodziło do maila, z pominięciem instrukcji synergii.
+    ekspercki = next((t for n, t in app.STYLE_MAILI if n == "ekspercki"), "")
+    zakazane = [w for w in ("white-label", "referral", "15%") if w in ekspercki]
+    ok = not zakazane
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | styl ekspercki nie nazywa kanału"
+          + (f" — znalazłem: {zakazane}" if zakazane else ""))
+    bledy += not ok
+
+    # Plik z instrukcją formatu też nie może kazać rozpoznawać kanału.
+    from pathlib import Path
+    plik = Path(__file__).resolve().parent / "synergie.md"
+    if plik.exists():
+        tresc = plik.read_text(encoding="utf-8")
+        ok = "Najpierw rozpoznaj kanał" not in tresc
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | synergie.md nie każe rozpoznawać kanału")
+        bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -688,6 +740,12 @@ def sprawdz_regresje() -> int:
     print("BOTY AI — czy odróżniamy trenowanie modelu od odpowiadania klientowi")
     print("=" * 74)
     bledy += sprawdz_boty_ai()
+    print()
+
+    print("=" * 74)
+    print("SYNERGIE — bez klasyfikowania kanału, bez naciągania")
+    print("=" * 74)
+    bledy += sprawdz_synergie()
     print()
 
     print("=" * 74)

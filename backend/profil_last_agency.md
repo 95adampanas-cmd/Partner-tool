@@ -146,8 +146,11 @@ Przy generowaniu synergii / powodów do współpracy:
 - Zestawiaj research partnera z całością powyższego profilu.
 - Szukaj **komplementarności** (co partner robi, a czego nie — i gdzie Last Agency
   wypełnia lukę), a nie tego, w czym się dublujecie.
-- Wskazuj konkretnie, jak model partnerski (15% + marża, tryb white-label, darmowe
-  warsztaty) pasuje do sytuacji tego partnera.
+- Pisz o **współpracy**, nie o kanale. Nie klasyfikuj partnera jako „white-label"
+  ani „referral" i nie wchodź w warunki rozliczenia (15%, marża, prowizja) — to
+  ustala się w rozmowie, nie w materiale przygotowanym przed nią. Wiedza z punktu
+  3 służy Ci do zrozumienia, jak działamy, a użyjesz jej dopiero wtedy, gdy ktoś
+  wprost o to zapyta.
 - Jeśli research partnera nie zawiera potrzebnej informacji — powiedz wprost,
   że jej brakuje. Nie zmyślaj danych o partnerze ani o Last Agency.
 - Nie obiecuj cudów; trzymaj ton rzeczowy, zgodny z etosem „wynik, nie próżność".
