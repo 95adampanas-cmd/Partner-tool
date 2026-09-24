@@ -1239,24 +1239,6 @@ def otworz_podstrone(adres: str) -> str:
 # to widać natychmiast: rozmówca prostuje pierwsze zdanie i reszta traci wagę.
 #
 # Dlatego rozstrzyga branża i kategoria z researchu, a nie najdłuższa lista usług.
-# Gotowe ujęcia synergii dla branż — materiał pisany przez człowieka, nie przez model.
-#
-# PO CO TO, SKORO MAMY JUŻ INSTRUKCJĘ SYNERGII. Bo instrukcja mówi, JAK zbudować
-# synergię, a model i tak buduje ją za każdym razem od nowa — i za każdym razem
-# trochę inaczej. Te same myśli wychodziły raz mocno, raz jak ulotka, zależnie od
-# tego, jak akurat trafił. Tu ma gotowe sformułowania, sprawdzone przez człowieka:
-# ta sama treść brzmi tak samo dobrze przy każdym partnerze z danej branży.
-BRANZE_SYNERGII = (
-    "GOTOWE UJĘCIA SYNERGII DLA BRANŻ." + _NOWA_LINIA +
-    "Poniżej są sprawdzone sformułowania na to, jak Last Agency uzupełnia się "
-    "z każdym typem partnera. DOBIERZ sekcję pasującą do branży badanej firmy "
-    "i OPRZYJ SIĘ NA NIEJ — nie wymyślaj własnej narracji tam, gdzie jest gotowa." + _NOWA_LINIA +
-    "Konkrety o partnerze — jego usługi, klientów, realizacje — dokładasz z researchu. "
-    "Gotowe ujęcie daje myśl, research daje dowód." + _NOWA_LINIA +
-    "Gdy branża nie pasuje do żadnej sekcji, zbuduj synergię od zera i POWIEDZ WPROST, "
-    "że to ujęcie własne." + _NOWA_LINIA * 2 + profil.synergie_branze())
-
-
 KOTWICA_PROFILU = (
     "ZACZNIJ OD GŁÓWNEGO PROFILU FIRMY." + _NOWA_LINIA +
     "Rozstrzyga pole `branza` i `kategoria` z researchu — to jest to, czym firma JEST "
@@ -1269,53 +1251,18 @@ KOTWICA_PROFILU = (
     "zamiast przesuwać na nią cały opis partnera.")
 
 
-# ── Dwie poprawki z rozmowy z Adamem (24.09.2026) ─────────────────────
-#
-# 1. BEZ NAZYWANIA KANAŁU. Model otwierał każdą analizę zdaniem „Kanał: white-label,
-#    z zastrzeżeniem" i rozliczał współpracę na rabat 15% plus marża. To jest prawda
-#    o naszym modelu, ale nie jest tym, co się mówi partnerowi przed pierwszą
-#    rozmową: brzmi jak zaklasyfikowanie go do szufladki, zanim ktokolwiek
-#    porozmawiał. Profil zostaje w prompcie — model ma wiedzieć, jak działamy,
-#    gdy ktoś zapyta — ale przestaje to ogłaszać z własnej inicjatywy.
-#
-# 2. MNIEJ, PŁYCIEJ, PEWNIEJ. Format wymuszał pięć akapitów na synergię i zejście
-#    aż do klienta klienta, więc model schodził tam nawet wtedy, gdy nie było po co
-#    — i dopisywał punkty w rodzaju „widoczność w AI jako element due diligence przy
-#    przejęciach". Formalnie wynika z researchu, w rozmowie brzmi jak naciąganie.
-#    Jedna wydumana synergia kosztuje wiarygodność wszystkich pozostałych.
-REGULY_SYNERGII = (
-    "DWIE ZASADY NADRZĘDNE, WAŻNIEJSZE NIŻ FORMAT OPISANY NIŻEJ." + _NOWA_LINIA * 2 +
-    "1. NIE KLASYFIKUJ KANAŁU WSPÓŁPRACY. Nie pisz „kanał: white-label”, "
-    "„referral”, „model polecający” ani o rabacie 15%, prowizji czy marży. "
-    "Pisz po prostu o WSPÓŁPRACY. Jak się rozliczymy, ustala się w rozmowie, "
-    "a nie w materiale przygotowanym przed nią. Te informacje są w profilu po to, "
-    "żebyś rozumiał, jak działamy — użyj ich dopiero, gdy user wprost o to zapyta."
-    + _NOWA_LINIA * 2 +
-    "2. NIE NACIĄGAJ I NIE SCHODŹ ZA GŁĘBOKO. Podaj NAJWYŻEJ trzy synergie, "
-    "a jeśli obroni się jedna — podaj jedną. Bierz tylko te, które da się "
-    "wyjaśnić jednym zdaniem i z którymi partner zgodzi się od razu, bez "
-    "tłumaczenia mu drogi na skróty. Synergia wymagająca trzech kroków "
-    "wyjaśnienia nie jest synergią — jest pomysłem." + _NOWA_LINIA +
-    "Nie buduj punktów na pobocznych ścieżkach oferty partnera ani na tym, "
-    "co robi rzadko. Jedna wydumana synergia podważa wiarygodność wszystkich "
-    "pozostałych — a materiał ma służyć rozmowie, nie zrobić wrażenie długością."
-)
-
-
 # Czat: pełny format, ale WYŁĄCZNIE na żądanie. Rozmowa ma zostać rozmową.
 CZAT_SYNERGIE = (
     "PONIŻSZA INSTRUKCJA OBOWIĄZUJE TYLKO WTEDY, gdy user prosi o synergie, "
     "powody do współpracy albo materiał na spotkanie. Przy każdym innym pytaniu "
     "ZIGNORUJ ten format i odpowiadaj normalnie, zwięźle." + _NOWA_LINIA * 2
-    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + BRANZE_SYNERGII
-    + _NOWA_LINIA * 2 + profil.synergie()
-    + _NOWA_LINIA * 2 + REGULY_SYNERGII)
+    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + profil.synergie())
 
 # Mail: bierzemy SPOSÓB MYŚLENIA, nie format. Mail ma mieć kilka zdań i jeden
 # konkret — rozpisana tabelka synergii w pierwszym kontakcie to ulotka, nie list.
 MAIL_SYNERGIE = (
     "JAK SZUKAĆ POWODU DO WSPÓŁPRACY — instrukcja analityczna. Zastosuj sposób "
-    "myślenia opisany niżej: szukaj "
+    "myślenia opisany niżej: dobierz ujęcie pasujące do branży partnera, szukaj "
     "komplementarności zamiast dublowania, nazwij korzyść dla KLIENTA partnera." + _NOWA_LINIA +
     "ALE NIE PRZENOŚ TEGO FORMATU DO MAILA. Nie wypisuj listy synergii, nagłówków "
     "ani punktów „Wpływ na wyniki”. Z całej analizy wybierz JEDEN najmocniejszy "
@@ -1327,9 +1274,7 @@ MAIL_SYNERGIE = (
     "się trafny — drugi powód jest zawsze słabszy od pierwszego i zamienia list "
     "w ofertę. Pomysł na poboczną usługę partnera zostaw na rozmowę."
     + _NOWA_LINIA * 2
-    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + BRANZE_SYNERGII
-    + _NOWA_LINIA * 2 + profil.synergie()
-    + _NOWA_LINIA * 2 + REGULY_SYNERGII)
+    + KOTWICA_PROFILU + _NOWA_LINIA * 2 + profil.synergie())
 
 
 # Opis narzędzia dla modelu. Schemat piszemy wprost, zamiast wyprowadzać go

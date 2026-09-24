@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from collections import Counter
 
 import app
+import profil
 
 # ══════════════════════════════════════════════════════════════════════
 #  REGRESJA OFFLINE
@@ -385,7 +386,9 @@ def sprawdz_modele() -> int:
     # Gotowe ujecia synergii dla branz. Bez nich model buduje narracje od zera przy
     # kazdym partnerze — raz mocno, raz jak ulotka. Z nimi ta sama mysl brzmi tak samo
     # dobrze przy kazdej firmie z danej branzy.
-    if all("GOTOWE UJĘCIA SYNERGII" in x for x in (app.CZAT_SYNERGIE, app.MAIL_SYNERGIE)):
+    # Naglowek zmienil sie 24.09.2026 przy scaleniu dwoch plikow w jeden — szczegoly
+    # sprawdza sprawdz_synergie(), tu pilnujemy samego faktu podpiecia.
+    if all("CZĘŚĆ 2 — GOTOWE UJĘCIA" in x for x in (app.CZAT_SYNERGIE, app.MAIL_SYNERGIE)):
         print("  OK   | gotowe ujecia branzowe podpiete do czatu i maili")
     else:
         print("  BŁĄD | brak ujec branzowych — model wymysla narracje od zera")
@@ -657,54 +660,70 @@ def sprawdz_kolejke() -> int:
 
 
 def sprawdz_synergie() -> int:
-    """Czy prompty synergii nie klasyfikują kanału i nie każą schodzić za głęboko.
+    """Czy plik synergii jest podpięty tam, gdzie ma być — i czy nic z niego nie wypadło.
 
-    SKĄD TO SIĘ WZIĘŁO. Model otwierał każdą analizę zdaniem „Kanał: white-label,
-    z zastrzeżeniem" i rozliczał współpracę na rabat 15% plus marża — zanim
-    ktokolwiek z partnerem porozmawiał. Do tego format wymuszał pięć akapitów na
-    synergię i zejście aż do klienta klienta, więc model dorabiał konstrukcje
-    w rodzaju „widoczność w AI jako element due diligence przy przejęciach":
-    formalnie wynika z researchu, w rozmowie brzmi jak naciąganie.
+    JEDEN PLIK OD 24.09.2026. Wcześniej były dwa: `synergie.md` (jak pisać)
+    i `synergie_branze.md` (co pisać dla branży), sklejane w app.py. Adam dostarczył
+    jeden spójny dokument; ten test pilnuje, żeby rozjazd nie wrócił bokiem.
 
-    Testujemy PROMPT, nie odpowiedź modelu — odpowiedzi nie da się przypiąć do
-    asercji, ale można sprawdzić, czy instrukcja w ogóle do modelu dociera. Bo to
-    właśnie jest tryb awarii: ktoś podmienia plik `synergie.md` albo przestawia
-    kolejność sklejania i zasady cicho wypadają z promptu.
+    TESTUJEMY PROMPT, NIE ODPOWIEDŹ MODELU. Odpowiedzi nie da się przypiąć do asercji,
+    ale można sprawdzić, czy instrukcja w ogóle do modelu dociera — a to właśnie jest
+    tryb awarii: ktoś podmienia plik albo zmienia sklejanie i połowa materiału cicho
+    wypada z promptu. Nikt tego nie zauważy, bo model i tak coś odpowie.
     """
     bledy = 0
 
+    tresc = profil.synergie()
+    ok = len(tresc) > 20000
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | plik synergii wczytany ({len(tresc)} znaków)")
+    bledy += not ok
+
+    # Trzy części pliku pełnią trzy różne role. Brak którejkolwiek to inny produkt:
+    # bez części 2 model wymyśla narrację od zera, bez części 3 dobiera sekcję na oko.
+    for czesc in ("CZĘŚĆ 1 — INSTRUKCJA", "CZĘŚĆ 2 — GOTOWE UJĘCIA",
+                  "CZĘŚĆ 3 — DOBÓR SEKCJI"):
+        ok = czesc in tresc
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {czesc}")
+        bledy += not ok
+
     for nazwa, tekst in (("czat", app.CZAT_SYNERGIE), ("mail", app.MAIL_SYNERGIE)):
-        ok = "NIE KLASYFIKUJ KANAŁU" in tekst
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] zakaz nazywania kanału jest w prompcie")
+        ok = tresc in tekst
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] dostaje CAŁY plik, nie wycinek")
         bledy += not ok
 
-        ok = "NIE NACIĄGAJ" in tekst and "NAJWYŻEJ trzy" in tekst
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] limit trzech synergii jest w prompcie")
+    # Zakazy z części „O czym NIE piszesz" — to jest polecenie Adama z 24.09.2026
+    # i najłatwiejsza rzecz do zgubienia przy podmianie pliku.
+    for fragment, opis in (("Żadnego modelu współpracy", "zakaz nazywania modelu współpracy"),
+                           ("Żadnych pieniędzy", "zakaz rabatu, prowizji i marży")):
+        ok = fragment in tresc
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
         bledy += not ok
 
-        # Zasady mają iść PO instrukcji formatu. Przy sprzeczności model trzyma się
-        # tego, co przeczytał ostatnie — a plik `synergie.md` dalej opisuje format.
-        ok = tekst.rindex("NIE KLASYFIKUJ KANAŁU") > tekst.rindex("Format każdej synergii")
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | [{nazwa}] zasady stoją po opisie formatu")
-        bledy += not ok
-
-    # Styl ekspercki kazał wprost nazwać mechanizm współpracy — to był drugi kanał,
-    # którym „white-label" wchodziło do maila, z pominięciem instrukcji synergii.
+    # Styl ekspercki był drugą drogą, którą „white label" wchodziło do maila,
+    # z pominięciem instrukcji synergii.
     ekspercki = next((t for n, t in app.STYLE_MAILI if n == "ekspercki"), "")
-    zakazane = [w for w in ("white-label", "referral", "15%") if w in ekspercki]
+    zakazane = [w for w in ("white-label", "white label", "referral", "15%") if w in ekspercki]
     ok = not zakazane
-    print(f"  {'OK  ' if ok else 'BŁĄD'} | styl ekspercki nie nazywa kanału"
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | styl ekspercki nie nazywa modelu współpracy"
           + (f" — znalazłem: {zakazane}" if zakazane else ""))
     bledy += not ok
 
-    # Plik z instrukcją formatu też nie może kazać rozpoznawać kanału.
+    # Tabela doboru sekcji musi mówić TYMI SAMYMI nazwami kategorii, którymi
+    # narzędzie taguje firmy. Rozjazd nie wywala niczego — po prostu model
+    # przestaje trafiać w gotowe ujęcie i pisze własne.
+    brak = [k for k in app.KATEGORIE_PARTNEROW if k not in tresc]
+    ok = not brak
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | tabela doboru zna wszystkie kategorie narzędzia"
+          + (f" — brakuje: {brak}" if brak else ""))
+    bledy += not ok
+
+    # Stary plik nie może wrócić niezauważony: wczytywałby się obok nowego
+    # i model dostawałby dwa opisy tego samego formatu.
     from pathlib import Path
-    plik = Path(__file__).resolve().parent / "synergie.md"
-    if plik.exists():
-        tresc = plik.read_text(encoding="utf-8")
-        ok = "Najpierw rozpoznaj kanał" not in tresc
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | synergie.md nie każe rozpoznawać kanału")
-        bledy += not ok
+    stary = Path(__file__).resolve().parent / "synergie_branze.md"
+    ok = not stary.exists()
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nie ma już osobnego synergie_branze.md")
+    bledy += not ok
     return bledy
 
 
@@ -743,7 +762,7 @@ def sprawdz_regresje() -> int:
     print()
 
     print("=" * 74)
-    print("SYNERGIE — bez klasyfikowania kanału, bez naciągania")
+    print("SYNERGIE — czy jeden plik trafia do czatu i do maili")
     print("=" * 74)
     bledy += sprawdz_synergie()
     print()
