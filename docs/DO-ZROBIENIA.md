@@ -102,3 +102,38 @@ import, który wrzuca 182 firmy do kolejki „Do zbadania" — stamtąd idą nor
 **Czego NIE robić.** Nie wyciągać listingu ze stron kategorii (`/agencje-e-commerce`).
 Tam też są dane, ale bez adresów i z kruchym parsowaniem — wyciągnięte nazwy wychodzą
 ucięte („All 4", „SaM", „Brand"). Sitemapa profili jest źródłem stabilnym.
+
+---
+
+## 3. Raport z audytu GEO na tym samym wzorze co dokument dla klienta
+
+**Skąd to się wzięło.** 25.09.2026 powstał generator dokumentu dla klienta partnera
+(`backend/dokument.py` + `szablon_dokumentu.html`): wzór ICEA, logo, case study
+Botland, nominacja do European Search Awards, sekcja o podziale ról. Raport z audytu
+GEO ma dziś zupełnie inny wygląd — to `raportHTML()` w `frontend/app.js`, czyli
+widok wewnątrz narzędzia, nie dokument do wysłania.
+
+**Co zrobić.** Raport z audytu ma wychodzić jako plik na TYM SAMYM wzorze:
+identyfikacja ICEA, case Botland, argumentacja i sekcja synergii — a w środku
+dane z audytu zamiast mikroaudytu z trzech pytań.
+
+**Co już jest gotowe do użycia:**
+
+| element | gdzie leży |
+|---|---|
+| wzór HTML z całą identyfikacją | `backend/szablon_dokumentu.html` |
+| podmiana sekcji przez regex | `dokument.WZORY` |
+| przewijana ramka z odpowiedziami | `dokument.STYLE_SLAJDOW`, `SKRYPT_SLAJDOW` |
+| czyszczenie markdownu z odpowiedzi | `dokument._odpowiedz_html()` |
+| nazwa pliku do pobrania | `dokument.nazwa_pliku()` |
+
+**Czego raport ma więcej niż dokument.** Audyt zwraca dane, których w dokumencie
+nie ma: wykres widoczności, tabela konkurentów, analiza źródeł, obecność
+w rankingach, AI Overviews (w audycie nr 1). Dla każdego z nich trzeba ustalić,
+w które miejsce wzoru wchodzi — albo świadomie zdecydować, że nie wchodzi.
+
+**Pytanie do rozstrzygnięcia przed kodowaniem:** czy to jeden generator z dwoma
+trybami, czy dwa osobne. Dokument dla klienta jest krótki i sprzedażowy, raport
+z audytu jest długi i dowodowy. Wspólny jest wzór, nie treść — więc najpewniej
+wspólna zostaje warstwa składania (podmiana sekcji, style, skrypt), a każdy
+produkt ma własny zestaw sekcji.
