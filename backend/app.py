@@ -2573,10 +2573,12 @@ async def api_dokument(request):
                 surowy["tekst"], surowy["zrodla"], nazwa_klienta, domena_klienta, pytanie))
 
         wspomniana = [w for w in wiersze if w["wspomniana"]]
-        # Do ramki z dowodem bierzemy odpowiedź, w której marka PADŁA, a gdy nie
-        # padła w żadnej — pierwszą z brzegu. W obu przypadkach klient widzi to,
-        # co naprawdę wyszło, a nie wybraną pod tezę próbkę.
-        dowod = (wspomniana or wiersze)[0]
+        # WSZYSTKIE TRZY ODPOWIEDZI IDĄ DO DOKUMENTU, w kolejności zadawania.
+        # Wcześniej wybieraliśmy jedną do ramki, a pozostałe ginęły — klient
+        # widział trzy pytania i dowód na jedno z nich. Ramka przewija się jak
+        # slajdy, więc nie ma potrzeby niczego wybierać za czytającego.
+        odpowiedzi = [{"pytanie": w["prompt"], "odpowiedz": w["odpowiedz"],
+                       "wspomniana": w["wspomniana"]} for w in wiersze]
 
         techniczne = None
         if url_klienta:
@@ -2590,7 +2592,7 @@ async def api_dokument(request):
             "wspomniana": len(wspomniana),
             "prob": len(wiersze),
             "konkurenci": sorted({m for w in wiersze for m in (w["marki"] or [])})[:8],
-            "dowod": {"pytanie": dowod["prompt"], "odpowiedz": dowod["odpowiedz"]},
+            "odpowiedzi": odpowiedzi,
             "data": f"{_dt.now():%d.%m.%Y}",
         }
 

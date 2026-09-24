@@ -943,6 +943,54 @@ def sprawdz_dokument() -> int:
     print(f"  {'OK  ' if ok else 'BŁĄD'} | tekst z modelu jest escapowany")
     bledy += not ok
 
+    # ── Przewijana ramka z odpowiedziami ─────────────────────────────
+    # Trzy pytania i trzy odpowiedzi. Wcześniej ramka pokazywała jedną wybraną,
+    # a pozostałe dwie ginęły — klient widział listę pytań i dowód na jedno z nich.
+    badanie3 = {
+        "pytania": ["gdzie kupić sukienkę", "jaki sklep ma sukienki", "gdzie boutique"],
+        "data": "25.09.2026",
+        "odpowiedzi": [
+            {"pytanie": f"pytanie {i}",
+             "odpowiedz": "Polecam **Zalando** ([zalando.pl](https://zalando.pl?utm_source=openai)) i **COS**."}
+            for i in (1, 2, 3)],
+    }
+    html3 = dokument.zbuduj(tresc, badanie3, "Tebim")
+
+    sprawdzenia = [
+        (html3.count('class="slajd"') == 3, "trzy slajdy, po jednym na pytanie"),
+        (html3.count('class="kropka') == 3, "trzy kropki nawigacji"),
+        ('id="ekran-odpowiedzi"' in html3 and "<script>" in html3, "ramka ma obsługę klikania"),
+        (html3.count('class="pytanie-link"') == 3, "pytania po lewej są klikalne"),
+    ]
+    for ok, opis in sprawdzenia:
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+        bledy += not ok
+
+    # Markdown z ChatGPT nie może trafić do dokumentu surowy — we wzorze widać
+    # było `**Zalando**` z gwiazdkami, jak wklejony log.
+    sekcja = html3.split("s-zmiana")[1][:4000]
+    ok = "**" not in sekcja and "<strong>Zalando</strong>" in html3
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pogrubienie z markdownu zamienione na <strong>")
+    bledy += not ok
+
+    ok = "utm_source=openai" not in html3
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | przypisy z linkami wycięte z odpowiedzi")
+    bledy += not ok
+
+    # Kartki nie da się kliknąć, więc w druku wszystkie odpowiedzi są pod sobą.
+    ok = ".ekran .slajd[hidden]{display:block !important;}" in dokument.STYLE_SLAJDOW
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | w wydruku widać wszystkie trzy odpowiedzi")
+    bledy += not ok
+
+    # Jedna odpowiedź to nie slajder — nawigacja nie ma wtedy czego przewijać.
+    html1 = dokument.zbuduj(tresc, dict(badanie3, odpowiedzi=badanie3["odpowiedzi"][:1],
+                                        pytania=badanie3["pytania"][:1]), "Tebim")
+    # Szukamy ZNACZNIKA, nie nazwy klasy: nazwa jest też w arkuszu stylów, który
+    # dokładamy zawsze. Pierwsza wersja tego testu wywalała się właśnie na tym.
+    ok = '<div class="slajd-nawigacja">' not in html1
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | przy jednej odpowiedzi nawigacja się nie pojawia")
+    bledy += not ok
+
     # Nazwa pliku trafia do przeglądarki — bez polskich znaków i spacji.
     nazwa = dokument.nazwa_pliku("Ella Boutique Łódź")
     ok = nazwa.startswith("ai-search-ella-boutique-lodz-") and nazwa.endswith(".html")
