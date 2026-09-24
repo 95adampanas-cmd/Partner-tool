@@ -816,8 +816,18 @@ def zbuduj_csv(firmy: list[dict]) -> str:
 
 
 def baza_maili() -> str:
-    """Baza wiedzy mailingu — plik .md czytany na bieżąco (edycja = lepsze maile bez zmian w kodzie)."""
-    plik = DOCS / "email-examples.md"
+    """Wzorce maili do partnerów — plik .md czytany na bieżąco.
+
+    ZASTĄPIŁ `email-examples.md` (24.09.2026). Tamten zbierał przykłady maili, które
+    kiedyś zadziałały, i własne zasady stylu — powstał, zanim zespół ustalił, jak te
+    maile mają wyglądać. Nowy plik to gotowe WZORCE pisane przez człowieka: pięć
+    szablonów pod typ partnera plus zasady (jeden konkret z researchu, jedna prośba,
+    ok. 150 słów, forma „Państwo", bez modelu współpracy i bez pieniędzy).
+
+    Edycja pliku = inne maile, bez zmian w kodzie. To celowe: teksty poprawia ten,
+    kto je wysyła, a nie ten, kto akurat edytuje Pythona.
+    """
+    plik = DOCS / "maile-do-partnerow.md"
     return plik.read_text(encoding="utf-8") if plik.exists() else ""
 
 
@@ -1155,38 +1165,66 @@ zadanie_prompty = claude.Zadanie(
 MAIL_SYSTEM = """Jesteś partnership managerem w Last Agency — agencji SEO/GEO/SEM.
 Piszesz krótkiego, spersonalizowanego maila z propozycją współpracy partnerskiej.
 
-KONTEKST:
-- Klienci Last Agency pytają o usługi, których MY NIE świadczymy — takie, jakie ma odbiorca.
-- Chcemy kierować takich klientów do zaufanych partnerów.
-- Jednocześnie klienci odbiorcy mogą potrzebować SEO/GEO/SEM, które pokrywa Last Agency.
-- Cel maila: umówić krótką rozmowę o potencjale partnerskim.
-- To propozycja partnerstwa MIĘDZY RÓWNYMI STRONAMI, nie oferta sprzedażowa.
+MYŚL PRZEWODNIA: nasi klienci potrzebują usług partnera, a jego klienci — naszych.
+To propozycja współpracy MIĘDZY RÓWNYMI STRONAMI, nie oferta sprzedażowa. Cel maila:
+umówić krótką rozmowę.
 
-Mail oprzyj na danych firmy z researchu — nawiąż KONKRETNIE do tego, czym się zajmuje
-(nazwij ich usługi), żeby mail nie był generyczny. Nie zmyślaj: jeśli czegoś nie ma
-w danych, nie wspominaj o tym.
+PISZESZ Z GOTOWEGO WZORCA, NIE OD ZERA. W bazie wiedzy niżej są wzorce maili napisane
+przez zespół, razem z zasadami. Wybierz wzorzec wskazany w STYLU, zachowaj jego
+konstrukcję i ton, a miejsca w nawiasach kwadratowych wypełnij konkretami z researchu.
+Nie przepisuj wzorca dosłownie tam, gdzie da się powiedzieć to samo o TYM partnerze —
+ale nie przebudowuj go też w inny mail.
 
-Trzymaj się struktury, zasad i przykładów z bazy wiedzy mailingu, którą dostajesz.
-Szczególnie sekcji „Czego NIE robić".
+ZASADY Z BAZY OBOWIĄZUJĄ BEZWZGLĘDNIE: forma „Państwo", około 150 słów, jeden konkret
+z researchu, jedna prośba na końcu, żadnego modelu współpracy (white label, referral)
+ani pieniędzy.
+
+Nie zmyślaj. Jeśli czegoś nie ma w researchu — nie wspominaj o tym. Zdanie o tym, że
+nasi klienci potrzebują usług partnera, pisz tylko wtedy, gdy to prawda dla tego typu
+firm; przy wątpliwości użyj łagodniejszej formy („zdarza się, że…").
+
+Nie pisz „przyglądaliśmy się Wam" ani „analizowaliśmy Waszą firmę" — brzmi jak
+śledzenie. Nie zachwycaj się przesadnie i nie obiecuj efektów.
+
+PODPIS I TEMAT — sprawdzone na trzech wygenerowanych mailach, bo za każdym razem
+wychodziło inaczej:
+- Temat w pierwszej linii jako „Temat: …", bez gwiazdek i pogrubień. We wzorcu jest
+  zapisany jako **Temat:**, ale to formatowanie dokumentu, nie treść maila.
+- W podpisie zostaw [Imię Nazwisko] i [Stanowisko] w nawiasach — mail wysyła człowiek
+  i to on je uzupełni. Telefonu NIE zmyślaj i nie zostawiaj jako „+48 [telefon]":
+  albo podaj numer z profilu Last Agency, albo pomiń linię.
 
 Zwróć SAM MAIL (temat w pierwszej linii + treść), bez komentarzy i wyjaśnień."""
 
-# Style muszą się REALNIE różnić — inaczej dostajemy 3 warianty tego samego maila.
-# Dlatego każdy ma narzuconą inną długość, inne otwarcie i inne CTA.
+# TRZY WERSJE, KTÓRE ROBIĄ TRZY RÓŻNE RZECZY — a nie trzy tony tego samego maila.
+#
+# CO SIĘ ZMIENIŁO 24.09.2026. Wcześniej były style: rzeczowy, partnerski, ekspercki.
+# Po wejściu wzorców od Adama przestało to mieć sens z dwóch powodów. Po pierwsze,
+# „partnerski" kazał pisać nieformalnie, na „Cześć" — a wzorce mówią wprost: forma
+# „Państwo". Sprzeczne polecenia w jednym prompcie to loteria, nie styl. Po drugie,
+# wzorce są dobrane pod TYP PARTNERA (web dev, marketing, usługi eksperckie), więc
+# generowanie trzech tonów jednego wzorca dawało trzy prawie identyczne maile.
+#
+# Teraz każda wersja ma inne zastosowanie: jedna do wysłania teraz, jedna gdy tamta
+# nie pasuje, jedna na potem. To jest różnica, którą widać przy wyborze.
 STYLE_MAILI = [
-    ("rzeczowy",
-     "Rzeczowo i konkretnie, jak zabiegany decydent. MAKSYMALNIE 4 zdania w całym mailu. "
-     "Zero ozdobników. Otwarcie: od razu po co piszesz. CTA: konkretna propozycja terminu "
-     "(np. 'wtorek albo środa, 15 minut?'). Zwracaj się per 'Dzień dobry'."),
-    ("partnerski",
-     "Ciepło i partnersko, ton nieformalny, na 'Cześć'. Otwarcie: od wspólnego mianownika — "
-     "obsługujemy podobnych klientów, tylko z dwóch różnych stron. Możesz użyć jednego pytania "
-     "retorycznego. CTA: luźne zaproszenie do rozmowy, bez narzucania terminu."),
-    ("ekspercki",
-     "Ekspercko — pokazujesz, że rozumiesz ICH model biznesowy. Otwarcie: konkretny insight "
-     "branżowy (np. co dzieje się z ich klientem PO zakończeniu ich projektu i czego wtedy "
-     "potrzebuje). NIE nazywaj mechanizmu współpracy ani warunków rozliczenia — "
-     "o tym rozmawia się na rozmowie. CTA: propozycja rozmowy o współpracy."),
+    ("dopasowany",
+     "Weź z bazy wzorzec pasujący do TEGO partnera — Mail 2 (web dev i e-commerce), "
+     "Mail 3 (marketing: performance, social media, PR, content) albo Mail 4 (usługi "
+     "eksperckie: prawo, doradztwo, szkolenia). Wzorzec dobierz po tym, czym firma "
+     "naprawdę się zajmuje według researchu, a nie po nazwie kategorii. Wypełnij "
+     "miejsca w nawiasach kwadratowych konkretami z researchu — nie zostawiaj żadnego "
+     "nawiasu w gotowym mailu poza podpisem. Gdy żaden z trzech wzorców nie pasuje, "
+     "użyj Maila 1."),
+    ("uniwersalny",
+     "Użyj wzorca Mail 1 (uniwersalny). To wersja na wypadek, gdyby dopasowany wzorzec "
+     "trafiał obok — trzyma się samej wymiany klientów, bez założeń o specyfice branży. "
+     "Konkret z researchu wstaw dokładnie jeden."),
+    ("follow-up",
+     "Użyj wzorca Mail 5 (follow-up) — wiadomość wysyłana, gdy na pierwszą nie ma "
+     "odpowiedzi. Krótka, bez powtarzania argumentów z pierwszego maila i bez nacisku. "
+     "W temacie zostaw „Re:” i temat pierwszej wiadomości. Nie dopisuj nowych powodów "
+     "do współpracy — ta wiadomość ma przypominać, a nie przekonywać."),
 ]
 
 # Poprawianie gotowego maila. Osobny agent, bo zadanie jest inne niz pisanie od zera:
@@ -1803,7 +1841,7 @@ async def api_similar(request):
 
 
 async def api_email(request):
-    """Funkcja 3 — 3 drafty maila na bazie docs/email-examples.md."""
+    """Funkcja 3 — 3 wersje maila na bazie docs/maile-do-partnerow.md."""
     try:
         body = await request.json()
         firma = body.get("firma") or {}

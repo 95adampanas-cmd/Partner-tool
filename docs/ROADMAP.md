@@ -5,7 +5,7 @@
 
 ## Faza 0 — Setup ✅
 - ✅ PRD v1.0 (`docs/PRD.md`) + recenzja z wyłapanymi lukami
-- ✅ Struktura repo + dokumenty (PRD, ROADMAP, DECISIONS, DATA-MODEL, email-examples)
+- ✅ Struktura repo + dokumenty (PRD, ROADMAP, DECISIONS, DATA-MODEL, wzorce maili)
 - ✅ `.env` z kluczami (OPENAI_API_KEY, TVLY_API_KEY)
 - ✅ Domknięte luki: model danych, persona (= osoba decyzyjna), definicja konkurenta
 - ⬜ **Repo na GitHub + push** ← jedyne, co zostało z Fazy 0
@@ -29,7 +29,7 @@
 - ✅ `test_filtr.py` — powtarzalny audyt jakości filtra
 
 ### F3 — Generowanie draftu maila ✅
-- ✅ Baza wiedzy mailingu (`docs/email-examples.md`)
+- ✅ Wzorce maili do partnerów (`docs/maile-do-partnerow.md`)
 - ✅ 3 style równolegle (rzeczowy / partnerski / ekspercki), oparte na researchu
 - ✅ Kopiowanie do schowka, ponowne generowanie
 

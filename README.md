@@ -25,7 +25,7 @@ docs/        dokumentacja produktu (źródło prawdy)
 - [ROADMAP.md](docs/ROADMAP.md) — fazy i status
 - [DECISIONS.md](docs/DECISIONS.md) — log decyzji + otwarte pytania
 - [DATA-MODEL.md](docs/DATA-MODEL.md) — schemat rekordu firmy ⚠️ do domknięcia
-- [email-examples.md](docs/email-examples.md) — baza wiedzy mailingu (zależność F3)
+- [maile-do-partnerow.md](docs/maile-do-partnerow.md) — wzorce maili do partnerów (zależność F3)
 
 ## Szybki start (backend)
 

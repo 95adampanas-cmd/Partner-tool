@@ -727,6 +727,68 @@ def sprawdz_synergie() -> int:
     return bledy
 
 
+def sprawdz_maile() -> int:
+    """Czy wzorce maili są podpięte i czy prompt im nie przeczy.
+
+    SKĄD TEN TEST. Wzorce od zespołu mówią: forma „Państwo". Stary styl „partnerski"
+    kazał pisać nieformalnie, na „Cześć". Dwa sprzeczne polecenia w jednym prompcie
+    nie dają błędu — dają lo­terię: raz wychodzi tak, raz inaczej, i nikt nie wie
+    dlaczego. Takie sprzeczności trzeba łapać w kodzie, bo w wyniku są niewidoczne.
+    """
+    bledy = 0
+
+    baza = app.baza_maili()
+    ok = len(baza) > 3000
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | wzorce maili wczytane ({len(baza)} znaków)")
+    bledy += not ok
+
+    # Pięć wzorców. Każdy styl odwołuje się do konkretnego numeru, więc brak
+    # któregokolwiek znaczy, że model dostaje polecenie bez pokrycia.
+    for wzorzec in ("Mail 1 — uniwersalny", "Mail 2 — web dev", "Mail 3 — marketing",
+                    "Mail 4 — usługi eksperckie", "Mail 5 — follow-up"):
+        ok = wzorzec in baza
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | jest wzorzec: {wzorzec}")
+        bledy += not ok
+
+    for zasada, opis in (("Forma „Państwo”", "forma „Państwo”"),
+                         ("Bez modelu współpracy", "bez modelu współpracy i pieniędzy"),
+                         ("150 słów", "limit długości")):
+        ok = zasada in baza
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | zasada w bazie: {opis}")
+        bledy += not ok
+
+    # Trzy wersje mają robić trzy różne rzeczy, a nie trzy tony tego samego maila.
+    nazwy = [n for n, _ in app.STYLE_MAILI]
+    ok = nazwy == ["dopasowany", "uniwersalny", "follow-up"]
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | trzy wersje maila: {', '.join(nazwy)}")
+    bledy += not ok
+
+    # SPRZECZNOŚĆ, KTÓRA BYŁA. Żaden styl nie może kazać pisać na „ty", skoro wzorce
+    # są na „Państwo" — ani wracać do nazywania modelu współpracy.
+    caly = " ".join(o for _, o in app.STYLE_MAILI) + " " + app.MAIL_SYSTEM
+    ok = "Cześć" not in caly and "na 'ty'" not in caly
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | żaden styl nie każe pisać nieformalnie")
+    bledy += not ok
+
+    # Prompt musi przenosić zasady z pliku — sam plik w kontekście nie wystarcza,
+    # bo model traktuje go jako materiał, a nie jako polecenie.
+    for fragment, opis in (("forma „Państwo", "forma „Państwo” w instrukcji"),
+                           ("150 słów", "limit długości w instrukcji"),
+                           ("GOTOWEGO WZORCA", "polecenie pisania z wzorca")):
+        ok = fragment in app.MAIL_SYSTEM
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+        bledy += not ok
+
+    # Stary plik nie może wrócić — czytałby się obok nowego tylko wtedy, gdyby ktoś
+    # przywrócił też starą ścieżkę, ale jego obecność w repo myli przy edycji.
+    from pathlib import Path
+    stary = Path(__file__).resolve().parent.parent / "docs" / "email-examples.md"
+    ok = not stary.exists()
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nie ma już docs/email-examples.md")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -765,6 +827,12 @@ def sprawdz_regresje() -> int:
     print("SYNERGIE — czy jeden plik trafia do czatu i do maili")
     print("=" * 74)
     bledy += sprawdz_synergie()
+    print()
+
+    print("=" * 74)
+    print("MAILE — czy wzorce od zespołu są podpięte i czy prompt im nie przeczy")
+    print("=" * 74)
+    bledy += sprawdz_maile()
     print()
 
     print("=" * 74)
