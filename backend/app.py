@@ -30,6 +30,8 @@ from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.responses import JSONResponse, Response
 from starlette.staticfiles import StaticFiles
+import time as _time
+
 import requests
 from bs4 import BeautifulSoup
 from tavily import TavilyClient
@@ -1246,6 +1248,31 @@ STYLE_MAILI = [
 # jednym żądaniem — nie ma dwóch czatów naraz.
 _czat_domena = ""
 
+# Pamięć pobranych podstron: adres -> (czas pobrania, tekst).
+#
+# PO CO. Rozmowa o jednej firmie to zwykle kilka pytań pod rząd, a model przy każdym
+# sięga po podstronę — często tę samą. Zmierzone na tribe47: pytanie o B2B otworzyło
+# stronę główną, pytanie o synergie /services. Trzecie pytanie o ofertę otworzyłoby
+# /services ponownie, bo nic o tym nie pamiętaliśmy. Każde takie wejście to realne
+# żądanie do cudzego serwera, nasze sekundy i nasze tokeny za tę samą treść.
+#
+# CZEMU TYLKO 15 MINUT. To pamięć na czas rozmowy, nie baza. Strona firmy potrafi się
+# zmienić, a czat ma pokazywać stan dzisiejszy — nie ten sprzed tygodnia. Kwadrans
+# pokrywa jedną sesję pracy nad firmą i nie tworzy cichej, nieaktualnej kopii serwisu.
+_POBRANE: dict[str, tuple[float, str]] = {}
+WAZNOSC_POBRANIA = 900          # sekund
+
+
+def _z_pamieci(url: str) -> str | None:
+    wpis = _POBRANE.get(url)
+    if not wpis:
+        return None
+    kiedy, tresc = wpis
+    if _time.time() - kiedy > WAZNOSC_POBRANIA:
+        _POBRANE.pop(url, None)      # przeterminowane — niech pobierze na nowo
+        return None
+    return tresc
+
 
 def otworz_podstrone(adres: str) -> str:
     """Pobiera treść podstrony z serwisu badanej firmy."""
@@ -1257,10 +1284,20 @@ def otworz_podstrone(adres: str) -> str:
     # wyszłoby z naszego serwera i z naszego IP.
     if domena_z_url(pelny) != _czat_domena:
         return f"Odmowa: {pelny} jest poza domeną {_czat_domena}."
+
+    zapamietane = _z_pamieci(pelny)
+    if zapamietane is not None:
+        # Znacznik [TREŚĆ <url>] musi zostać, bo to po nim `claude._adres_z_tresci`
+        # rozpoznaje, którą podstronę agent naprawdę otworzył. Bez niego lista źródeł
+        # pod odpowiedzią byłaby pusta przy każdym trafieniu w pamięć.
+        return zapamietane
+
     html = pobierz(pelny)
     if not html:
         return f"Nie udało się pobrać {pelny} (blokada bota albo strona nie istnieje)."
-    return f"[TREŚĆ {pelny}]" + _NOWA_LINIA + tekst_ze_strony(html)[:6000]
+    tresc = f"[TREŚĆ {pelny}]" + _NOWA_LINIA + tekst_ze_strony(html)[:6000]
+    _POBRANE[pelny] = (_time.time(), tresc)
+    return tresc
 
 
 # ── Instrukcja synergii, w dwóch różnych zakresach ────────────────────
@@ -2221,11 +2258,32 @@ async def api_czat(request):
 
         # Karta firmy jako punkt wyjścia — bez niej agent zaczynałby od zera
         # i dociągał podstrony, które już mamy.
+        #
+        # PEŁNA KARTA, NIE DZIEWIĘĆ PÓL. Wcześniej szło tu dziewięć wybranych, a poza
+        # nimi zostawały w bazie: persona (imię, stanowisko, mail), kategoria, liczba
+        # projektów i kontakt. Skutek widać było w rozmowie — na „do kogo napisać"
+        # model odpowiadał, że nie wie, choć research ustalił „Ewa Wysocka, CEO".
+        # Cała karta to ~2 kB, czyli mniej niż tysiąc tokenów; oszczędzanie na niej
+        # nic nie dawało, a kosztowało odpowiedzi.
+        POMIJANE = ("zrodlo_danych", "tryb", "w_koszyku", "zbadana", "url")
         karta = {k: v for k, v in firma.items()
-                 if k in ("nazwa", "branza", "opis", "uslugi", "case_studies",
-                          "wielkosc_zespolu", "miasto", "ma_seo", "seo_zakres")}
+                 if k not in POMIJANE and v not in (None, "", [], BRAK)}
+
+        # Podstrony przeczytane przy researchu. Model dostawał wcześniej samą kartę
+        # i wybierał, gdzie zajrzeć, na ślepo — przy pytaniu o synergie poszedł na
+        # /services, choć research czytał już /services/strategy-and-insights.
+        # Ta lista nie zabrania mu nigdzie wchodzić; mówi tylko, co jest już
+        # przerobione, żeby sięgał po NOWE, a nie po to samo drugi raz.
+        czytane = [u for u in (firma.get("zrodlo_danych") or []) if u]
+
         wejscie = ("FIRMA: " + (firma.get("url") or "") + _NOWA_LINIA
-                   + "DANE Z RESEARCHU: " + str(karta) + _NOWA_LINIA + _NOWA_LINIA)
+                   + "DANE Z RESEARCHU: " + str(karta) + _NOWA_LINIA)
+        if czytane:
+            wejscie += ("PODSTRONY JUŻ PRZECZYTANE PRZY RESEARCHU (wnioski z nich są "
+                        "w danych wyżej — otwieraj je ponownie tylko wtedy, gdy "
+                        "szukasz szczegółu, którego karta nie zawiera): "
+                        + ", ".join(czytane[:12]) + _NOWA_LINIA)
+        wejscie += _NOWA_LINIA
         for w in historia[-6:]:          # sześć ostatnich wystarczy na sensowny wątek
             rola = "PYTANIE" if w.get("rola") == "user" else "ODPOWIEDZ"
             wejscie += rola + ": " + str(w.get("tresc") or "")[:1500] + _NOWA_LINIA

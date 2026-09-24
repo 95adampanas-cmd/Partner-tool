@@ -23,6 +23,8 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 from collections import Counter
 
+import inspect
+
 import app
 import profil
 
@@ -789,6 +791,79 @@ def sprawdz_maile() -> int:
     return bledy
 
 
+def sprawdz_czat() -> int:
+    """Czy czat dostaje pełną kartę i czy nie pobiera dwa razy tej samej podstrony.
+
+    SKĄD TEN TEST. Zmierzone 24.09.2026 na tribe47: czat dostawał dziewięć pól
+    z dwudziestu pięciu, więc na pytanie „do kogo napisać" odpowiadał, że nie wie —
+    choć research ustalił „Ewa Wysocka, CEO" i zapisał to w bazie. Do tego każde
+    pytanie pobierało podstronę od nowa, bo `pobierz()` nie ma pamięci, a treści
+    stron nie trzymamy nigdzie.
+    """
+    import time
+
+    bledy = 0
+
+    # ── Pamięć pobrań. Liczymy REALNE żądania, podstawiając własny `pobierz`.
+    wywolania = []
+
+    def udawany_pobierz(url, timeout=15):
+        wywolania.append(url)
+        return "<html><body><p>Oferta firmy</p></body></html>"
+
+    oryginal_pobierz, oryginalna_domena = app.pobierz, app._czat_domena
+    stan_pamieci = dict(app._POBRANE)
+    app.pobierz = udawany_pobierz
+    app._czat_domena = "przyklad.pl"
+    app._POBRANE.clear()
+    try:
+        a = app.otworz_podstrone("https://przyklad.pl/oferta")
+        b = app.otworz_podstrone("https://przyklad.pl/oferta")
+        c = app.otworz_podstrone("https://przyklad.pl/kontakt")
+
+        sprawdzenia = [
+            (len(wywolania) == 2, f"dwa adresy = dwa pobrania (było {len(wywolania)})"),
+            (a == b, "drugie pytanie o tę samą stronę dostaje tę samą treść"),
+            ("[TREŚĆ https://przyklad.pl/oferta]" in b,
+             "treść z pamięci zachowuje znacznik — inaczej znika lista źródeł"),
+            ("kontakt" in c or "Odmowa" not in c, "inna podstrona pobiera się normalnie"),
+        ]
+        for ok, opis in sprawdzenia:
+            print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+            bledy += not ok
+
+        # Przeterminowanie. Bez tego pamięć zamienia się w cichą kopię serwisu:
+        # strona się zmienia, a czat miesiącami opowiada stan sprzed zmiany.
+        app._POBRANE["https://przyklad.pl/oferta"] = (
+            time.time() - app.WAZNOSC_POBRANIA - 1, "stare")
+        app.otworz_podstrone("https://przyklad.pl/oferta")
+        ok = len(wywolania) == 3
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | po wygaśnięciu pobiera na nowo")
+        bledy += not ok
+
+        # Ograniczenie do domeny firmy musi przeżyć dołożenie pamięci — inaczej
+        # narzędzie staje się otwartym proxy z naszego IP.
+        obca = app.otworz_podstrone("https://inna-domena.pl/cokolwiek")
+        ok = obca.startswith("Odmowa")
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | adres spoza domeny firmy dalej odrzucany")
+        bledy += not ok
+    finally:
+        app.pobierz, app._czat_domena = oryginal_pobierz, oryginalna_domena
+        app._POBRANE.clear()
+        app._POBRANE.update(stan_pamieci)
+
+    # ── Karta firmy. Sprawdzamy, czego NIE wolno pominąć.
+    zrodlo = inspect.getsource(app.api_czat)
+    ok = '"zrodlo_danych", "tryb", "w_koszyku", "zbadana", "url"' in zrodlo
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | karta idzie w całości, poza polami technicznymi")
+    bledy += not ok
+
+    ok = "PODSTRONY JUŻ PRZECZYTANE" in zrodlo
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | model wie, co research już przeczytał")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -827,6 +902,12 @@ def sprawdz_regresje() -> int:
     print("SYNERGIE — czy jeden plik trafia do czatu i do maili")
     print("=" * 74)
     bledy += sprawdz_synergie()
+    print()
+
+    print("=" * 74)
+    print("CZAT — pełna karta firmy i pamięć pobranych podstron")
+    print("=" * 74)
+    bledy += sprawdz_czat()
     print()
 
     print("=" * 74)
