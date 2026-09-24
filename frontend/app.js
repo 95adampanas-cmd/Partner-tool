@@ -110,6 +110,7 @@ function pokazSekcje(nazwa) {
   if (nazwa === "maile") renderMaile();
   if (nazwa === "rozmowa") renderRozmowa();
   if (nazwa === "audytgeo") renderAudytGeo();
+  if (nazwa === "dokument") renderDokument();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
@@ -1189,6 +1190,19 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
+  const wybDok = e.target.closest(".wybierz-dok");
+  if (wybDok) { dokWybrana = wybDok.dataset.id; return renderDokument(); }
+  if (e.target.classList.contains("zmien-dok")) {
+    dokWybrana = null; dokHtml = null;
+    document.getElementById("dokument-wynik").innerHTML = "";
+    return renderDokument();
+  }
+  const katDok = e.target.closest("[data-dok-klient]");
+  if (katDok) { dokKlient = katDok.dataset.dokKlient; return renderDokument(); }
+  const genDok = e.target.closest(".generuj-dokument");
+  if (genDok) return generujDokument(genDok);
+  if (e.target.closest(".pobierz-dokument")) return plikDokumentu(true);
+  if (e.target.closest(".podglad-dokument")) return plikDokumentu(false);
   const doKolejki = e.target.closest(".do-kolejki-wszystkie");
   if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
   const usunK = e.target.closest(".usun-z-kolejki");
@@ -1279,6 +1293,13 @@ document.addEventListener("change", (e) => {
       ? [...geoSilniki, v] : geoSilniki.filter((x) => x !== v);
     return renderAudytGeo();
   }
+  if (e.target.id === "dok-klient") {
+    dokKlient = e.target.value;
+    const b = document.querySelector(".generuj-dokument");
+    if (b) b.disabled = !dokKlient.trim();
+    return;
+  }
+  if (e.target.id === "dok-klient-url") { dokKlientUrl = e.target.value; return; }
   if (e.target.id === "geo-ile") { geoIle = +e.target.value; return renderAudytGeo(); }
   if (e.target.id === "geo-powtorzenia") { geoPowtorzenia = +e.target.value; return renderAudytGeo(); }
   if (e.target.id === "geo-podpowiedzi") { geoPodpowiedzi = e.target.checked; return renderAudytGeo(); }
@@ -2961,4 +2982,147 @@ function rysujCzat(watek, hist, czeka) {
        </div>`).join("")
     + (czeka ? `<div class="czat-odpowiedz czeka"><pre>Czytam ich stronę…</pre></div>` : "");
   watek.scrollTop = watek.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  DOKUMENT DLA KLIENTA PARTNERA
+// ══════════════════════════════════════════════════════════════════
+// Materiał wysyłany przez partnera DALEJ — do jego klienta. Wzór (ICEA) zostaje
+// nietknięty; pod konkretną parę piszemy trzy sekcje. Szczegóły: backend/dokument.py.
+let dokWybrana = null;      // id partnera
+let dokKlient = "";         // nazwa klienta partnera
+let dokKlientUrl = "";      // jego strona — bez niej nie ma czego sprawdzić
+let dokHtml = null;         // ostatnio wygenerowany plik
+let dokPlik = "";
+
+function renderDokument() {
+  const box = document.getElementById("dokument-wybor");
+  if (!box) return;
+  const firmy = firmyTrybu();
+
+  if (!firmy.length) {
+    box.innerHTML = `<div class="pusto">
+      <svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Najpierw zbadaj partnera.<br><span>Dokument opiera się na tym, co partner
+        realnie robi — bez researchu nie ma z czego pisać.</span></p></div>`;
+    return;
+  }
+
+  const wpis = firmy.find((t) => t.id === dokWybrana);
+
+  // ── Krok 1: dla którego partnera piszemy ──
+  if (!wpis) {
+    box.innerHTML = `<div class="card">
+      <div class="mono"><span class="sq"></span> 1. Od kogo ten materiał idzie</div>
+      <p class="hint">To partner wysyła dokument swojemu klientowi. My piszemy tekst,
+        który on może podpisać.</p>
+      <div class="similar-list">${firmy.map((t) => `
+        <div class="sim-row wybierz-dok" data-id="${t.id}">
+          <div class="sim-info">
+            <span class="sim-name">${esc(t.firma.nazwa)}</span>
+            <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
+          </div>
+          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>`).join("")}</div>
+    </div>`;
+    return;
+  }
+
+  // Klienci partnera pochodzą z `case_studies` — jedynego miejsca w researchu,
+  // gdzie zapisujemy, dla kogo partner pracował. Pusta lista to nie błąd: nie
+  // każdy partner pokazuje realizacje. Wtedy nazwę wpisuje człowiek.
+  const klienci = (wpis.firma.case_studies || []).filter((c) => c && c !== BRAK);
+
+  box.innerHTML = `
+    <div class="card">
+      <div class="wzor-head">
+        <div>
+          <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
+          <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
+        </div>
+        <button class="btn-lekki zmien-dok" type="button">Zmień partnera</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="mono"><i class="sq"></i>2. Do którego klienta partnera</div>
+      ${klienci.length ? `
+        <p class="hint">Z realizacji partnera. Kliknij, żeby wstawić nazwę.</p>
+        <div class="tagi wybieralne">${klienci.map((k) => `
+          <button class="tag${dokKlient === k ? " zaznaczony" : ""}" type="button"
+                  data-dok-klient="${escAttr(k)}">${esc(k)}</button>`).join("")}</div>`
+        : `<p class="hint">Research nie zapisał realizacji tego partnera — wpisz klienta ręcznie.</p>`}
+      <div class="akcje" style="margin:14px 0 10px">
+        <input type="text" id="dok-klient" placeholder="Nazwa klienta" value="${escAttr(dokKlient)}">
+        <input type="text" id="dok-klient-url" placeholder="https://strona-klienta.pl" value="${escAttr(dokKlientUrl)}">
+      </div>
+      <p class="hint">Adres strony jest potrzebny do mikroaudytu: sprawdzamy, czy roboty
+        AI mają na nią wstęp. Bez adresu dokument powstanie, ale bez tej części.</p>
+
+      <button class="akcja glowna generuj-dokument" type="button" ${dokKlient.trim() ? "" : "disabled"}>
+        <svg class="ico sm"><use href="#i-inbox"/></svg>Generuj dokument
+      </button>
+      <p class="hint">Koszt: 3 pytania do ChatGPT + jedno napisanie tekstu. Około $0,05.
+        Case study, nagroda i identyfikacja ICEA zostają w dokumencie bez zmian.</p>
+    </div>`;
+
+  // Kursor w polu, w którym user pisał — inaczej po każdym znaku ucieka na początek.
+  const aktywne = document.activeElement;
+  if (aktywne && aktywne.id === "dok-klient") document.getElementById("dok-klient").focus();
+}
+
+async function generujDokument(przycisk) {
+  const wpis = firmyTrybu().find((t) => t.id === dokWybrana);
+  if (!wpis) return;
+  const wynik = document.getElementById("dokument-wynik");
+  przycisk.disabled = true;
+  wynik.innerHTML = loadingHTML("Pytam ChatGPT o kategorię klienta, sprawdzam roboty i piszę tekst… ~60 s.");
+  try {
+    const res = await fetch("/api/dokument", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firma: wpis.firma,
+        klient: { nazwa: dokKlient.trim(), url: dokKlientUrl.trim() },
+      }),
+    });
+    const d = await res.json();
+    if (!d.ok) { wynik.innerHTML = errorHTML(d.error); return; }
+
+    dokHtml = d.html;
+    dokPlik = d.plik;
+    const b = d.badanie || {};
+    wynik.innerHTML = `<div class="card">
+      <div class="mono"><i class="sq"></i>Gotowe</div>
+      <p class="hint">Pomiar, który wszedł do dokumentu: marka klienta padła w
+        <b>${b.wspomniana} z ${b.prob}</b> odpowiedzi ChatGPT.
+        ${(b.konkurenci || []).length ? `Zamiast niej wymienione: ${esc((b.konkurenci || []).join(", "))}.` : ""}</p>
+      <ul class="hint">${(b.pytania || []).map((p) => `<li>„${esc(p)}"</li>`).join("")}</ul>
+      <div class="akcje">
+        <button class="akcja glowna pobierz-dokument" type="button">
+          <svg class="ico sm"><use href="#i-table"/></svg>Pobierz plik</button>
+        <button class="akcja podglad-dokument" type="button">
+          <svg class="ico sm"><use href="#i-external"/></svg>Otwórz podgląd</button>
+      </div>
+    </div>`;
+  } catch (e) {
+    wynik.innerHTML = errorHTML(e.message);
+  } finally {
+    przycisk.disabled = false;
+  }
+}
+
+function plikDokumentu(pobierz) {
+  if (!dokHtml) return;
+  const blob = new Blob([dokHtml], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  if (pobierz) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = dokPlik || "dokument.html";
+    a.click();
+  } else {
+    window.open(url, "_blank");
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }

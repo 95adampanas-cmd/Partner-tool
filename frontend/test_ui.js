@@ -299,6 +299,21 @@ setTimeout(() => {
   sprawdz("Kolejka: sekcja renderuje pusty stan bez błędu",
     d.getElementById("kolejka-box").innerHTML.includes("Kolejka jest pusta"));
 
+  // Dokument dla klienta partnera. Krok pierwszy to wybor partnera; klientow
+  // bierzemy z jego realizacji, wiec fixture musi je miec.
+  nav("dokument");
+  sprawdz("Dokument: prosi o wybor partnera",
+    d.getElementById("dokument-wybor").innerHTML.includes("Od kogo ten materia"));
+  klik(d.querySelector(".wybierz-dok"));
+  const dokBox = d.getElementById("dokument-wybor").innerHTML;
+  sprawdz("Dokument: po wyborze pyta o klienta partnera",
+    dokBox.includes("Do ktorego klienta") || dokBox.includes("Do kt\u00f3rego klienta"));
+  sprawdz("Dokument: sa pola na nazwe i adres klienta",
+    !!d.getElementById("dok-klient") && !!d.getElementById("dok-klient-url"));
+  // Bez nazwy klienta nie ma czego generowac — przycisk startuje wylaczony.
+  sprawdz("Dokument: generowanie zablokowane bez nazwy klienta",
+    d.querySelector(".generuj-dokument").disabled);
+
   nav("eksport");
   sprawdz("Eksport: sekcja renderuje się bez błędu",
     d.getElementById("eksport-box").innerHTML.length > 0);

@@ -30,6 +30,8 @@ from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.responses import JSONResponse, Response
 from starlette.staticfiles import StaticFiles
+import json as _json
+from datetime import datetime as _dt
 import time as _time
 
 import requests
@@ -44,6 +46,7 @@ import claude
 import mapy
 import krs as krs_api
 import dfs
+import dokument
 import geo
 import profil
 import szukaj_google
@@ -1452,6 +1455,96 @@ zadania_mail = [
 ]
 
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  DOKUMENT DLA KLIENTA PARTNERA
+# ══════════════════════════════════════════════════════════════════════
+# Materiał na wzorze ICEA, z trzema sekcjami pisanymi pod konkretną parę: partner
+# i jego klient. Odbiorcą jest KLIENT — firma, która ma już od partnera sklep,
+# stronę albo kampanie. Szczegóły składania pliku: backend/dokument.py.
+class Kafel(BaseModel):
+    tytul: str
+    opis: str
+
+
+class TrescDokumentu(BaseModel):
+    wstep_tytul: str
+    wstep_tresc: str
+    audyt_wstep: str
+    audyt_wniosek: str
+    dostep_tytul: str
+    dostep_tresc: str
+    role_tytul: str
+    role_wstep: str
+    braki: list[Kafel]
+    rola_partner_tytul: str
+    rola_partner: list[str]
+    rola_my: list[str]
+    role_puenta: str
+
+
+# STYL JEST TU WAŻNIEJSZY NIŻ TREŚĆ i dlatego zajmuje większość promptu. Dokument
+# idzie do klienta partnera pod marką ICEA — ma brzmieć jak reszta pliku, w którym
+# wyląduje. Wzór pisał człowiek: krótkie zdania, zero żargonu, żadnego „rozwiązania
+# szytego na miarę". Model zostawiony bez tych reguł pisze poprawnie i całkowicie
+# obok — a różnicę widać w jednym akapicie.
+DOKUMENT_SYSTEM = """Piszesz trzy fragmenty materiału, który klient dostaje od firmy,
+z którą już pracuje. Reszta dokumentu jest gotowa i napisana przez człowieka — Twoje
+fragmenty mają brzmieć jak ona, inaczej widać szew.
+
+ODBIORCA: firma, która ma już coś od partnera — sklep, stronę, kampanie, opinie.
+Mówisz do niej „Ty", „Twoja firma". O partnerze mówisz w trzeciej osobie i z uznaniem:
+to on zbudował fundament, a my dokładamy warstwę, której sam nie robi. Nikt nikogo nie
+zastępuje i nie ma nic do przejmowania — to zdanie z wzoru oddaje cały ton.
+
+JAK PISAĆ (zasady ze wzoru, trzymaj się ich dosłownie):
+- Krótkie zdania. Jedna myśl na zdanie.
+- Zero żargonu: bez „rozwiązań", „synergii", „optymalizacji", „ekosystemu", „dedykowanego".
+  Zamiast „widoczność w kanale organicznym" — „ludzie Cię znajdują".
+- Bez wykrzykników, bez wielkich słów, bez obietnic wyników.
+- Zdania typu „To jest fundament i on jest zrobiony" — doceniające, nie kurtuazyjne.
+- Konkret z researchu zamiast ogólnika: nazwij platformę, usługę albo realizację partnera.
+- Nie zmyślaj. Czego nie ma w danych, o tym nie piszesz.
+- Nie nazywaj modelu współpracy (white label, referral) i nie pisz o pieniądzach.
+
+CO MA BYĆ W POLACH:
+- wstep_tytul: jedno zdanie o tym, co klient JUŻ ma od partnera, i o tym, czego ten
+  materiał dotyczy dalej. Wzór: „Opinie masz zebrane i potwierdzone. Teraz chodzi o to,
+  żeby maszyna miała ich gdzie użyć."
+- wstep_tresc: jeden akapit, 3-4 zdania. Najpierw uznanie dla tego, co partner zrobił
+  (konkretnie), potem jedno zdanie o tym, co dzieje się z tym dalej w odpowiedziach AI.
+- audyt_wstep: jedno zdanie wprowadzające trzy pytania, które zadaliśmy ChatGPT.
+- audyt_wniosek: co z tego wynika dla klienta. Gdy marka nie padła — bez dramatyzowania,
+  ze wzoru: „to nie znaczy, że wypadłeś z wyników; to znaczy, że nie było Cię w rozmowie,
+  w której klient podejmował decyzję". Gdy padła — powiedz to wprost i bez przesady.
+- dostep_tytul i dostep_tresc: jedno zdanie o tym, czy roboty AI mają wstęp na stronę
+  klienta (dostaniesz wynik sprawdzenia). Gdy wszystko jest w porządku, napisz to
+  spokojnie — brak problemu też jest informacją. Zostaw oba pola puste tylko wtedy,
+  gdy nie udało się tego sprawdzić.
+- role_tytul: nagłówek sekcji o podziale ról, w rytmie wzoru („Opinie są dowodem.
+  Pytanie, czy maszyna ma go do czego dopasować").
+- role_wstep: akapit — co partner robi dobrze i czego ta praca sama z siebie nie obejmuje.
+  Wprost: to nie jest niczyje niedopatrzenie, to po prostu inna robota.
+- braki: dokładnie trzy kafle. Każdy to jedna rzecz, której praca partnera nie obejmuje,
+  opisana od strony klienta, nie od strony agencji.
+- rola_partner_tytul: „Zostaje u [nazwa partnera]" albo naturalniejszy wariant tej frazy.
+- rola_partner: 4 punkty — to, co partner robi i co zostaje u niego. Z researchu.
+- rola_my: 4 punkty — co bierzemy na siebie. Z profilu Last Agency i ujęć synergii.
+- role_puenta: 2-3 zdania domykające. Ostatnie ma brzmieć jak ze wzoru: nikt nikogo nie
+  zastępuje.
+
+Punkty w listach są krótkie — po kilka słów, bez kropki na końcu."""
+
+zadanie_dokument = claude.Zadanie(
+    nazwa="dokument-klienta",
+    model=MOCNY,                 # tekst idzie do klienta partnera — bez oszczędzania
+    schemat=TrescDokumentu,
+    staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU
+          + _NOWA_LINIA * 2 + profil.synergie(),
+    instrukcje=DOKUMENT_SYSTEM,
+)
+
+
 def stan_cache() -> list[dict]:
     """Czy bloki stałe naprawdę przekraczają próg cache — prawdziwym pomiarem,
     nie szacunkiem. Odpalaj po każdej zmianie profilu:
@@ -2405,6 +2498,149 @@ async def api_columns(request):
     return JSONResponse({"kolumny": [{"naglowek": n, "klucz": k} for n, k in KOLUMNY]})
 
 
+def _po_polsku(tekst: str) -> bool:
+    """Czy zdanie jest w całości zapisane alfabetem łacińskim z polskimi znakami."""
+    return all(z.isascii() or z in "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ„”–—…" for z in tekst)
+
+
+async def api_dokument_klienci(request):
+    """Lista klientów partnera do wyboru — z `case_studies` z researchu."""
+    body = await request.json()
+    return JSONResponse({"ok": True, "klienci": dokument.klienci(body.get("firma") or {})})
+
+
+async def api_dokument(request):
+    """Materiał dla KLIENTA partnera: wzór ICEA z trzema sekcjami pod tę parę.
+
+    CO TU KOSZTUJE. Trzy pytania do ChatGPT (pomiar widoczności klienta) i jedno
+    wywołanie Sonneta na tekst. Sprawdzenie robotów to zwykłe żądania HTTP, zero
+    kosztu. Celowo trzy pytania, nie osiem jak w audycie: to nie jest raport z audytu,
+    tylko jeden akapit dowodu w dokumencie sprzedażowym.
+
+    POMIAR IDZIE PRZEZ CHATGPT i to jest ta sama decyzja co w audycie GEO: klienci
+    partnera pytają ChatGPT, więc mierzymy ChatGPT. Podmiana na Claude zmieniłaby
+    PRZEDMIOT POMIARU, nie dostawcę.
+    """
+    try:
+        body = await request.json()
+        partner = body.get("firma") or {}
+        klient = body.get("klient") or {}
+        nazwa_klienta = (klient.get("nazwa") or "").strip()
+        url_klienta = (klient.get("url") or "").strip()
+        if not partner.get("nazwa"):
+            return JSONResponse({"ok": False, "error": "Brak partnera."})
+        if not nazwa_klienta:
+            return JSONResponse({"ok": False, "error": "Podaj nazwę klienta."})
+
+        domena_klienta = domena_z_url(url_klienta).lower() if url_klienta else ""
+
+        # ── Czym zajmuje się KLIENT, a nie partner ───────────────────────
+        # Bez tego kroku pytania układały się o branżę PARTNERA: dla butiku
+        # obsługiwanego przez agencję e-commerce model pytał „gdzie znaleźć agencję
+        # do wdrożenia sklepu". Mierzylibyśmy wtedy widoczność agencji, nie klienta,
+        # a dokument idzie do klienta. Strona główna kosztuje jedno żądanie HTTP.
+        opis_klienta = ""
+        if url_klienta:
+            html_klienta = await asyncio.to_thread(pobierz, url_klienta)
+            if html_klienta:
+                opis_klienta = tekst_ze_strony(html_klienta)[:2500]
+
+        # ── Trzy pytania o KATEGORIĘ klienta, nie o jego nazwę ───────────
+        # Pytanie „co wiesz o firmie X" zawsze coś zwróci i niczego nie mierzy.
+        # Mierzymy to, co robi klient końcowy: pyta o kategorię i dostaje kilka nazw.
+        opis = _json.dumps({"nazwa": nazwa_klienta, "url": url_klienta,
+                            "branza": klient.get("branza") or "",
+                            "ze_strony_klienta": opis_klienta},
+                           ensure_ascii=False)
+        r = await claude.uruchom(zadanie_prompty,
+                                 "Wygeneruj 3 pytania, które KLIENT KOŃCOWY tej firmy "
+                                 "zadałby asystentowi AI, szukając tego, co ta firma "
+                                 "sprzedaje. Pytaj o JEJ kategorię i produkt, nigdy "
+                                 "o nazwę firmy i nigdy o agencję ani wykonawcę."
+                                 + _NOWA_LINIA * 2 + opis)
+        # Pytania idą do dokumentu SŁOWO W SŁOWO, więc odsiewamy te z obcym alfabetem.
+        # Zmierzone: model zwrócił „Gdzie kupić eleganckую sukienkę na wesele" — jedno
+        # słowo cyrylicą w zdaniu po polsku. W raporcie to literówka, w materiale dla
+        # klienta partnera — kompromitacja.
+        pytania = [p for p in (r.final_output.pytania or []) if p and _po_polsku(p)][:3]
+        if not pytania:
+            return JSONResponse({"ok": False, "error": "Nie udało się ułożyć pytań."})
+
+        wiersze = []
+        for pytanie in pytania:
+            surowy = await zapytaj_chatgpt_wprost(pytanie)
+            wiersze.append(audyt.z_wlasnego_zapytania(
+                surowy["tekst"], surowy["zrodla"], nazwa_klienta, domena_klienta, pytanie))
+
+        wspomniana = [w for w in wiersze if w["wspomniana"]]
+        # Do ramki z dowodem bierzemy odpowiedź, w której marka PADŁA, a gdy nie
+        # padła w żadnej — pierwszą z brzegu. W obu przypadkach klient widzi to,
+        # co naprawdę wyszło, a nie wybraną pod tezę próbkę.
+        dowod = (wspomniana or wiersze)[0]
+
+        techniczne = None
+        if url_klienta:
+            try:
+                techniczne = await asyncio.to_thread(geo.audyt_geo, url_klienta, klient)
+            except Exception:
+                techniczne = None
+
+        badanie = {
+            "pytania": pytania,
+            "wspomniana": len(wspomniana),
+            "prob": len(wiersze),
+            "konkurenci": sorted({m for w in wiersze for m in (w["marki"] or [])})[:8],
+            "dowod": {"pytanie": dowod["prompt"], "odpowiedz": dowod["odpowiedz"]},
+            "data": f"{_dt.now():%d.%m.%Y}",
+        }
+
+        wejscie = _NOWA_LINIA.join([
+            "PARTNER (kto wysyła ten materiał): " + _json.dumps(
+                {k: partner.get(k) for k in ("nazwa", "branza", "opis", "uslugi",
+                                             "case_studies", "kategoria")},
+                ensure_ascii=False),
+            "",
+            "KLIENT (odbiorca materiału): " + _json.dumps(
+                {"nazwa": nazwa_klienta, "url": url_klienta,
+                 "branza": klient.get("branza") or "",
+                 "ze_strony_klienta": opis_klienta}, ensure_ascii=False),
+            "",
+            f"POMIAR: zadaliśmy ChatGPT {len(wiersze)} pytania o kategorię klienta. "
+            f"Marka padła w {len(wspomniana)} z {len(wiersze)}.",
+            "Pytania: " + "; ".join(pytania),
+            "Firmy wymienione zamiast niej: " + (", ".join(badanie["konkurenci"]) or "brak"),
+            "",
+            "DOSTĘP ROBOTÓW AI: " + _opis_dostepu(techniczne),
+        ])
+
+        w = await claude.uruchom(zadanie_dokument, wejscie)
+        tresc = w.final_output.model_dump()
+        html = dokument.zbuduj(tresc, badanie, partner.get("nazwa") or "")
+
+        return JSONResponse({"ok": True, "html": html,
+                             "plik": dokument.nazwa_pliku(nazwa_klienta),
+                             "badanie": badanie})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+def _opis_dostepu(techniczne: dict | None) -> str:
+    """Wynik sprawdzenia robotów w jednym zdaniu dla modelu.
+
+    Świadomie NIE podajemy tu listy botów. Model dostaje wniosek, bo dokument ma
+    zawierać jedno zdanie po ludzku, a nie tabelę z nazwami crawlerów — te są
+    w audycie, który jest osobnym produktem.
+    """
+    if not techniczne:
+        return "nie sprawdzono (brak adresu strony klienta albo strona nie odpowiedziała)"
+    blokady = [u for u in (techniczne.get("ustalenia") or [])
+               if u.get("waga") == "blokada"]
+    if blokady:
+        return "SĄ BLOKADY. " + "; ".join(u["tytul"] for u in blokady)
+    return ("roboty, które odpowiadają klientom, mają wstęp na stronę — "
+            "od tej strony wszystko jest w porządku")
+
+
 async def api_export(request):
     """Funkcja 4 — CSV do POBRANIA (nie zapisujemy na serwerze)."""
     try:
@@ -2444,6 +2680,8 @@ app = Starlette(routes=[
     Route("/api/audyty", api_audyty, methods=["GET"]),
     Route("/api/audyt", api_audyt, methods=["POST"]),
     Route("/api/audyt-geo", api_audyt_geo, methods=["POST"]),
+    Route("/api/dokument", api_dokument, methods=["POST"]),
+    Route("/api/dokument/klienci", api_dokument_klienci, methods=["POST"]),
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),
 ])

@@ -864,6 +864,99 @@ def sprawdz_czat() -> int:
     return bledy
 
 
+def sprawdz_dokument() -> int:
+    """Czy dokument dla klienta partnera składa się poprawnie i nie rusza wzoru.
+
+    CO TU MOŻE PÓJŚĆ NIE TAK. Ten plik idzie do klienta partnera pod marką ICEA,
+    więc dwie rzeczy muszą być pewne: że podmieniamy DOKŁADNIE trzy sekcje i że
+    reszta — case study Botland, nagroda, zdjęcia, stopka — zostaje bajt w bajt.
+    Regex, który złapałby o jeden znacznik za dużo, zabrałby pół dokumentu i nikt
+    by tego nie zauważył, bo plik dalej otwierałby się w przeglądarce.
+    """
+    import dokument
+
+    bledy = 0
+
+    ok = dokument.SZABLON.exists()
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | szablon jest na miejscu")
+    bledy += not ok
+    if not ok:
+        return bledy
+
+    tresc = {
+        "wstep_tytul": "Sklep masz zbudowany.", "wstep_tresc": "Partner zrobił swoje.",
+        "audyt_wstep": "Zadaliśmy trzy pytania.", "audyt_wniosek": "Nie padłaś w żadnej.",
+        "dostep_tytul": "Roboty mają wstęp", "dostep_tresc": "Od tej strony jest dobrze.",
+        "role_tytul": "Kto co robi", "role_wstep": "Partner robi swoje.",
+        "braki": [{"tytul": f"Brak {i}", "opis": "Opis"} for i in range(3)],
+        "rola_partner_tytul": "Zostaje u partnera",
+        "rola_partner": ["sklep", "utrzymanie"], "rola_my": ["widoczność", "pomiar"],
+        "role_puenta": "Nikt nikogo nie zastępuje.",
+    }
+    badanie = {"pytania": ["gdzie kupić sukienkę"], "data": "25.09.2026",
+               "dowod": {"pytanie": "gdzie kupić sukienkę", "odpowiedz": "Polecam sklepy A i B."}}
+
+    wzor = dokument.SZABLON.read_text(encoding="utf-8")
+    html = dokument.zbuduj(tresc, badanie, "Tebim")
+
+    # Wzór ma ~384 tys. znaków (zdjęcia w base64). Gdyby regex zjadł za dużo,
+    # dokument skurczyłby się o dziesiątki tysięcy znaków — stąd próg.
+    ok = abs(len(html) - len(wzor)) < 5000
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | dokument nie stracił treści "
+          f"(wzór {len(wzor)}, wynik {len(html)})")
+    bledy += not ok
+
+    # Elementy, których nie wolno ruszyć: dowód, nagroda i identyfikacja.
+    for fragment, opis in (("Zrobiliśmy to dla Botland", "case study Botland"),
+                           ("European Search Awards 2025", "nominacja"),
+                           ("192 588", "liczba wejść z AI"),
+                           ("Tomasz Czechowski", "podpis i zdjęcie"),
+                           ("Agencja Search od 2007 roku", "stopka ICEA")):
+        ok = fragment in html
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | zostaje nietknięte: {opis}")
+        bledy += not ok
+
+    # Trzy sekcje muszą być PODMIENIONE, a nie dołożone obok.
+    for fragment, opis in (("Sklep masz zbudowany.", "wstępniak z modelu"),
+                           ("Zadaliśmy trzy pytania.", "mikroaudyt z pomiaru"),
+                           ("Nikt nikogo nie zastępuje.", "podział ról")):
+        ok = fragment in html
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | wstawione: {opis}")
+        bledy += not ok
+
+    for fragment, opis in (("Opinie masz zebrane i potwierdzone", "stary wstępniak"),
+                           ("Sprawdź to sam, zanim nam uwierzysz", "przykładowy audyt"),
+                           ("Opinie są dowodem", "stara sekcja o opiniach")):
+        ok = fragment not in html
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | usunięte ze wzoru: {opis}")
+        bledy += not ok
+
+    # Materiał dostaje klient partnera, więc nie może mówić o firmie od opinii.
+    ok = "firma, która prowadzi Twoje opinie" not in html and "Tebim" in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nagłówek i stopka mówią o tym partnerze")
+    bledy += not ok
+
+    # Cudzysłowy w danych z modelu nie mogą rozwalić znaczników.
+    tresc_z_cudzyslowem = dict(tresc, wstep_tytul='Sklep "gotowy" <b>działa</b>')
+    html2 = dokument.zbuduj(tresc_z_cudzyslowem, badanie, "Tebim")
+    ok = "<b>działa</b>" not in html2 and "&lt;b&gt;" in html2
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | tekst z modelu jest escapowany")
+    bledy += not ok
+
+    # Nazwa pliku trafia do przeglądarki — bez polskich znaków i spacji.
+    nazwa = dokument.nazwa_pliku("Ella Boutique Łódź")
+    ok = nazwa.startswith("ai-search-ella-boutique-lodz-") and nazwa.endswith(".html")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nazwa pliku: {nazwa}")
+    bledy += not ok
+
+    # Pytania idą do dokumentu słowo w słowo — obcy alfabet nie może przejść.
+    ok = app._po_polsku("Gdzie kupić sukienkę na wesele?") and not app._po_polsku(
+        "Gdzie kupić eleganck\u044e sukienkę?")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pytanie z cyrylicą odrzucone")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -908,6 +1001,12 @@ def sprawdz_regresje() -> int:
     print("CZAT — pełna karta firmy i pamięć pobranych podstron")
     print("=" * 74)
     bledy += sprawdz_czat()
+    print()
+
+    print("=" * 74)
+    print("DOKUMENT DLA KLIENTA — trzy sekcje podmienione, reszta wzoru nietknięta")
+    print("=" * 74)
+    bledy += sprawdz_dokument()
     print()
 
     print("=" * 74)
