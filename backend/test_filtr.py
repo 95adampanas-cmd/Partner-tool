@@ -510,6 +510,88 @@ def sprawdz_audyt_bez_dataforseo() -> int:
     return bledy
 
 
+def sprawdz_boty_ai() -> int:
+    """Czy audyt odróżnia bota TRENINGOWEGO od UŻYTKOWEGO — i czy czyta Content-Signal.
+
+    SKĄD TEN TEST. Sprawdzone na sortlist.pl 24.09.2026: blokują GPTBota (zbiera
+    materiał do uczenia modelu), ale wpuszczają ChatGPT-User (pobiera stronę, gdy
+    ktoś pyta asystenta o firmę). Nasz raport nazywał to blokadą i pisał „ChatGPT
+    nie pobiera treści strony". To była nieprawda, a klient dostałby polecenie
+    naprawy konfiguracji ustawionej wzorowo — w dokumencie, który ma nas
+    uwiarygadniać. Bez tego testu pomyłka wróci przy pierwszej zmianie w geo.BOTY.
+    """
+    import geo
+
+    bledy = 0
+
+    # ── Lista botów. Sama obecność nazw w geo.BOTY jest warunkiem, żeby audyt
+    #    w ogóle zauważył, że asystent ma wstęp na stronę.
+    braki = [b for b in ("ChatGPT-User", "Claude-User", "Claude-SearchBot",
+                         "Perplexity-User", "DuckAssistBot", "MistralAI-User",
+                         "meta-externalfetcher") if b not in geo.BOTY]
+    if braki:
+        print(f"  BŁĄD | brakuje botów użytkowych w geo.BOTY: {', '.join(braki)}")
+        bledy += 1
+    else:
+        print(f"  OK   | {len(geo.NAZWY_UZYTKOWE)} botów użytkowych obok "
+              f"{len(geo.BOTY) - len(geo.NAZWY_UZYTKOWE)} treningowych")
+
+    # Rozłączność ról. Gdyby GPTBot wpadł do zbioru użytkowych, jego blokada
+    # znów podnosiłaby alarm — czyli dokładnie ten błąd, który naprawiamy.
+    for t in ("GPTBot", "ClaudeBot", "CCBot", "Google-Extended"):
+        if t in geo.NAZWY_UZYTKOWE:
+            print(f"  BŁĄD | {t} to bot treningowy, a leży wśród użytkowych")
+            bledy += 1
+
+    # ── Parsowanie robots.txt bez sieci. Udajemy odpowiedź serwera, bo test ma
+    #    sprawdzać NASZ kod, a nie to, co dziś stoi na cudzym serwerze.
+    class Odp:
+        status_code = 200
+        text = ("User-agent: GPTBot\nDisallow: /\n\n"
+                "User-agent: ChatGPT-User\nAllow: /\n\n"
+                "User-agent: *\nAllow: /\n"
+                "Content-Signal: search=yes,ai-input=yes,ai-train=no\n")
+
+    oryginal = geo._pobierz
+    geo._pobierz = lambda *a, **k: Odp()
+    try:
+        r = geo.sprawdz_robots("https://przyklad.pl")
+    finally:
+        geo._pobierz = oryginal
+
+    role = {z["bot"]: z["rola"] for z in r["zablokowane"]}
+    sprawdzenia = [
+        (role.get("GPTBot") == "treningowy", "GPTBot rozpoznany jako treningowy"),
+        ("ChatGPT-User" not in role, "ChatGPT-User z Allow nie trafia na listę blokad"),
+        (r["content_signal"] == {"search": "yes", "ai-input": "yes", "ai-train": "no"},
+         "Content-Signal rozłożony na pary"),
+    ]
+    for ok, opis in sprawdzenia:
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+        bledy += not ok
+
+    # ── Język raportu. To jest sedno poprawki: ta sama konfiguracja co wyżej
+    #    NIE MOŻE dać ani jednej pozycji o wadze „blokada".
+    pusto = {"jest": True, "adres": "", "tytul": "", "opis": "", "schema": [],
+             "same_as": [], "naglowki": [], "znakow": 0}
+    u = geo.zbuduj_ustalenia({"dostepna": True}, r, pusto, {"nazwa": "Przykład"})
+    blokady = [x for x in u if x["waga"] == "blokada"]
+    ok = not blokady
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | blokada treningowego to nie „blokada”"
+          + ("" if ok else f" — zgłoszono: {blokady[0]['tytul']}"))
+    bledy += not ok
+
+    # ...a zamknięcie bota UŻYTKOWEGO musi ją dać, bo to realna utrata widoczności.
+    r2 = dict(r, zablokowane=[{"bot": "ChatGPT-User", "silnik": "ChatGPT",
+                               "udzial": 86.4, "skutek": "nie wejdzie na stronę",
+                               "rola": "uzytkowy"}])
+    u2 = geo.zbuduj_ustalenia({"dostepna": True}, r2, pusto, {"nazwa": "Przykład"})
+    ok = any(x["waga"] == "blokada" for x in u2)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | zamknięcie ChatGPT-User to nadal blokada")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -536,6 +618,12 @@ def sprawdz_regresje() -> int:
     print("AUDYT BEZ DATAFORSEO — silniki na własnych kluczach i powtórzenia")
     print("=" * 74)
     bledy += sprawdz_audyt_bez_dataforseo()
+    print()
+
+    print("=" * 74)
+    print("BOTY AI — czy odróżniamy trenowanie modelu od odpowiadania klientowi")
+    print("=" * 74)
+    bledy += sprawdz_boty_ai()
     print()
 
     print("=" * 74)

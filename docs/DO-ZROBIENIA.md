@@ -5,7 +5,15 @@ konkretnie zmienia — żeby dało się je podjąć bez odtwarzania rozmowy.
 
 ---
 
-## 1. Rozróżnienie botów treningowych i użytkowych w obu audytach
+## 1. Rozróżnienie botów treningowych i użytkowych w obu audytach — ZROBIONE 24.09.2026
+
+**Stan:** wdrożone w `backend/geo.py`, działa na oba audyty (oba wołają
+`geo.audyt_geo`). Dołożone 9 botów użytkowych (razem 17 na liście), czytany
+`Content-Signal`, przepisany język raportu. Test regresyjny: `sprawdz_boty_ai()`
+w `backend/test_filtr.py`. Sprawdzone na sortlist.pl: było jedno fałszywe
+ustalenie o wadze blokada, jest zero — zamiast tego dwa ustalenia poprawne.
+
+Opis poniżej zostaje jako uzasadnienie zmiany.
 
 **Skąd to się wzięło.** Przy analizie sortlist.pl okazało się, że ich `robots.txt`
 jest skonfigurowany wzorowo pod GEO — a nasz audyt zgłosiłby to jako błąd.

@@ -64,6 +64,41 @@ BOTY = {
     "meta-externalagent": ("Meta AI", 0.0, "", "treść nie zasila modeli Meta"),
 }
 
+# ── Boty UŻYTKOWE — te decydują o widoczności, a ich brakowało ──────────
+#
+# ROZRÓŻNIENIE, KTÓRE ZMIENIA WNIOSEK CAŁEJ SEKCJI. Boty wyżej zbierają treść do
+# TRENOWANIA modeli. Poniższe pobierają stronę DOPIERO WTEDY, GDY UŻYTKOWNIK O COŚ
+# PYTA — i to one rozstrzygają, czy asystent może w ogóle pokazać firmę.
+#
+# Bez tego podziału audyt kłamał. Sprawdzone na sortlist.pl 24.09.2026: blokują
+# GPTBota (trenowanie), ale przepuszczają ChatGPT-User (odpowiadanie na żywo).
+# Nasz raport mówił na to „ChatGPT nie pobiera treści strony" — nieprawda, pobiera.
+# Klient dostałby polecenie naprawy konfiguracji ustawionej wzorowo.
+#
+# Zablokowanie bota TRENINGOWEGO to decyzja biznesowa („nie chcemy, żeby modele
+# uczyły się na naszych tekstach"), nie usterka. Zablokowanie bota UŻYTKOWEGO to
+# realna utrata widoczności.
+BOTY_UZYTKOWE = {
+    "ChatGPT-User": ("ChatGPT", 86.4, "",
+                     "ChatGPT nie wejdzie na stronę, gdy klient zapyta o taką firmę"),
+    "OAI-SearchBot": ("ChatGPT", 86.4, "",
+                      "strona nie trafia do wyszukiwarki ChatGPT"),
+    "Perplexity-User": ("Perplexity", 6.18, "",
+                        "Perplexity nie zacytuje strony w odpowiedzi"),
+    "PerplexityBot": ("Perplexity", 6.18, "", "Perplexity nie indeksuje strony"),
+    "Claude-User": ("Claude", 0.71, "",
+                    "Claude nie wejdzie na stronę, odpowiadając na pytanie o branżę"),
+    "Claude-SearchBot": ("Claude", 0.71, "", "strona nie trafia do wyszukiwarki Claude"),
+    "DuckAssistBot": ("DuckDuckGo AI", 0.0, "", "asystent DuckDuckGo nie cytuje strony"),
+    "MistralAI-User": ("Mistral", 0.0, "", "Mistral nie wejdzie na stronę"),
+    "meta-externalfetcher": ("Meta AI", 0.0, "", "Meta AI nie pobierze strony na żądanie"),
+}
+
+# Boty użytkowe dokładamy do wspólnej listy, ale pamiętamy, które są które —
+# raport musi mówić o nich innym językiem.
+NAZWY_UZYTKOWE = frozenset(BOTY_UZYTKOWE)
+BOTY = {**BOTY, **{k: v for k, v in BOTY_UZYTKOWE.items() if k not in BOTY}}
+
 # Poniżej tego udziału blokada jest przypisem, a nie problemem biznesowym.
 PROG_ISTOTNOSCI = 3.0
 
@@ -134,10 +169,11 @@ def test_dostepu(url: str) -> dict:
 def sprawdz_robots(baza: str) -> dict:
     r = _pobierz(urljoin(baza, "/robots.txt"))
     if r is None or r.status_code != 200 or not r.text.strip():
-        return {"jest": False, "zablokowane": [], "dowod": "", "sitemap": []}
+        return {"jest": False, "zablokowane": [], "dowod": "", "sitemap": [],
+                "content_signal": {}}
 
     tresc = r.text
-    bloki, biezacy, sitemapy = {}, [], []
+    bloki, biezacy, sitemapy, sygnal = {}, [], [], {}
     for linia in tresc.splitlines():
         czysta = linia.split("#")[0].strip()
         if ":" not in czysta:
@@ -152,13 +188,27 @@ def sprawdz_robots(baza: str) -> dict:
                 bloki.setdefault(ua.lower(), []).append(wartosc)
         elif k == "sitemap":
             sitemapy.append(czysta.split(":", 1)[1].strip())
+        elif k == "content-signal":
+            # Nowszy standard obok Allow/Disallow. Niesie INTENCJĘ, której z samego
+            # Disallow odczytać się nie da: „search=yes,ai-input=yes,ai-train=no"
+            # znaczy „pokazujcie nas, ale nie uczcie się na nas". Firma z takim
+            # wpisem świadomie zarządza widocznością w AI — to zupełnie co innego
+            # niż firma, która przypadkiem zablokowała wszystko.
+            for para in wartosc.split(","):
+                if "=" in para:
+                    nazwa, val = (x.strip().lower() for x in para.split("=", 1))
+                    sygnal[nazwa] = val
 
     zablokowane = []
     for bot, (silnik, udzial, _ua, skutek) in BOTY.items():
         reguly = bloki.get(bot.lower())
         if reguly and any(x.strip() == "/" for x in reguly):
             zablokowane.append({"bot": bot, "silnik": silnik, "udzial": udzial,
-                                "skutek": skutek})
+                                "skutek": skutek,
+                                # To pole rozstrzyga, czy mówimy o utraconej
+                                # widoczności, czy o świadomej decyzji biznesowej.
+                                "rola": "uzytkowy" if bot in NAZWY_UZYTKOWE
+                                        else "treningowy"})
 
     dowod, ua_biezacy = [], None
     interesujace = {z["bot"].lower() for z in zablokowane}
@@ -169,7 +219,7 @@ def sprawdz_robots(baza: str) -> dict:
         if ua_biezacy in interesujace and czysta:
             dowod.append(czysta)
     return {"jest": True, "zablokowane": zablokowane, "dowod": "\n".join(dowod[:12]),
-            "sitemap": sitemapy}
+            "sitemap": sitemapy, "content_signal": sygnal}
 
 
 def _schema_z_html(soup) -> tuple[list[str], list[str]]:
@@ -279,25 +329,85 @@ def zbuduj_ustalenia(dostep: dict, robots: dict, strona: dict, firma: dict) -> l
 
     # ── 2. Zakazy zadeklarowane w robots.txt
     zab = robots.get("zablokowane") or []
-    istotne_r = [z for z in zab if z["udzial"] >= PROG_ISTOTNOSCI]
-    drobne_r = [z for z in zab if z["udzial"] < PROG_ISTOTNOSCI]
+
+    # PODZIAŁ, KTÓRY DECYDUJE O TREŚCI WNIOSKU. Bot UŻYTKOWY pobiera stronę, gdy
+    # klient o coś pyta — jego zablokowanie to realna utrata widoczności. Bot
+    # TRENINGOWY zbiera materiał do uczenia modelu; jego zablokowanie to świadoma
+    # decyzja właściciela treści, nie usterka.
+    #
+    # Bez tego podziału raport kłamał. Sprawdzone na sortlist.pl: blokują GPTBota
+    # (trenowanie), ale przepuszczają ChatGPT-User (odpowiadanie na żywo) — a my
+    # pisaliśmy „ChatGPT nie pobiera treści strony". Klient dostałby polecenie
+    # naprawy konfiguracji ustawionej wzorowo.
+    uzytkowe = [z for z in zab if z.get("rola") == "uzytkowy"]
+    treningowe = [z for z in zab if z.get("rola") != "uzytkowy"]
+    istotne_r = [z for z in uzytkowe if z["udzial"] >= PROG_ISTOTNOSCI]
+    drobne_r = [z for z in uzytkowe if z["udzial"] < PROG_ISTOTNOSCI]
+
     if istotne_r:
         u.append({
             "waga": "blokada",
-            "tytul": "robots.txt zabrania dostępu istotnym robotom AI",
-            "fakt": "; ".join(f"{z['bot']} ({z['silnik']}) — {z['skutek']}" for z in istotne_r),
+            "tytul": "Strona jest zamknięta dla robotów, które odpowiadają klientom",
+            "fakt": "; ".join(f"{z['bot']} ({z['silnik']}) — {z['skutek']}" for z in istotne_r)
+                    + ". To nie są roboty trenujące modele, tylko te, które wchodzą na "
+                      "stronę DOKŁADNIE WTEDY, gdy ktoś pyta asystenta o firmę z Waszej "
+                      "branży. Zamknięte drzwi oznaczają, że asystent odpowie z tego, "
+                      "co znalazł u konkurencji.",
             "dowod": robots.get("dowod", ""),
-            "co_zrobic": "Usunąć te reguły dla robotów, którym chcecie pozwolić na dostęp.",
+            "co_zrobic": "Usunąć reguły Disallow dla tych robotów w robots.txt. "
+                         "Blokadę robotów TRENINGOWYCH można spokojnie zostawić — "
+                         "to dwie różne sprawy.",
         })
     if drobne_r:
         u.append({
             "waga": "drobne",
-            "tytul": "robots.txt blokuje roboty o marginalnym znaczeniu w Polsce",
+            "tytul": "Zamknięte dla asystentów o znikomym udziale w Polsce",
             "fakt": "Zablokowane: " + ", ".join(f"{z['bot']} ({z['silnik']})" for z in drobne_r)
                     + ". Te silniki mają w Polsce znikomy udział, więc nie ma to wpływu "
                       "na widoczność — odnotowujemy dla porządku.",
             "dowod": "", "co_zrobic": "",
         })
+
+    # Blokada botów treningowych NIE jest usterką. Odnotowujemy ją jako fakt, bo
+    # bywa przemyślaną polityką — i klient ma widzieć, że to rozumiemy.
+    if treningowe and not uzytkowe:
+        u.append({
+            "waga": "ok",
+            "tytul": "Roboty trenujące modele zablokowane, odpowiadające — wpuszczone",
+            "fakt": "Zablokowane: " + ", ".join(f"{z['bot']}" for z in treningowe)
+                    + ". To roboty zbierające materiał do UCZENIA modeli, a nie te, "
+                      "które pobierają stronę, odpowiadając na pytanie użytkownika. "
+                      "Taka konfiguracja chroni treści przed trenowaniem, nie tracąc "
+                      "widoczności w odpowiedziach — i to jest ustawienie poprawne.",
+            "dowod": "", "co_zrobic": "",
+        })
+    elif treningowe:
+        u.append({
+            "waga": "drobne",
+            "tytul": "Roboty trenujące modele są zablokowane",
+            "fakt": "Zablokowane: " + ", ".join(f"{z['bot']}" for z in treningowe)
+                    + ". To decyzja o tym, czy modele mogą uczyć się na Waszych "
+                      "treściach — osobna sprawa od widoczności i nie zaliczamy jej "
+                      "jako błędu.",
+            "dowod": "", "co_zrobic": "",
+        })
+
+    sygnal = robots.get("content_signal") or {}
+    if sygnal:
+        czytelnie = {"search": "wyszukiwarki", "ai-input": "użycie w odpowiedziach AI",
+                     "ai-train": "trenowanie modeli"}
+        opis = "; ".join(f"{czytelnie.get(k, k)}: {'tak' if v == 'yes' else 'nie'}"
+                         for k, v in sygnal.items())
+        u.append({
+            "waga": "ok",
+            "tytul": "Strona deklaruje wprost, na co pozwala modelom AI",
+            "fakt": f"Nagłówek Content-Signal w robots.txt — {opis}. To nowszy sposób "
+                    "zapisania zgody niż samo Allow/Disallow: pozwala oddzielić "
+                    "„pokazujcie nas w odpowiedziach\" od „uczcie się na naszych "
+                    "tekstach\". Świadome ustawienie tego wyprzedza większość rynku.",
+            "dowod": "", "co_zrobic": "",
+        })
+
     if not odmowy and not zab:
         u.append({"waga": "ok", "tytul": "Roboty AI mają dostęp do strony",
                   "fakt": "Ani robots.txt, ani serwer nie blokują robotów modeli AI — "
