@@ -71,22 +71,79 @@ _NOWA_LINIA = chr(10)   # zamiast sekwencji ucieczki — jest odporna na przenos
 # Kategorie partnerskie — JEDNO ŹRÓDŁO PRAWDY. Model przypisuje tu firmę przy
 # researchu, front grupuje po tym listy, a /api/kategorie je udostępnia.
 #
-# Te same nazwy są nagłówkami grup w PRESETY (frontend/app.js). Nazwy MUSZĄ się
-# zgadzać, inaczej firma wyląduje w kategorii, której nie ma na liście wyboru.
-# Pilnuje tego test regresji — poprzednim razem kopia reguł w teście rozjechała
-# się po cichu i nikt tego nie zauważył przez trzy commity.
-KATEGORIE_PARTNEROW = [
-    "Budowa stron i sklepów",
-    "Utrzymanie i administracja",
+# TE NAZWY SĄ TE SAME CO KATEGORIE WYSZUKIWANIA (PRESETY.partner w frontend/app.js)
+# i musi tak zostać. Przez chwilę były dwie różne listy: 29 kategorii, po których
+# SZUKASZ, i 10 szufladek, do których firma trafiała PO researchu. Skutek widać było
+# w interfejsie: szukałeś w „Sklepy internetowe", a znaleziona firma dostawała tag
+# „Budowa stron i sklepów" — nazwę, której nie ma na żadnej liście wyboru. W „Szukaj
+# podobnych" i na liście Firm filtr pokazywał wtedy szufladki tak szerokie, że osiem
+# firm z dziewiętnastu lądowało pod jednym chipem i nie dało się nimi filtrować.
+#
+# Teraz jedna lista pełni obie role: czym szukasz, tym jest otagowane. Zgodność
+# pilnuje test `sprawdz_presety` — porównuje tę listę z presetami znak w znak.
+#
+# PODZIAŁ NA DWIE SEKCJE. Usługi to firmy, które coś robią DLA klienta. SaaS to
+# producenci własnego oprogramowania. Granica jest ostra i rozstrzyga przypadki,
+# które inaczej są nierozstrzygalne: „CRM" (kto wdraża cudzy CRM) kontra „CRM
+# i sprzedaż" (kto sprzedaje własny).
+KATEGORIE_USLUGOWE = [
+    "Strony www",
+    "Sklepy internetowe",
+    "Agencje digital / full-service",
+    "Branding i PR",
     "Strategia i doradztwo",
-    "Branding i kreacja",
-    "Marketing poza SEO",
-    "Sprzedaż i marketplace",
-    "Technologia, integracje i resellerzy",
-    "AI i automatyzacja",
-    "Wiedza i usługi prawne",
-    "Sieci i społeczności biznesowe",
+    "Social media",
+    "Content produktowy",
+    "Performance",
+    "Marketplace",
+    "Ekspansja zagraniczna",
+    "Fulfillment i logistyka",
+    "Księgowość i podatki",
+    "Analityka i CRO",
+    "AI",
+    "Automatyzacje",
+    "CRM",
+    "ERP",
+    "Prawo e-commerce",
+    "Hosting i infrastruktura",
 ]
+
+KATEGORIE_SAAS = [
+    "Platformy sklepowe",
+    "Sprzedaż wielokanałowa",
+    "Opinie i zaufanie",
+    "Marketing automation i e-mail",
+    "Narzędzia dla sklepów",
+    "Monitoring cen",
+    "Monitoring marki",
+    "CRM i sprzedaż",
+    "Vendorzy SaaS",
+    "Programy partnerskie SaaS",
+]
+
+KATEGORIE_PARTNEROW = KATEGORIE_USLUGOWE + KATEGORIE_SAAS
+
+# Stare szufladki -> nowe kategorie. Po co to zostaje, skoro baza jest już
+# przepisana: rekord sprzed zmiany może wrócić z eksportu, kopii zapasowej albo
+# z gałęzi, na której ktoś pracował równolegle. Bez tej mapy trafiłby na listę
+# jako „Bez kategorii" i nikt by nie zauważył, że to stara nazwa, a nie brak danych.
+#
+# Trzy stare nazwy nie mają jednoznacznego odpowiednika, bo łączyły rzeczy, które
+# nowa lista rozdziela („Budowa stron i sklepów" to dziś Strony www ALBO Sklepy
+# internetowe). Takie rekordy zostawiamy do ponownej klasyfikacji zamiast zgadywać
+# — stąd None. Migrację robi `python migracja_kategorii.py`.
+STARE_KATEGORIE = {
+    "Budowa stron i sklepów": None,
+    "Utrzymanie i administracja": "Hosting i infrastruktura",
+    "Strategia i doradztwo": "Strategia i doradztwo",
+    "Branding i kreacja": "Branding i PR",
+    "Marketing poza SEO": None,
+    "Sprzedaż i marketplace": "Marketplace",
+    "Technologia, integracje i resellerzy": None,
+    "AI i automatyzacja": "AI",
+    "Wiedza i usługi prawne": "Prawo e-commerce",
+    "Sieci i społeczności biznesowe": "Strategia i doradztwo",
+}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -767,6 +824,41 @@ def baza_maili() -> str:
 # ══════════════════════════════════════════════════════════════════════
 #  AGENCI LLM
 # ══════════════════════════════════════════════════════════════════════
+# Listy do promptu budowane ze stałych, nie przepisane ręcznie. Ręczna kopia
+# rozjeżdża się przy pierwszej zmianie kategorii i nikt tego nie widzi, bo
+# model dalej zwraca nazwę — tyle że taką, której nie ma na liście filtrów.
+_LISTA_USLUGOWE = _NOWA_LINIA.join("- " + k for k in KATEGORIE_USLUGOWE)
+_LISTA_SAAS = _NOWA_LINIA.join("- " + k for k in KATEGORIE_SAAS)
+
+# Reguły wyboru kategorii — w jednym miejscu, bo używa ich i research, i migracja
+# starych rekordów. Rozjechane reguły dałyby dwie różne kategorie dla tej samej
+# firmy, zależnie od tego, kiedy trafiła do bazy.
+#
+# NAJWAŻNIEJSZE ZDANIE JEST O „full-service". Pierwszy przebieg migracji wrzucił
+# tam 9 firm z 15 — model czytał długą listę usług jako dowód, że firma robi
+# wszystko. Ale długą listę ma prawie każda agencja: Tebim wdraża sklepy i też
+# wymienia branding, SEO i integracje. Chip „Agencje digital" zrobiłby się nową
+# wersją starej szufladki „Budowa stron i sklepów" — tak szeroką, że bezużyteczną.
+REGULY_KATEGORII = (
+    "Najpierw rozstrzygnij sekcję, potem kategorię. Firma, która WDRAŻA cudzy system, "
+    "należy do Usług; firma, która ten system TWORZY i sprzedaje w abonamencie, należy "
+    'do SaaS. Wdrożeniowiec Salesforce idzie do "CRM", producent własnego CRM do '
+    '"CRM i sprzedaż".' + _NOWA_LINIA * 2 +
+    "Rozstrzyga RDZEŃ oferty — to, czym firma sama siebie nazywa i co pokazuje "
+    "w realizacjach. NIE rozstrzyga długość listy usług: prawie każda agencja "
+    "wymienia kilkanaście pozycji, bo tak się pisze ofertę." + _NOWA_LINIA +
+    'Agencja przedstawiająca się jako „agencja e-commerce" idzie do "Sklepy '
+    'internetowe", choćby miała w usługach branding, SEO i integracje. Agencja '
+    'brandingowa robiąca przy okazji strony idzie do "Branding i PR".' +
+    _NOWA_LINIA * 2 +
+    '"Agencje digital / full-service" to OSTATECZNOŚĆ. Użyj jej tylko wtedy, gdy '
+    "firma SAMA przedstawia się jako full-service, agencja 360 albo kompleksowa "
+    "obsługa marketingu, i naprawdę nie da się wskazać rdzenia. Sama długa lista "
+    "usług tego nie uzasadnia." + _NOWA_LINIA * 2 +
+    "Gdy firma robi i strony, i sklepy — rozstrzygają realizacje i to, co jest "
+    'na stronie głównej. Przewaga wdrożeń sklepowych to "Sklepy internetowe".'
+)
+
 EKSTRAKCJA_PROMPT = f"""Jesteś analitykiem researchu partnerskiego Last Agency (SEO/SEM/GEO/AI Search).
 Dostajesz TEKST ze strony firmy (strona główna + podstrony). Wyciągnij z niego dane o firmie.
 
@@ -847,21 +939,15 @@ W seo_zakres napisz KRÓTKO, co dokładnie firma robi w obszarze SEO i skąd to 
 około-SEO w ofercie jest (audyt, optymalizacja), napisz co, zamiast "{BRAK}".
 
 KATEGORIA — przypisz firmę do DOKŁADNIE JEDNEJ z poniższych. Przepisz nazwę
-znak w znak, bez zmieniania wielkości liter i bez własnych wariantów:
-- Budowa stron i sklepów
-- Utrzymanie i administracja
-- Strategia i doradztwo
-- Branding i kreacja
-- Marketing poza SEO
-- Sprzedaż i marketplace
-- Technologia, integracje i resellerzy
-- AI i automatyzacja
-- Wiedza i usługi prawne
-- Sieci i społeczności biznesowe
+znak w znak, bez zmieniania wielkości liter i bez własnych wariantów.
 
-Wybierz po tym, co jest RDZENIEM oferty, a nie po tym, co firma robi przy okazji.
-Agencja budująca sklepy, która ma też branding wśród usług, idzie do "Budowa stron
-i sklepów". Agencja brandingowa robiąca strony klientom idzie do "Branding i kreacja".
+USŁUGI — firmy, które coś robią DLA klienta:
+{_LISTA_USLUGOWE}
+
+SaaS I PRODUKTY — firmy, które sprzedają WŁASNE oprogramowanie:
+{_LISTA_SAAS}
+
+{REGULY_KATEGORII}
 
 Gdy firma naprawdę nie pasuje do żadnej — wpisz "{BRAK}". Nie naciągaj.
 

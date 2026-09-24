@@ -219,23 +219,23 @@ def sprawdz_wykluczanie_domen() -> int:
 
 
 def sprawdz_presety() -> int:
-    """Czy presety wyszukiwania są dobrze zbudowane — osobno dla każdego źródła.
+    """Czy presety wyszukiwania są dobrze zbudowane — i czy zgadzają się z tagami.
 
     DWA ZESTAWY, BO DWA RÓŻNE SPOSOBY SZUKANIA. Wyszukiwarka i Google przeszukują
     TREŚĆ stron, więc znoszą frazy wąskie („wdrożenia Consent Mode"). Mapy dopasowują
     do NAZWY firmy i kategorii wizytówki, więc ta sama fraza zwraca tam zero — żadna
     wizytówka się tak nie nazywa. Stąd osobna, krótsza i ogólniejsza lista dla Map.
 
-    CO SIĘ ZMIENIŁO 23.09.2026. Ten test wcześniej sprawdzał, czy nazwy grup są
-    identyczne z KATEGORIE_PARTNEROW. Było to słuszne, dopóki jedna lista pełniła
-    obie role — ale to właśnie był problem: dodanie frazy do szukania wymagało
-    dodania szufladki, do której trafiają zbadane firmy. Teraz to dwie różne rzeczy:
+    CO SIĘ ZMIENIŁO 24.09.2026 — I DLACZEGO WRACAMY DO JEDNEJ LISTY. Przez jeden
+    dzień były dwie: 29 kategorii do SZUKANIA (PRESETY) i 10 szufladek, do których
+    firma trafiała PO researchu (KATEGORIE_PARTNEROW). Brzmiało to sensownie, ale
+    w interfejsie wyszło tak: szukasz w „Sklepy internetowe", a znaleziona firma
+    dostaje tag „Budowa stron i sklepów" — nazwę, której nie ma na żadnej liście
+    wyboru. Filtr w „Szukaj podobnych" i na liście Firm pokazywał wtedy szufladki
+    tak szerokie, że osiem firm z dziewiętnastu siedziało pod jednym chipem.
 
-      * PRESETY (frontend)        — kategorie fraz, po których SZUKASZ firm;
-      * KATEGORIE_PARTNEROW (app) — szufladki, do których firma trafia PO researchu.
-
-    Front grupuje zbadane firmy po wartości `firma.kategoria` nadanej przez backend,
-    a nie po nazwach presetów, więc rozdzielenie niczego nie rozspójnia.
+    Teraz obie role pełni jedna lista i ten test tego pilnuje: nazwy kategorii
+    w PRESETY.partner muszą być IDENTYCZNE z KATEGORIE_PARTNEROW, znak w znak.
     """
     import re
     from pathlib import Path
@@ -283,8 +283,44 @@ def sprawdz_presety() -> int:
         else:
             print(f"  OK   | [{etykieta}] {len(grupy)} kategorii, {ile_fraz} fraz")
 
-    print(f"  OK   | {len(app.KATEGORIE_PARTNEROW)} szufladek dla zbadanych firm "
-          f"(osobna lista, celowo inna niż presety)")
+    # ── Zgodność presetów z tagami. To jest właściwy powód istnienia tego testu:
+    #    rozjazd nie wywala niczego, tylko po cichu produkuje tagi spoza filtrów.
+    blok = re.sub(r"//[^\n]*", "", tresc[tresc.index("partner: ["):tresc.index("mapy: [")])
+    nazwy = [m.group(1) for m in re.finditer(r'\n\s*\["([^"]+)",', blok)]
+
+    brak_w_tagach = [n for n in nazwy if n not in app.KATEGORIE_PARTNEROW]
+    brak_w_presetach = [k for k in app.KATEGORIE_PARTNEROW if k not in nazwy]
+    for n in brak_w_tagach:
+        print(f"  BŁĄD | preset {n!r} nie ma odpowiednika w KATEGORIE_PARTNEROW")
+        bledy += 1
+    for k in brak_w_presetach:
+        print(f"  BŁĄD | kategoria {k!r} nie ma presetu — nikt jej nie wyszuka")
+        bledy += 1
+    if not brak_w_tagach and not brak_w_presetach:
+        print(f"  OK   | {len(app.KATEGORIE_PARTNEROW)} kategorii: preset i tag to ta sama nazwa")
+
+    # Sekcje muszą się sumować do całości — inaczej prompt wymieniłby modelowi
+    # mniej kategorii, niż front pokazuje na filtrach.
+    ok = app.KATEGORIE_USLUGOWE + app.KATEGORIE_SAAS == app.KATEGORIE_PARTNEROW
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcje (usługi {len(app.KATEGORIE_USLUGOWE)} "
+          f"+ SaaS {len(app.KATEGORIE_SAAS)}) składają się na pełną listę")
+    bledy += not ok
+
+    # Prompt ekstrakcji dostaje listy z tych samych stałych — sprawdzamy WYNIK,
+    # bo to on trafia do modelu. Ręczna kopia w prompcie była tu wcześniej.
+    braki = [k for k in app.KATEGORIE_PARTNEROW if k not in app.EKSTRAKCJA_PROMPT]
+    if braki:
+        print(f"  BŁĄD | prompt nie wymienia kategorii: {braki}")
+        bledy += len(braki)
+    else:
+        print("  OK   | prompt ekstrakcji wymienia wszystkie kategorie")
+
+    # Stare szufladki muszą mieć wpis w mapie migracji — bez tego rekord
+    # z kopii zapasowej wróciłby jako „Bez kategorii" i nikt by nie zauważył.
+    ok = all(v is None or v in app.KATEGORIE_PARTNEROW
+             for v in app.STARE_KATEGORIE.values())
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | mapa starych nazw wskazuje na istniejące kategorie")
+    bledy += not ok
     return bledy
 
 

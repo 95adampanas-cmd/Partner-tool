@@ -28,11 +28,11 @@ const html = fs.readFileSync(path.join(KAT, "index.html"), "utf8")
 // Dwie ścieżki, żeby dało się sprawdzić, czy się nie mieszają.
 const FIRMY = [
   { url: "https://tebim.pro", nazwa: "Tebim", branza: "agencja e-commerce", tryb: "partner",
-    kategoria: "Budowa stron i sklepów", ma_seo: true, uslugi: ["a"], case_studies: [], zrodlo_danych: [] },
+    kategoria: "Sklepy internetowe", ma_seo: true, uslugi: ["a"], case_studies: [], zrodlo_danych: [] },
   { url: "https://widoczni.com", nazwa: "widoczni", branza: "agencja digital", tryb: "partner",
-    kategoria: "Marketing poza SEO", ma_seo: true, uslugi: ["b"], case_studies: [], zrodlo_danych: [] },
+    kategoria: "Performance", ma_seo: true, uslugi: ["b"], case_studies: [], zrodlo_danych: [] },
   { url: "https://ellaboutique.pl", nazwa: "Ella Boutique", branza: "butik", tryb: "klient",
-    kategoria: "Sprzedaż i marketplace", ma_seo: false, uslugi: ["c"], case_studies: [], zrodlo_danych: [] },
+    kategoria: "Marketplace", ma_seo: false, uslugi: ["c"], case_studies: [], zrodlo_danych: [] },
 ];
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8000/" });
@@ -182,10 +182,19 @@ setTimeout(() => {
   // Kategorie maja byc w dwoch nazwanych sekcjach — przy 29 pozycjach jeden rzad
   // chipow to sciana. Wracamy na Wyszukiwarke, bo poprzedni przypadek zostawil Mapy.
   // Kafelki "Cale ujecie firmy" w Szukaj podobnych. Dwie rzeczy, ktore byly zle:
-  // wchodzila tam NASZA kategoria ("Budowa stron i sklepow" — nikt tak o sobie nie
-  // pisze, wiec jako fraza jest bezuzyteczna), a dluga branza szla jednym kafelkiem
+  // wchodzila tam NASZA kategoria (etykieta chipu, nie fraza — nikt tak o sobie
+  // nie pisze), a dluga branza szla jednym kafelkiem
   // i zapytanie bylo za waskie.
   nav("podobne", zKlientami ? "klient" : null);
+
+  // Tag zbadanej firmy musi byc TA SAMA nazwa co kategoria wyszukiwania. Bez tego
+  // szukasz w "Sklepy internetowe", a znaleziona firma dostaje chip, ktorego nie ma
+  // na zadnej liscie — i filtr na liscie Firm przestaje cokolwiek znaczyc.
+  // Czytamy PRZED wyborem firmy: po kliknieciu lista chipow ustepuje miejsca karcie
+  // firmy wzorcowej.
+  const tagiFirm = [...d.querySelectorAll("[data-kat-podobne]")]
+    .map((x) => x.dataset.katPodobne).filter(Boolean);
+
   klik(d.querySelector("#podobne-wybor .sim-row button"));
   const szerokieTagi = [...d.querySelectorAll(".tag-szeroki")].map((x) => x.textContent.trim());
   sprawdz("Podobne: kafelki szerokie sie pojawily", szerokieTagi.length > 0,
@@ -199,8 +208,12 @@ setTimeout(() => {
     !zaznaczoneZrodlo || zaznaczoneZrodlo.dataset.zrodloPodobne === "mapy",
     zaznaczoneZrodlo ? zaznaczoneZrodlo.dataset.zrodloPodobne : "brak przelacznika");
 
+  // Kategoria jest dzis TA SAMA nazwa co kategoria wyszukiwania w PRESETY,
+  // ale to wciaz ETYKIETA CHIPU, a nie zapytanie: nikt nie wpisuje w Google
+  // "Sklepy internetowe", zeby znalezc agencje. Na zapytanie nadaje sie fraza
+  // glowna tej kategorii ("tworzenie sklepow internetowych"), nie sam tag.
   sprawdz("Podobne: NASZA kategoria nie jest fraza wyszukiwania",
-    !szerokieTagi.includes("Budowa stron i sklepow")
+    !szerokieTagi.includes("Sklepy internetowe")
       && !szerokieTagi.includes("Budowa stron i sklepów"),
     szerokieTagi.join(" | "));
 
@@ -209,6 +222,13 @@ setTimeout(() => {
   sprawdz("Presety: kategorie w dwoch nazwanych sekcjach",
     d.querySelectorAll("#presety-branz .preset-sekcja").length === 2,
     `${d.querySelectorAll("#presety-branz .preset-sekcja").length} sekcji`);
+
+  const kategoriePresetow = [...d.querySelectorAll("#presety-branz [data-grupa]")]
+    .map((x) => x.firstChild ? x.textContent.replace(/\s*\d+\s*$/, "").trim() : "");
+  const osierocone = tagiFirm.filter((t) => !kategoriePresetow.includes(t));
+  sprawdz("Tagi firm sa tymi samymi nazwami co kategorie wyszukiwania",
+    osierocone.length === 0,
+    osierocone.length ? `poza lista: ${osierocone.join(", ")}` : `${tagiFirm.length} tagow`);
 
   nav("rozmowa");
   sprawdz("Rozmowa: sekcja pokazuje wybór firmy",

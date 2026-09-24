@@ -252,30 +252,11 @@ const szukajWynik = document.getElementById("szukaj-wynik");
 const PRESETY = {
   // Kategorie WYWIEDZIONE z listy 35 realnych partnerów Adama (04.09.2026) — nie
   // z burzy mózgów. Każda ma za sobą co najmniej jedną firmę, która się broni.
-  // Rozkład tej listy: 11 firm buduje strony i sklepy, 7 to marketing, 6 doradztwo,
-  // 4 branding, 3 narzędzia. Presety odwzorowują te proporcje.
   //
   // Dwie firmy z listy (webmetric.com, stonehengeagency.com) SPRZEDAJĄ SEO i mimo to
   // są dobrymi partnerami. Dlatego odsiew konkurentów został usunięty, a SEO jest
   // tylko tagiem — patrz DECISIONS 2026-09-04.
-  // ── PRESETY WYSZUKIWANIA — Wyszukiwarka i Google ─────────────────────
   //
-  // Struktura dostarczona przez Adama 23.09.2026: 26 kategorii, każda z JEDNĄ frazą
-  // główną (najszersza, dużo wyników) i podkategoriami, które zawężają.
-  //
-  // TO NIE SĄ kategorie, do których trafia zbadana firma. Tamtych jest dziesięć
-  // (KATEGORIE_PARTNEROW w app.py) i służą do szufladkowania firm PO researchu.
-  // Te służą do SZUKANIA. Wcześniej jedno i drugie było tą samą listą, przez co
-  // dodanie frazy wyszukiwania wymagało dodania szufladki — i odwrotnie.
-  //
-  // Poprzednia wersja miała 78 tagów w 10 grupach i mieszała poziomy: platformę
-  // („wdrożenia Shopify"), typ firmy („software house") i usługę („migracja sklepu")
-  // w jednym rzędzie chipów. Zmierzone przy okazji: tagi NIE były redundantne —
-  // „agencja brandingowa" i „agencja kreatywna" dawały 13% wspólnych domen, więc
-  // problemem nie była liczba, tylko brak porządku.
-  //
-  // Mapy Google dostaną własny zestaw — tam szuka się inaczej (wizytówki, nie treść
-  // stron), więc te same frazy nie zadziałają.
   // ── PRESETY WYSZUKIWANIA — Wyszukiwarka i Google ─────────────────────
   //
   // Struktura od Adama (23.09.2026): 29 kategorii, 297 fraz. Każda kategoria ma
@@ -286,8 +267,13 @@ const PRESETY = {
   // a granica jest naturalna: firmy usługowe kontra producenci oprogramowania.
   // (Czwarty element rezerwuje miejsce na flagę „słabe", której używają Mapy.)
   //
-  // TO NIE SĄ kategorie, do których trafia zbadana firma. Tamtych jest dziesięć
-  // (KATEGORIE_PARTNEROW w app.py) i służą do szufladkowania firm PO researchu.
+  // TE NAZWY SĄ JEDNOCZEŚNIE TAGAMI ZBADANYCH FIRM (KATEGORIE_PARTNEROW w app.py)
+  // i muszą się zgadzać znak w znak. Przez jeden dzień były to dwie różne listy —
+  // 29 kategorii do szukania i 10 szufladek nadawanych po researchu — i wyszło to
+  // tak: szukałeś w „Sklepy internetowe", a znaleziona firma dostawała tag „Budowa
+  // stron i sklepów", którego nie ma na żadnej liście wyboru. Filtr na liście Firm
+  // i w „Szukaj podobnych" pokazywał wtedy trzy chipy na dziewiętnaście firm.
+  // Zgodności pilnuje test `sprawdz_presety` w backend/test_filtr.py.
   partner: [
     ["Strony www", "tworzenie stron internetowych", [
       "projektowanie stron www", "strony www dla firm", "agencja interaktywna",
@@ -1339,11 +1325,11 @@ function renderPodobne() {
 
   // Szerokie ujęcia firmy — kafelki, które idą do wyszukiwarki jako gotowa fraza.
   //
-  // KATEGORIA TU NIE WCHODZI, choć wchodziła. „Budowa stron i sklepów" to nazwa
-  // NASZEJ szufladki z KATEGORIE_PARTNEROW, wymyślona na potrzeby interfejsu —
-  // żadna firma tak o sobie nie pisze, więc jako zapytanie jest bezużyteczna.
-  // Sprawdzone: fraza występuje w repo tylko w konfiguracji kategorii i w prompcie
-  // ekstrakcji, nigdzie w danych ze stron.
+  // KATEGORIA TU NIE WCHODZI, choć wchodziła. To nazwa CHIPU („Sklepy internetowe"),
+  // a nie zdanie, które ktoś wpisuje w wyszukiwarkę — żadna firma nie opisuje się
+  // słowami z naszego filtru. Odpowiednikiem kategorii nadającym się na zapytanie
+  // jest jej fraza główna z PRESETY („tworzenie sklepów internetowych"), nie sama
+  // etykieta.
   //
   // Resztę układa MODEL, nie my. Próba rozbijania pola `branza` wyrażeniem
   // regularnym nie broni się przy prawdziwych danych: mamy tam ukośniki, przecinki,

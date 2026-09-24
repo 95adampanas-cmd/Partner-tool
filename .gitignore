@@ -40,5 +40,6 @@ backend/fixtures/
 
 # Baza z danymi firm — NIP-y, maile, telefony. Nigdy na GitHub.
 backend/dane.db
+backend/dane.db.przed-*
 backend/dane.db-wal
 backend/dane.db-shm
