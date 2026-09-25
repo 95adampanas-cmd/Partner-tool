@@ -55,6 +55,10 @@ async function wczytajPamiec() {
     odswiezBadge("badge-eksport",
       koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
     renderResearchPanel();
+    // Historia audytów zasila kolumnę „Praca". Jedno żądanie na start, nie jedno
+    // na wiersz — lista ma pokazywać stan pracy, a nie odpytywać bazy przy każdym
+    // przerysowaniu.
+    await wczytajAudyty();
     // WCZYTANIE MUSI SIĘ ZOBACZYĆ. Firmy przychodzą z bazy asynchronicznie, już
     // po narysowaniu strony, a „Partnerzy" jest teraz sekcją domyślną — bez tego
     // wywołania aplikacja startowała z pustą listą i zapełniała ją dopiero po
@@ -1017,28 +1021,61 @@ function renderListeFirm() {
         </button>`).join("")}
     </div>`;
 
-  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + znacznik + filtrKat + widoczne.map((t) => {
-    const f = t.firma;
-    const wKoszyku = koszyk.some((k) => k.url === f.url);
-    return `<div class="firma-row" data-id="${t.id}">
-      <div class="firma-row-info">
-        <div class="firma-row-top">
-          <span class="firma-row-nazwa">${esc(f.nazwa)}</span>
-          ${f.kategoria && f.kategoria !== BRAK
-            ? `<span class="tag-kat">${esc(f.kategoria)}</span>` : ""}
-          ${f.ma_seo
-            ? `<span class="flaga mini ma-seo"><svg class="ico xs"><use href="#i-search"/></svg>Ma SEO</span>`
-            : `<span class="flaga mini bez-seo">Bez SEO</span>`}
-          ${wKoszyku ? `<span class="flaga mini w-eksporcie"><svg class="ico xs"><use href="#i-table"/></svg>W eksporcie</span>` : ""}
-        </div>
-        <span class="firma-row-meta">${esc(hostname(f.url))} · ${esc(f.branza)}</span>
-      </div>
-      <div class="firma-row-akcje">
-        <button class="otworz" type="button">Otwórz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
-        <button class="usun" type="button" data-usun="${t.id}" title="Usuń z listy"><svg class="ico xs"><use href="#i-x"/></svg></button>
-      </div>
-    </div>`;
-  }).join("");
+  const posortowane = sortujFirmy(widoczne);
+  const zaznaczone = posortowane.filter((t) => koszyk.some((k) => k.url === t.firma.url)).length;
+
+  document.getElementById("firmy-lista").innerHTML = przelacznikTrybu() + znacznik + filtrKat + `
+    <table class="tabela-firm">
+      <thead><tr>
+        <th class="kol-zazn">
+          <input type="checkbox" class="zazn-wszystkie"
+            ${zaznaczone === posortowane.length && posortowane.length ? "checked" : ""}
+            title="Zaznacz wszystkie do eksportu">
+        </th>
+        ${naglowekKolumny("firma", "Firma")}
+        ${naglowekKolumny("kategoria", "Kategoria", "kol-kat")}
+        ${naglowekKolumny("praca", "Praca", "kol-praca")}
+        ${naglowekKolumny("ostatnio", "Ostatnio", "kol-data")}
+        <th class="kol-akcje"></th>
+      </tr></thead>
+      <tbody>${posortowane.map((t) => {
+        const f = t.firma;
+        const wKoszyku = koszyk.some((k) => k.url === f.url);
+        const st = stanPracy(f.url);
+        // „Bez SEO" wisiało na szesnastu z dwudziestu jeden wierszy — etykieta,
+        // która jest prawie zawsze, nie niesie informacji, tylko szum. Pokazujemy
+        // wyjątek, czyli te pięć firm, które SEO w ofercie mają.
+        const praca = [
+          st.audyty ? `${st.audyty} ${st.audyty === 1 ? "audyt" : "audyty"}` : "",
+          st.maile ? `${st.maile} ${st.maile === 1 ? "szkic" : "szkice"}` : "",
+          st.wyslane ? `${st.wyslane} wysłane` : "",
+        ].filter(Boolean);
+        return `<tr class="firma-row${wKoszyku ? " w-koszyku" : ""}" data-id="${t.id}">
+          <td class="kol-zazn">
+            <input type="checkbox" class="do-eksportu-lista" data-url="${escAttr(f.url)}"
+              ${wKoszyku ? "checked" : ""} title="Do eksportu">
+          </td>
+          <td>
+            <span class="firma-row-nazwa">${esc(f.nazwa)}${
+              f.ma_seo ? `<span class="znak-seo" title="Ma SEO w ofercie — fakt z opisu, nie ocena">SEO</span>` : ""
+            }</span>
+            <span class="firma-row-meta">${esc(hostname(f.url))}${
+              f.branza && f.branza !== BRAK ? ` · ${esc(f.branza)}` : ""}</span>
+          </td>
+          <td class="kol-kat">${f.kategoria && f.kategoria !== BRAK
+            ? `<span class="tag-kat">${esc(f.kategoria)}</span>` : `<span class="nic">—</span>`}</td>
+          <td class="kol-praca">${praca.length
+            ? praca.map((x) => `<span class="znacznik-pracy">${esc(x)}</span>`).join("")
+            : `<span class="nic">nic jeszcze</span>`}</td>
+          <td class="kol-data">${st.ostatnio
+            ? esc(dataKrotka(st.ostatnio)) : `<span class="nic">—</span>`}</td>
+          <td class="kol-akcje">
+            <button class="usun" type="button" data-usun="${t.id}" title="Usuń z listy">
+              <svg class="ico xs"><use href="#i-x"/></svg></button>
+          </td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>`;
 }
 
 function usunFirme(id) {
@@ -1139,6 +1176,44 @@ document.addEventListener("click", (e) => {
   }
 
   if (e.target.closest("[data-zdejmij-filtr]")) { filtrFirm = null; return renderListeFirm(); }
+  const sortBtn = e.target.closest("[data-sort]");
+  if (sortBtn) {
+    const kol = sortBtn.dataset.sort;
+    // Drugie kliknięcie w tę samą kolumnę odwraca kierunek — bez tego sortowanie
+    // odpowiada tylko na połowę pytań („najnowsze" bez „najstarsze").
+    if (sortKolumna === kol) sortMalejaco = !sortMalejaco;
+    else { sortKolumna = kol; sortMalejaco = kol === "ostatnio" || kol === "praca"; }
+    return renderListeFirm();
+  }
+
+  // Zaznaczanie do eksportu żyje teraz na liście, więc da się wybrać dwadzieścia
+  // firm bez wchodzenia w każdą z osobna.
+  const zaznWszystkie = e.target.closest(".zazn-wszystkie");
+  if (zaznWszystkie) {
+    const chce = zaznWszystkie.checked;
+    document.querySelectorAll("#firmy-lista .do-eksportu-lista").forEach((box) => {
+      const url = box.dataset.url;
+      const wpis = tabs.find((t) => t.firma.url === url);
+      const juz = koszyk.some((k) => k.url === url);
+      if (chce && !juz && wpis) koszyk.push({ ...wpis.firma, tryb: wpis.tryb });
+      if (!chce && juz) koszyk = koszyk.filter((k) => k.url !== url);
+      if (chce !== juz) zapiszKoszyk(url, chce);
+    });
+    odswiezBadge("badge-eksport", koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
+    return renderListeFirm();
+  }
+
+  const zaznJedna = e.target.closest(".do-eksportu-lista");
+  if (zaznJedna) {
+    const url = zaznJedna.dataset.url;
+    const wpis = tabs.find((t) => t.firma.url === url);
+    if (zaznJedna.checked && wpis) koszyk.push({ ...wpis.firma, tryb: wpis.tryb });
+    else koszyk = koszyk.filter((k) => k.url !== url);
+    zapiszKoszyk(url, zaznJedna.checked);
+    odswiezBadge("badge-eksport", koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
+    return renderListeFirm();
+  }
+
   const wiersz = e.target.closest(".firma-row");
   if (wiersz) { pokazSekcje("firmy"); return pokazDetal(wiersz.dataset.id); }
   if (e.target.classList.contains("wroc")) return pokazListe();
@@ -3560,4 +3635,76 @@ async function renderAudyty() {
   } catch (e) {
     box.innerHTML = errorHTML(e.message);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  LISTA PARTNERÓW — tabela pracy, nie galeria kafelków
+// ══════════════════════════════════════════════════════════════════════
+// Każdy wiersz był osobną białą kartą z cieniem: 21 identycznych prostokątów,
+// siedem na ekran, wszystkie tak samo ważne. Przy 180 firmach z importu Sortlist
+// to przestaje być lista, a zaczyna przewijanie. Tabela robi trzy rzeczy, których
+// kafelki nie robiły: mieści dwa razy więcej wierszy, pokazuje STAN PRACY
+// (co zrobione, kiedy ostatnio) i pozwala sortować — czyli odpowiedzieć na
+// pytanie „kim się zająć teraz", a nie tylko „kogo mam".
+let sortKolumna = "ostatnio";   // firma | kategoria | praca | ostatnio
+let sortMalejaco = true;
+let audytyWgUrl = new Map();    // url -> [{dostawca, data}]
+
+async function wczytajAudyty() {
+  try {
+    const d = await (await fetch("/api/audyty")).json();
+    audytyWgUrl = new Map();
+    for (const a of d.audyty || []) {
+      if (!audytyWgUrl.has(a.url)) audytyWgUrl.set(a.url, []);
+      audytyWgUrl.get(a.url).push(a);
+    }
+  } catch (e) {
+    // Brak historii audytów nie może wywalić listy — kolumna po prostu będzie pusta.
+    console.warn("Nie udało się wczytać historii audytów:", e);
+  }
+}
+
+// Stan pracy nad firmą w jednym miejscu: ile audytów, ile szkiców, kiedy ostatnio
+// cokolwiek się działo. To jest jedyna kolumna, która mówi „co dalej".
+function stanPracy(url) {
+  const audyty = audytyWgUrl.get(url) || [];
+  const maile = maileFirmy(url);
+  const daty = [...audyty.map((a) => a.data), ...maile.map((m) => m.data)]
+    .filter(Boolean).sort();
+  return {
+    audyty: audyty.length,
+    maile: maile.length,
+    wyslane: maile.filter((m) => m.wyslany).length,
+    ostatnio: daty.length ? daty[daty.length - 1] : "",
+  };
+}
+
+function dataKrotka(iso) {
+  if (!iso) return "";
+  const [rok, mies, dzien] = iso.slice(0, 10).split("-");
+  return `${dzien}.${mies}`;
+}
+
+function sortujFirmy(lista) {
+  const klucz = {
+    firma: (t) => (t.firma.nazwa || "").toLowerCase(),
+    kategoria: (t) => (t.firma.kategoria && t.firma.kategoria !== BRAK
+      ? t.firma.kategoria : "￿").toLowerCase(),
+    praca: (t) => { const s = stanPracy(t.firma.url); return s.audyty * 100 + s.maile; },
+    ostatnio: (t) => stanPracy(t.firma.url).ostatnio || "",
+  }[sortKolumna] || ((t) => t.firma.nazwa);
+
+  return [...lista].sort((a, b) => {
+    const x = klucz(a), y = klucz(b);
+    if (x === y) return (a.firma.nazwa || "").localeCompare(b.firma.nazwa || "", "pl");
+    const kierunek = sortMalejaco ? -1 : 1;
+    return (x > y ? 1 : -1) * kierunek;
+  });
+}
+
+function naglowekKolumny(id, etykieta, klasa = "") {
+  const aktywny = sortKolumna === id;
+  return `<th class="${klasa}${aktywny ? " sort-aktywna" : ""}" data-sort="${id}"
+    title="Sortuj po: ${esc(etykieta)}">${esc(etykieta)}${
+    aktywny ? `<span class="strzalka">${sortMalejaco ? "↓" : "↑"}</span>` : ""}</th>`;
 }

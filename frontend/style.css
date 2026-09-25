@@ -1000,3 +1000,74 @@ button { font-family: var(--sans); }
 }
 .prz-wiecej:hover { color: var(--akcent); }
 .prz-wiecej em { font-style: normal; color: var(--akcent); font-variant-numeric: tabular-nums; }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   TABELA PARTNERÓW
+   ══════════════════════════════════════════════════════════════════
+   Kafelki zastąpione wierszami. Trzy powody, wszystkie policzalne: na ekran
+   wchodzi dwa razy więcej firm, wiersz niesie stan pracy zamiast samej nazwy,
+   a kolumny da się posortować — czyli odpowiedzieć na pytanie „kim się zająć",
+   a nie tylko „kogo mam". Przy 180 firmach z importu to różnica między listą
+   a przewijaniem. */
+.tabela-firm {
+  width: 100%; border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden;
+}
+.tabela-firm thead th {
+  text-align: left; font-family: var(--mono);
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); font-weight: 500;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+.tabela-firm thead th:hover { color: var(--text); }
+.tabela-firm thead th.kol-zazn, .tabela-firm thead th.kol-akcje { cursor: default; }
+.tabela-firm thead th.kol-zazn:hover, .tabela-firm thead th.kol-akcje:hover { color: var(--faint); }
+.tabela-firm th.sort-aktywna { color: var(--akcent); }
+.tabela-firm .strzalka { margin-left: 5px; }
+
+.tabela-firm tbody tr { border-top: 1px solid var(--border-soft); cursor: pointer; }
+.tabela-firm tbody tr:first-child { border-top: 0; }
+.tabela-firm tbody tr:hover { background: var(--surface-2); }
+.tabela-firm tbody tr.w-koszyku { background: rgba(var(--akcent-rgb), .04); }
+.tabela-firm td { padding: 10px 14px; vertical-align: middle; }
+
+/* Nazwa i adres w jednej komórce: adres jest podpisem nazwy, nie osobną daną. */
+.tabela-firm .firma-row-nazwa {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14.5px; font-weight: 600; color: var(--text);
+}
+.tabela-firm .firma-row-meta {
+  display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px;
+}
+/* SEO w ofercie to WYJĄTEK (pięć firm na dwadzieścia jeden), więc pokazujemy
+   tylko jego. Napis „bez SEO" na szesnastu wierszach był szumem. */
+.znak-seo {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em;
+  color: var(--akcent); border: 1px solid var(--border-mocny);
+  border-radius: 4px; padding: 1px 5px; font-weight: 500;
+}
+.kol-zazn { width: 38px; }
+.kol-kat { width: 200px; }
+.kol-praca { width: 210px; }
+.kol-data { width: 74px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.kol-akcje { width: 44px; text-align: right; }
+.tabela-firm .nic { color: var(--faint); font-size: 13px; }
+.znacznik-pracy {
+  display: inline-block; font-size: 12px; color: var(--muted);
+  background: var(--surface-2); border-radius: 20px;
+  padding: 2px 9px; margin: 1px 4px 1px 0; white-space: nowrap;
+}
+.tabela-firm .tag-kat { font-size: 11px; }
+/* Przycisk usuwania pojawia się pod kursorem — na dwudziestu wierszach naraz
+   byłby dwudziestoma zaproszeniami do pomyłki. */
+.tabela-firm .usun { opacity: 0; transition: opacity .12s; }
+.tabela-firm tr:hover .usun, .tabela-firm .usun:focus { opacity: 1; }
+.tabela-firm input[type="checkbox"] { cursor: pointer; }
+
+@media (max-width: 900px) {
+  .kol-kat, .kol-praca, .kol-data { display: none; }
+}

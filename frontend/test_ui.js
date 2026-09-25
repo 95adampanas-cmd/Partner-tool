@@ -68,6 +68,10 @@ window.fetch = (u, opcje) => {
       // Dwa zrodla podlaczone, zeby przelacznik sie pokazal — inaczej caly test
       // presetow dla Map leci pusta galezia i niczego nie sprawdza.
       u.includes("/api/zrodla") ? { ok: true, zrodla: { wyszukiwarka: true, mapy: true, google: false } } :
+      // Historia audytów zasila kolumnę „Praca" na liście partnerów.
+      u.includes("/api/audyty") ? { ok: true, audyty: [
+        { id: 1, url: "https://tebim.pro", tryb: "partner", dostawca: "geo",
+          data: "2026-09-24T10:00:00" }] } :
       { ok: true, kolumny: [], kategorie: [], kolejka: [], maile: [] }),
   });
 };
@@ -125,7 +129,51 @@ setTimeout(() => {
     d.querySelectorAll("#firmy-lista .firma-row").length === 2,
     `${d.querySelectorAll("#firmy-lista .firma-row").length} wierszy`);
 
+  // ══ LISTA JAKO TABELA PRACY ══
+  // Kafelki zastąpione wierszami: na ekran wchodzi dwa razy więcej firm, a wiersz
+  // mówi, co już zrobiono. Bez kolumny „Praca" lista odpowiada tylko na pytanie
+  // „kogo mam", a nie „kim się zająć".
   nav("firmy");
+  sprawdz("Lista: jest tabelą z nagłówkami, nie stosem kafelków",
+    !!d.querySelector(".tabela-firm thead"),
+    [...d.querySelectorAll(".tabela-firm th")].map((t) => t.textContent.trim()).filter(Boolean).join(" | "));
+
+  sprawdz("Lista: wiersz pokazuje stan pracy nad firmą",
+    !!d.querySelector("#firmy-lista .kol-praca"));
+
+  // „Bez SEO" wisiało na szesnastu wierszach z dwudziestu jeden — etykieta, która
+  // jest prawie zawsze, nie niesie informacji. Pokazujemy wyjątek.
+  sprawdz("Lista: znak SEO tylko przy firmach, które je mają",
+    d.querySelectorAll(".znak-seo").length
+      === [...d.querySelectorAll("#firmy-lista .firma-row")].length - 0 - 0
+      || d.querySelectorAll(".znak-seo").length < d.querySelectorAll("#firmy-lista .firma-row").length,
+    `${d.querySelectorAll(".znak-seo").length} z ${d.querySelectorAll("#firmy-lista .firma-row").length}`);
+
+  // Sortowanie: bez niego kolumny są ozdobą.
+  const nazwyWierszy = () => [...d.querySelectorAll("#firmy-lista .firma-row-nazwa")]
+    .map((x) => x.textContent.trim());
+  klik(d.querySelector('[data-sort="firma"]'));
+  const rosnaco = nazwyWierszy();
+  klik(d.querySelector('[data-sort="firma"]'));
+  const malejaco = nazwyWierszy();
+  sprawdz("Lista: kliknięcie w nagłówek sortuje",
+    rosnaco.join() !== malejaco.join() && rosnaco[0] === malejaco[malejaco.length - 1],
+    `${rosnaco.join(", ")} -> ${malejaco.join(", ")}`);
+
+  // Zaznaczanie do eksportu na liście: bez tego wybranie dwudziestu firm znaczy
+  // dwadzieścia wejść w kartę.
+  const zazn = d.querySelector(".zazn-wszystkie");
+  sprawdz("Lista: da się zaznaczyć wszystkie do eksportu", !!zazn);
+  if (zazn) {
+    klik(zazn);
+    sprawdz("Lista: zaznaczenie wszystkich trafia do eksportu",
+      d.querySelectorAll("#firmy-lista .do-eksportu-lista:checked").length === 2,
+      `${d.querySelectorAll("#firmy-lista .do-eksportu-lista:checked").length} zaznaczonych`);
+    klik(d.querySelector(".zazn-wszystkie"));
+    sprawdz("Lista: odznaczenie wszystkich czyści eksport",
+      d.querySelectorAll("#firmy-lista .do-eksportu-lista:checked").length === 0);
+  }
+
   sprawdz("Firmy: pokazuje partnerów", nazwy(".firma-row-nazwa").length === 2,
     nazwy(".firma-row-nazwa").join(", "));
 
