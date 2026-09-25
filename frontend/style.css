@@ -1138,3 +1138,11 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
   .krok { grid-template-columns: 1fr; gap: 14px; }
   .krok-opis p { max-width: none; }
 }
+
+/* Etykieta nad rzędem chipów — przy dwóch rzędach filtrów („Kategoria",
+   „Z zapytania") bez niej nie wiadomo, czym się właściwie filtruje. */
+.filtr-etykieta {
+  font-size: 9px; color: var(--faint); align-self: center;
+  margin-right: 4px; white-space: nowrap;
+}
+.filtr-kategorii { align-items: center; }

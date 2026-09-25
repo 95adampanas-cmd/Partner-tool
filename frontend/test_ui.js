@@ -51,6 +51,19 @@ const { window } = dom;
 // "Dodaj wszystkie do kolejki" przechwytywal inny warunek w obsludze klikniec
 // i zamiast dodawac firmy przestawial zrodlo wyszukiwania.
 const zadania = [];
+// Kolejka: dwie frazy w JEDNEJ kategorii — dokładnie ten układ, przez który
+// filtr kategorii nie pokazywał się wcale na żywej kolejce 45 firm.
+const KOLEJKA_TESTOWA = [
+  { url: "https://adlife.pl", nazwa: "Adlife", tryb: "partner", opis: "agencja online",
+    zrodlo: "wyszukiwarka", zapytanie: "agencja marketingu internetowego",
+    kategoria: "Agencje digital / full-service", dodana: "2026-09-25T00:00:00" },
+  { url: "https://silesion.pl", nazwa: "Silesion", tryb: "partner", opis: "portal",
+    zrodlo: "wyszukiwarka", zapytanie: "agencja marketingu internetowego",
+    kategoria: "Agencje digital / full-service", dodana: "2026-09-25T00:00:00" },
+  { url: "https://growth.pl", nazwa: "Growth", tryb: "partner", opis: "agencja growth",
+    zrodlo: "wyszukiwarka", zapytanie: "agencja growth e-commerce",
+    kategoria: "Agencje digital / full-service", dodana: "2026-09-25T00:00:00" },
+];
 const ZNALEZIONE = [
   { url: "https://sklep-alfa.pl", nazwa: "Alfa", opis: "wdrozenia Shopify", ma_seo: false },
   { url: "https://sklep-beta.pl", nazwa: "Beta", opis: "sklepy PrestaShop", ma_seo: true },
@@ -63,7 +76,7 @@ window.fetch = (u, opcje) => {
       u.includes("/api/firmy") ? { ok: true, firmy: FIRMY } :
       u.includes("/api/szukaj") ? { ok: true, firmy: ZNALEZIONE, zapytanie: "tworzenie sklepów internetowych", zrodlo: "wyszukiwarka" } :
       u.includes("/api/kolejka") && (!opcje || !opcje.method || opcje.method === "GET")
-        ? { ok: true, kolejka: [] } :
+        ? { ok: true, kolejka: KOLEJKA_TESTOWA } :
       u.includes("/api/kolejka") ? { ok: true, doszlo: ZNALEZIONE.length } :
       // Dwa zrodla podlaczone, zeby przelacznik sie pokazal — inaczej caly test
       // presetow dla Map leci pusta galezia i niczego nie sprawdza.
@@ -504,9 +517,33 @@ setTimeout(() => {
   sprawdz("Maile: przegląd nie pyta ponownie o firmę",
     !d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));
 
+  // ══ FILTRY W KOLEJCE ══
+  // Zmierzone na żywej kolejce: 45 firm, wszystkie w JEDNEJ kategorii, ale
+  // z dwóch różnych fraz. Filtr kategorii nie pokazywał się wcale (bo kategoria
+  // jedna), a to właśnie fraza dzieliła tę listę na sensowne części.
   nav("kolejka");
-  sprawdz("Kolejka: sekcja renderuje pusty stan bez błędu",
-    d.getElementById("kolejka-box").innerHTML.includes("Kolejka jest pusta"));
+  const wKolejce = () => d.querySelectorAll("#kolejka-box .sim-row").length;
+  sprawdz("Kolejka: pokazuje odłożone firmy", wKolejce() === 3, `${wKolejce()} wierszy`);
+  sprawdz("Kolejka: jest pole szukania", !!d.getElementById("szukaj-kolejka"));
+
+  const chipyZap = [...d.querySelectorAll("[data-zap-kolejka]")]
+    .filter((x) => x.dataset.zapKolejka);
+  sprawdz("Kolejka: filtr po zapytaniu, z którego firma przyszła",
+    chipyZap.length === 2,
+    chipyZap.map((x) => x.textContent.trim().replace(/\s+/g, " ")).join(" | "));
+
+  klik(chipyZap.find((x) => x.dataset.zapKolejka.includes("growth")));
+  sprawdz("Kolejka: filtr zapytania zawęża listę", wKolejce() === 1, `${wKolejce()} wierszy`);
+  klik(d.querySelector('[data-zap-kolejka=""]'));
+  sprawdz("Kolejka: „Wszystkie” przywraca pełną listę", wKolejce() === 3);
+
+  const poleK = d.getElementById("szukaj-kolejka");
+  poleK.value = "adlife";
+  poleK.dispatchEvent(new window.Event("input", { bubbles: true }));
+  sprawdz("Kolejka: szukanie działa po nazwie i adresie", wKolejce() === 1, `${wKolejce()} wierszy`);
+  const poleK2 = d.getElementById("szukaj-kolejka");
+  poleK2.value = "";
+  poleK2.dispatchEvent(new window.Event("input", { bubbles: true }));
 
   nav("eksport");
   sprawdz("Eksport: sekcja renderuje się bez błędu",

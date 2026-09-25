@@ -600,6 +600,8 @@ let filtrKategorii = null;
 // To samo dla kolejki. Osobna zmienna, bo obie listy bywaja otwarte
 // naprzemiennie i wspolny stan przenosilby filtr tam, gdzie go nie ustawiono.
 let filtrKolejki = null;
+let filtrZapytania = null;   // fraza, z której firma trafiła do kolejki
+let szukajKolejki = "";      // tekst wpisany nad kolejką
 
 // Źródło firm. "wyszukiwarka" = Tavily (kto jest wypozycjonowany),
 // "mapy" = Google Maps (kto ma wizytówkę, niezależnie od SEO).
@@ -712,20 +714,55 @@ function renderKolejke() {
   // wrzuca kilkadziesiąt firm, a import z katalogu potrafi wrzucić kilkaset.
   // Kategoria jest tu tą, POD KTÓRĄ firmę znaleziono — research nadaje własną.
   const kat = (k) => k.kategoria || "Bez kategorii";
+
+  // ZAPYTANIE JEST TU CZĘSTO WAŻNIEJSZE NIŻ KATEGORIA. Zmierzone na żywej
+  // kolejce: 45 firm, wszystkie w jednej kategorii, ale z DWÓCH różnych fraz —
+  // „agencja growth e-commerce" (24) i „agencja marketingu internetowego" (21).
+  // Filtr kategorii nie pokazywał się wcale, bo kategoria była jedna, a to
+  // właśnie fraza dzieli tę listę na dwie sensowne części.
+  const zap = (k) => k.zapytanie || "Bez zapytania";
+  const skrot = (fraza) => {
+    const pierwsza = fraza.split("|")[0].trim();
+    return pierwsza.length > 42 ? pierwsza.slice(0, 42) + "…" : pierwsza;
+  };
+
   const liczby = new Map();
   moje.forEach((k) => liczby.set(kat(k), (liczby.get(kat(k)) || 0) + 1));
-  const widoczne = filtrKolejki ? moje.filter((k) => kat(k) === filtrKolejki) : moje;
+  const liczbyZap = new Map();
+  moje.forEach((k) => liczbyZap.set(zap(k), (liczbyZap.get(zap(k)) || 0) + 1));
 
-  const filtrKat = liczby.size <= 1 ? "" : `
+  const fraza = szukajKolejki.trim().toLowerCase();
+  const widoczne = moje.filter((k) =>
+    (!filtrKolejki || kat(k) === filtrKolejki)
+    && (!filtrZapytania || zap(k) === filtrZapytania)
+    && (!fraza || [k.nazwa, k.url, k.opis, k.zapytanie]
+      .some((x) => (x || "").toLowerCase().includes(fraza))));
+
+  const chipy = (wartosci, atrybut, aktywny, etykieta) => wartosci.size <= 1 ? "" : `
     <div class="filtr-kategorii tagi wybieralne">
-      <button class="tag${filtrKolejki ? "" : " zaznaczony"}" type="button"
-              data-kat-kolejka="">Wszystkie <em class="chip-licznik">${moje.length}</em></button>
-      ${[...liczby.entries()].map(([nazwa, ile]) => `
-        <button class="tag${filtrKolejki === nazwa ? " zaznaczony" : ""}" type="button"
-                data-kat-kolejka="${escAttr(nazwa)}">
-          ${esc(nazwa)} <em class="chip-licznik">${ile}</em>
+      ${etykieta ? `<span class="mono filtr-etykieta">${esc(etykieta)}</span>` : ""}
+      <button class="tag${aktywny ? "" : " zaznaczony"}" type="button"
+              ${atrybut}="">Wszystkie <em class="chip-licznik">${moje.length}</em></button>
+      ${[...wartosci.entries()].map(([nazwa, ile]) => `
+        <button class="tag${aktywny === nazwa ? " zaznaczony" : ""}" type="button"
+                ${atrybut}="${escAttr(nazwa)}" title="${escAttr(nazwa)}">
+          ${esc(atrybut === "data-zap-kolejka" ? skrot(nazwa) : nazwa)}
+          <em class="chip-licznik">${ile}</em>
         </button>`).join("")}
     </div>`;
+
+  const narzedzia = `
+    <div class="lista-narzedzia">
+      <input type="search" id="szukaj-kolejka" placeholder="Szukaj w kolejce — nazwa, adres, opis, fraza…"
+             autocomplete="off" value="${escAttr(szukajKolejki)}">
+      <span class="mono">${fraza || filtrKolejki || filtrZapytania
+        ? `${widoczne.length} z ${moje.length}` : `${moje.length} firm`}</span>
+    </div>`;
+
+  const filtrKat = narzedzia
+    + chipy(liczby, "data-kat-kolejka", filtrKolejki, liczby.size > 1 ? "Kategoria" : "")
+    + chipy(liczbyZap, "data-zap-kolejka", filtrZapytania, "Z zapytania")
+    + (widoczne.length ? "" : `<div class="pusto"><p>Nic nie pasuje do tych filtrów.</p></div>`);
 
   // Zaznaczenie liczymy z WIDOCZNYCH, nie z całej kolejki. Inaczej „Zaznacz
   // wszystkie" przy włączonym filtrze zaznaczałoby też firmy spoza niego —
@@ -1226,6 +1263,12 @@ document.addEventListener("click", (e) => {
     filtrKategorii = katFirmy.dataset.katFirmy || null;
     return renderListeFirm();
   }
+  const chipZap = e.target.closest("[data-zap-kolejka]");
+  if (chipZap) {
+    filtrZapytania = chipZap.dataset.zapKolejka || null;
+    return renderKolejke();
+  }
+
   const katKolejki = e.target.closest("[data-kat-kolejka]");
   if (katKolejki) {
     filtrKolejki = katKolejki.dataset.katKolejka || null;
@@ -1380,6 +1423,13 @@ document.addEventListener("click", (e) => {
 // filtrowanej dopiero po blurze człowiek nie wie, czy pole w ogóle działa.
 document.addEventListener("input", (e) => {
   if (e.target.id === "szukaj-firm") { szukajFirm = e.target.value; renderListeFirm(); }
+  if (e.target.id === "szukaj-kolejka") {
+    szukajKolejki = e.target.value;
+    renderKolejke();
+    // Przerysowanie zabiera fokus razem z polem, a pisanie ma iść dalej.
+    const pole = document.getElementById("szukaj-kolejka");
+    if (pole) { pole.focus(); pole.setSelectionRange(pole.value.length, pole.value.length); }
+  }
 });
 
 document.addEventListener("change", (e) => {
