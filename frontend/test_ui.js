@@ -88,6 +88,11 @@ setTimeout(() => {
   const zakladka = (t) => klik(d.querySelector(`.sekcja.aktywna [data-ustaw-tryb="${t}"]`));
   const aktywna = () => (d.querySelector(".sekcja.aktywna .tryb-btn.aktywny") || {}).textContent || "";
   const nazwy = (sel) => [...d.querySelectorAll(sel)].map((x) => x.textContent.trim());
+  // Nowa powłoka: narzędzia siedzą w karcie firmy, a pozyskiwanie ma trzy wejścia
+  // pod jedną pozycją menu. Test chodzi tą samą drogą co człowiek.
+  const otworzKarte = (i = 0) => klik(d.querySelectorAll("#firmy-lista .firma-row")[i]);
+  const kartaTab = (id) => klik(d.querySelector(`[data-karta-tab="${id}"]`));
+  const pozTab = (id) => { nav("pozyskiwanie"); klik(d.querySelector(`[data-poz="${id}"]`)); };
 
   // Ścieżka klientów bywa wyłączona (POKAZUJ_KLIENTOW w app.js). Testy jej nie
   // kasujemy — sprawdzamy to, co w danej konfiguracji ma być prawdą. Dzięki temu
@@ -121,27 +126,54 @@ setTimeout(() => {
       !nazwy(".firma-row-nazwa").join().includes("Ella"), nazwy(".firma-row-nazwa").join(", "));
   }
 
-  nav("audyt");
-  sprawdz("Audyt: partnerzy do wyboru", nazwy("#audyt-wybor .sim-name").length === 2);
-  if (zKlientami) {
-    zakladka("klient");
-    sprawdz("Audyt: zakładka przełącza na Klientów", aktywna().includes("Klienci"));
-    sprawdz("Audyt: klient dostępny do audytu",
-      nazwy("#audyt-wybor .sim-name").join().startsWith("Ella"), nazwy("#audyt-wybor .sim-name").join(", "));
+  // ══ KARTA FIRMY ══
+  // Sedno przebudowy: firmę wybiera się RAZ, wchodząc w nią z listy. Wcześniej
+  // sześć narzędzi zaczynało od własnej listy firm — ten sam wybór sześć razy.
+  if (zKlientami) zakladka("partner");
+  nav("firmy");
+  otworzKarte(0);
+  sprawdz("Karta: otwiera się po kliknięciu w wiersz listy",
+    !!d.querySelector(".karta-tytul"), (d.querySelector(".karta-tytul") || {}).textContent);
+  sprawdz("Karta: lista partnerów schodzi z ekranu",
+    d.getElementById("firmy-lista").hidden);
+  sprawdz("Karta: startuje na Przeglądzie",
+    (d.querySelector(".zakladka.aktywna") || {}).textContent === "Przegląd");
+
+  // Przegląd ma czytać się jak materiał: liczby, potem usługi, potem dane.
+  sprawdz("Przegląd: pokazuje liczby o firmie",
+    d.querySelectorAll(".prz-liczba").length === 3);
+  sprawdz("Przegląd: usługi są ponumerowane",
+    d.querySelectorAll(".prz-poz").length > 0);
+  sprawdz("Przegląd: prowadzi na stronę firmy",
+    !!d.querySelector('.prz-hero a[target="_blank"]'));
+
+  // Długie listy zwijają się do sześciu pozycji — 33 ponumerowane wiersze jeden
+  // pod drugim to lista, której nikt nie czyta, tylko przewija.
+  const widoczneP = () => [...d.querySelectorAll(".prz-poz")].filter((x) => !x.closest("[hidden]")).length;
+  const wiecej = d.querySelector(".prz-wiecej");
+  if (wiecej) {
+    const przed = widoczneP();
+    klik(wiecej);
+    sprawdz("Przegląd: „Pokaż pozostałe” rozwija resztę listy", widoczneP() > przed,
+      `${przed} -> ${widoczneP()}`);
+    klik(wiecej);
+    sprawdz("Przegląd: drugie kliknięcie zwija z powrotem", widoczneP() === przed);
   } else {
-    sprawdz("Audyt: klient nie trafia na listę",
-      !nazwy("#audyt-wybor .sim-name").join().includes("Ella"), nazwy("#audyt-wybor .sim-name").join(", "));
+    sprawdz("Przegląd: krótka lista nie potrzebuje zwijania", widoczneP() > 0);
   }
 
-  // Formularz audytu pojawia się DOPIERO po wybraniu firmy, a to on niesie całą
-  // konfigurację: modele, platformy wzmianek, zakres, koszt. Wcześniej test kończył
-  // się na liście firm, więc największy szablon w aplikacji nie był sprawdzany wcale
-  // — a usunięcie SE Ranking ruszyło w nim siedem miejsc.
-  if (zKlientami) zakladka("partner");
-  klik(d.querySelector("#audyt-wybor .sim-row button"));
+  // ══ ZAKŁADKA WIDOCZNOŚĆ ══
+  // Formularz audytu niesie całą konfigurację: modele, platformy, zakres, koszt.
+  // Tu sprawdzamy dwie rzeczy naraz: że nadal działa i że NIE pyta o firmę.
+  kartaTab("widocznosc");
   const formularz = d.getElementById("audyt-wybor").innerHTML;
-  sprawdz("Audyt: formularz renderuje się po wyborze firmy",
+  sprawdz("Widoczność: audyt dostaje firmę bez pytania o wybór",
     formularz.includes("Które modele AI pytamy"));
+  sprawdz("Widoczność: nie ma już listy firm do wyboru",
+    d.querySelectorAll("#audyt-wybor .sim-row").length === 0,
+    `${d.querySelectorAll("#audyt-wybor .sim-row").length} wierszy wyboru`);
+  sprawdz("Widoczność: są oba pomiary, GEO i mikroaudyt",
+    !!d.getElementById("audytgeo-wybor") && !!d.getElementById("audyt-wybor"));
   sprawdz("Audyt: jest wybór modeli", d.querySelectorAll('input[name="silnik"]').length > 0,
     `${d.querySelectorAll('input[name="silnik"]').length} modeli`);
   sprawdz("Audyt: jest szacowany koszt w dolarach", /Szacowany koszt: .*\$/.test(formularz));
@@ -152,21 +184,58 @@ setTimeout(() => {
   sprawdz("Audyt: brak pozostałości po SE Ranking",
     !/seranking|SE Ranking|kredyt/i.test(formularz));
 
-  nav("podobne", zKlientami ? "klient" : null);
+  // ══ POZOSTAŁE ZAKŁADKI ══
+  kartaTab("synergia");
+  sprawdz("Synergia: rozmowa startuje od razu dla tej firmy",
+    !!d.getElementById("rozmowa-box")
+      && !d.querySelector("#rozmowa-box .wybierz-rozmowe"));
+  kartaTab("maile");
+  sprawdz("Maile: własny kontener w karcie, nie wspólny z przeglądem",
+    !!d.getElementById("karta-maile-box"));
+  kartaTab("dokumenty");
+  sprawdz("Materiały: generator dokumentu jest w karcie",
+    !!d.getElementById("dokument-wybor"));
+
+  // Powrót do listy musi być jednym kliknięciem — inaczej karta jest pułapką.
+  klik(d.querySelector(".wroc-do-listy"));
+  // Szukanie na liście: przy 180 firmach chipy kategorii przestają wystarczać.
+  klik(d.querySelector(".wroc-do-listy"));
+  const pole = d.getElementById("szukaj-firm");
+  sprawdz("Lista: jest pole szukania", !!pole);
+  if (pole) {
+    pole.value = "tebim";
+    pole.dispatchEvent(new window.Event("input", { bubbles: true }));
+    sprawdz("Lista: szukanie zawęża do jednej firmy",
+      d.querySelectorAll("#firmy-lista .firma-row").length === 1,
+      `${d.querySelectorAll("#firmy-lista .firma-row").length} wierszy`);
+    const puste = d.getElementById("szukaj-firm");
+    puste.value = "";
+    puste.dispatchEvent(new window.Event("input", { bubbles: true }));
+    sprawdz("Lista: wyczyszczenie pola przywraca wszystkie",
+      d.querySelectorAll("#firmy-lista .firma-row").length === 2);
+  }
+
+  // Wchodzimy jeszcze raz, żeby sprawdzić drogę powrotną z karty do listy.
+  klik(d.querySelector("#firmy-lista .firma-row"));
+  klik(d.querySelector(".wroc-do-listy"));
+  sprawdz("Karta: powrót do listy jednym kliknięciem",
+    !d.getElementById("firmy-lista").hidden && d.getElementById("firmy-detal").hidden);
+
+  pozTab("podobne");
   sprawdz("Podobne: lista firm wzorcowych niepusta",
     nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));
 
   // Przelacznik zrodel: pokazuje sie dopiero przy DWOCH podlaczonych. Test stubuje
   // /api/zrodla bez pola `zrodla`, wiec sprawdzamy przede wszystkim, ze brak tego
   // pola NIE wywala renderowania — kiedys wywalal, a wyjatek polykal .catch.
-  nav("szukaj");
+  pozTab("branza");
   sprawdz("Zrodla: brak pola w odpowiedzi nie wywala sekcji",
-    !!d.querySelector('.sekcja[data-sekcja="szukaj"]'));
+    !!d.querySelector('.poz-panel[data-poz="branza"]'));
 
   // Presety zaleza od zrodla: Mapy maja wlasny, krotszy zestaw, bo szukaja po
   // nazwach wizytowek, a nie po tresci stron. Po przelaczeniu zrodla lista kategorii
   // musi sie PRZERYSOWAC — inaczej klikasz w kategorie z poprzedniego zestawu.
-  nav("szukaj");
+  pozTab("branza");
   const ileKategorii = () => d.querySelectorAll("#presety-branz [data-grupa]").length;
   const przedZmiana = ileKategorii();
   sprawdz("Presety: kategorie sie renderuja", przedZmiana > 0, `${przedZmiana} kategorii`);
@@ -202,7 +271,7 @@ setTimeout(() => {
   // wchodzila tam NASZA kategoria (etykieta chipu, nie fraza — nikt tak o sobie
   // nie pisze), a dluga branza szla jednym kafelkiem
   // i zapytanie bylo za waskie.
-  nav("podobne", zKlientami ? "klient" : null);
+  pozTab("podobne");
 
   // Tag zbadanej firmy musi byc TA SAMA nazwa co kategoria wyszukiwania. Bez tego
   // szukasz w "Sklepy internetowe", a znaleziona firma dostaje chip, ktorego nie ma
@@ -234,7 +303,7 @@ setTimeout(() => {
       && !szerokieTagi.includes("Budowa stron i sklepów"),
     szerokieTagi.join(" | "));
 
-  nav("szukaj");
+  pozTab("branza");
   klik(d.querySelector('[data-zrodlo="wyszukiwarka"]'));
   sprawdz("Presety: kategorie w dwoch nazwanych sekcjach",
     d.querySelectorAll("#presety-branz .preset-sekcja").length === 2,
@@ -247,72 +316,66 @@ setTimeout(() => {
     osierocone.length === 0,
     osierocone.length ? `poza lista: ${osierocone.join(", ")}` : `${tagiFirm.length} tagow`);
 
-  nav("rozmowa");
-  sprawdz("Rozmowa: sekcja pokazuje wybór firmy",
-    d.getElementById("rozmowa-box").innerHTML.includes("O której firmie rozmawiamy"));
-  klik(d.querySelector("#rozmowa-box .sim-row button"));
-  sprawdz("Rozmowa: po wyborze firmy jest pole pytania",
+  // ══ NARZĘDZIA W KARCIE, NIE W MENU ══
+  // Rozmowa, audyt GEO, mikroaudyt i generator dokumentu żyją teraz w karcie
+  // partnera. Sprawdzamy dwie rzeczy naraz: że działają i że NIE ma ich już
+  // w nawigacji — bo to właśnie one robiły z aplikacji listę narzędzi.
+  const wMenu = [...d.querySelectorAll(".nav-item")].map((b) => b.dataset.sekcja);
+  sprawdz("Menu: narzędzia zniknęły z nawigacji",
+    !wMenu.some((x) => ["rozmowa", "audyt", "audytgeo", "dokument", "podobne", "szukaj", "research"]
+      .includes(x)), wMenu.join(", "));
+  sprawdz("Menu: zostały miejsca, nie narzędzia",
+    wMenu.join(",") === "firmy,kolejka,pozyskiwanie,maile,audyty,eksport", wMenu.join(","));
+
+  nav("firmy");
+  otworzKarte(0);
+  kartaTab("synergia");
+  sprawdz("Rozmowa: od razu pole pytania, bez wyboru firmy",
     !!d.querySelector("#rozmowa-box .czat-pytanie"));
   sprawdz("Rozmowa: jest przycisk Zapytaj",
     !!d.querySelector("#rozmowa-box .czat-wyslij"));
-  // Czat ma zyc w JEDNYM miejscu. Gdyby zostal tez w karcie firmy, dwa watki
-  // o tej samej firmie rozjechalyby sie bez sladu.
-  nav("firmy");
-  sprawdz("Rozmowa: czatu NIE ma juz w karcie firmy",
-    !d.querySelector(".panel .czat-karta"));
 
-  // Audyt GEO — OSOBNA zakladka, nie wariant mikroaudytu. Pierwsza zakladka ma
-  // zostac nietknieta, wiec sprawdzamy jedno i drugie osobno.
-  nav("audytgeo");
-  sprawdz("Audyt GEO: sekcja pokazuje wybor firmy",
-    d.getElementById("audytgeo-wybor").innerHTML.includes("Kogo audytujemy"));
-  klik(d.querySelector("#audytgeo-wybor .sim-row button"));
+  // Audyt GEO — OSOBNY pomiar, nie wariant mikroaudytu. Oba są w jednej zakładce,
+  // więc tym bardziej trzeba pilnować, żeby się nie zlały.
+  kartaTab("widocznosc");
   const geoForm = d.getElementById("audytgeo-wybor").innerHTML;
   // Pole na wlasne prompty zostalo usuniete na zyczenie — pilnujemy, zeby nie
   // wrocilo przypadkiem razem ze stanem, ktory nikogo juz nie obsluguje.
-  sprawdz("Audyt GEO: nie ma pola na wlasne prompty",
-    !d.getElementById("geo-wlasne"));
+  sprawdz("Audyt GEO: nie ma pola na wlasne prompty", !d.getElementById("geo-wlasne"));
   sprawdz("Audyt GEO: jest suwak powtorzen", !!d.getElementById("geo-powtorzenia"));
   sprawdz("Audyt GEO: jest przelacznik podpowiedzi Google", !!d.getElementById("geo-podpowiedzi"));
   sprawdz("Audyt GEO: sa DWA silniki na wlasnych kluczach",
     d.querySelectorAll('input[name="geo-silnik"]').length === 2);
   // Ten audyt nie moze dotykac DataForSEO — gdyby ktos dolozyl tu silnik przez
   // dostawce, cala jego przewaga (dziala przy pustym saldzie) by zniknela.
-  // Szukamy ETYKIETY uzycia ("przez DataForSEO"), a nie samego slowa: w opisie
-  // formularza pada zdanie "ten audyt nie dotyka DataForSEO" i to jest obietnica,
-  // nie uzycie. Pierwsza wersja tego testu wywalala sie wlasnie na niej.
   sprawdz("Audyt GEO: zaden silnik nie idzie przez DataForSEO",
     !/przez DataForSEO/i.test(geoForm));
   sprawdz("Audyt GEO: pokazuje koszt przed uruchomieniem", /Szacowany koszt/.test(geoForm));
-
   // Pierwsza zakladka ma zostac JAK BYLA — bez suwaka powtorzen, ktory nalezy do GEO.
-  nav("audyt");
-  klik(d.querySelector("#audyt-wybor .sim-row button"));
   sprawdz("Mikroaudyt: bez suwaka powtorzen (zostal jak byl)",
     !d.getElementById("audyt-powtorzenia"));
 
+  // Dokument dla klienta partnera: partner jest znany z karty, więc pierwszym
+  // pytaniem jest już KLIENT, a nie „od kogo ten materiał".
+  kartaTab("dokumenty");
+  const dokBox = d.getElementById("dokument-wybor").innerHTML;
+  sprawdz("Materiały: pytanie od razu o klienta partnera",
+    dokBox.includes("Do ktorego klienta") || dokBox.includes("Do kt\u00f3rego klienta"), "");
+  sprawdz("Materiały: sa pola na nazwe i adres klienta",
+    !!d.getElementById("dok-klient") && !!d.getElementById("dok-klient-url"));
+  // Bez nazwy klienta nie ma czego generowac — przycisk startuje wylaczony.
+  sprawdz("Materiały: generowanie zablokowane bez nazwy klienta",
+    d.querySelector(".generuj-dokument").disabled);
+  klik(d.querySelector(".wroc-do-listy"));
+
+  // Maile w menu to PRZEGLĄD wszystkich szkiców, nie kolejny wybór firmy.
   nav("maile");
-  sprawdz("Maile: sekcja pokazuje wybór firmy",
-    d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));
+  sprawdz("Maile: przegląd nie pyta ponownie o firmę",
+    !d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));
 
   nav("kolejka");
   sprawdz("Kolejka: sekcja renderuje pusty stan bez błędu",
     d.getElementById("kolejka-box").innerHTML.includes("Kolejka jest pusta"));
-
-  // Dokument dla klienta partnera. Krok pierwszy to wybor partnera; klientow
-  // bierzemy z jego realizacji, wiec fixture musi je miec.
-  nav("dokument");
-  sprawdz("Dokument: prosi o wybor partnera",
-    d.getElementById("dokument-wybor").innerHTML.includes("Od kogo ten materia"));
-  klik(d.querySelector(".wybierz-dok"));
-  const dokBox = d.getElementById("dokument-wybor").innerHTML;
-  sprawdz("Dokument: po wyborze pyta o klienta partnera",
-    dokBox.includes("Do ktorego klienta") || dokBox.includes("Do kt\u00f3rego klienta"));
-  sprawdz("Dokument: sa pola na nazwe i adres klienta",
-    !!d.getElementById("dok-klient") && !!d.getElementById("dok-klient-url"));
-  // Bez nazwy klienta nie ma czego generowac — przycisk startuje wylaczony.
-  sprawdz("Dokument: generowanie zablokowane bez nazwy klienta",
-    d.querySelector(".generuj-dokument").disabled);
 
   nav("eksport");
   sprawdz("Eksport: sekcja renderuje się bez błędu",
@@ -324,7 +387,7 @@ setTimeout(() => {
   // wyzej w obsludze klikniec. Kazde klikniecie "Dodaj wszystkie do kolejki"
   // przestawialo wiec zrodlo wyszukiwania i przerysowywalo presety. Kolejka
   // zostawala pusta i nic nie mowilo, ze cos poszlo nie tak.
-  nav("szukaj", "partner");
+  pozTab("branza");
   d.getElementById("branza").value = "tworzenie sklepów internetowych";
   d.getElementById("form-kryteria").dispatchEvent(
     new window.Event("submit", { bubbles: true, cancelable: true }));

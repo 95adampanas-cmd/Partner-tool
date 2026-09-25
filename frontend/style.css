@@ -1,27 +1,41 @@
 /* Partner Tool — ICEA */
 :root {
-  /* Akcent z identyfikacji ICEA — ten sam niebieski, którym podpisane są
-     materiały wysyłane partnerom i klientom. Nazwy zmiennych mówią o roli,
-     nie o barwie: poprzednie `--orange` przestało być prawdą przy pierwszej
-     zmianie marki i nie chcemy powtarzać tego błędu. */
-  --akcent: #5768ff;
-  --akcent-2: #7a87ff;
-  --akcent-dim: #4653EA;
-  --bg: #0B0B0D;
-  --surface: #131316;
-  --surface-2: #1a1a1f;
-  --border: #26262c;
-  --border-soft: #1f1f24;
-  --text: #EDEBE8;
-  --muted: #86868F;
-  --faint: #56565E;
-  --zielony: #6FBF87;
-  --zolty: #D9A93F;
+  /* Identyfikacja ICEA. Treść na jasnym, nawigacja na granacie — ten sam
+     kontrast, co w materiałach wysyłanych partnerom i klientom: ciemny nagłówek,
+     jasna reszta. Narzędzie i dokument wyglądają wtedy jak jedna rzecz. */
+  --akcent: #4653EA;          /* tekst i obramowania — ciemniejszy, bo na bieli */
+  --akcent-jasny: #5768ff;    /* wypełnienia i akcenty na granacie */
+  --akcent-2: #6f7dff;
+  --akcent-dim: #3a46c8;
+  --akcent-rgb: 87, 104, 255;
+
+  --bg: #F9F9F9;
+  --surface: #ffffff;
+  --surface-2: #F2F3F7;
+  --border: #e3e5ec;
+  --border-soft: #eef0f5;
+  --border-mocny: #c8ccdb;
+  --text: #000623;
+  --muted: #5b6070;
+  --faint: #8a90a0;
+  --zielony: #3d6b3d;
+  --zolty: #a4772a;
+
+  /* Sidebar ma własny zestaw, bo jest jedyną ciemną powierzchnią w aplikacji
+     i połowa reguł koloru by się o to potykała. */
+  --nav-bg: #000623;
+  --nav-text: #ffffff;
+  --nav-muted: #9aa0c0;
+  --nav-faint: #6b73a0;
+  --nav-hover: rgba(255, 255, 255, .07);
+
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
   --nav: 244px;
   --r: 14px;
 }
+
 
 * { box-sizing: border-box; }
 .sprite { display: none; }
@@ -62,14 +76,15 @@ b { font-weight: 600; }
   align-items: center;
   gap: 8px;
 }
-.sq { width: 7px; height: 7px; background: var(--akcent); display: inline-block; flex-shrink: 0; }
+.sq { width: 7px; height: 7px; background: var(--akcent-jasny); display: inline-block; flex-shrink: 0; }
 
 /* ══ SIDEBAR ══ */
 .sidebar {
   position: fixed; inset: 0 auto 0 0;
   width: var(--nav);
-  background: var(--surface);
-  border-right: 1px solid var(--border-soft);
+  background: var(--nav-bg);
+  border-right: 0;
+  color: var(--nav-text);
   display: flex; flex-direction: column;
   padding: 26px 0 16px;
   z-index: 20;
@@ -81,10 +96,10 @@ b { font-weight: 600; }
 /* Wysokość, nie szerokość: wordmark ICEA jest szeroki i to ona decyduje,
    ile miejsca zajmie w wąskim sidebarze. */
 .logo-znak { height: 19px; width: auto; display: block; }
-.brand-sub { margin-top: 7px; font-size: 9.5px; }
+.brand-sub { margin-top: 7px; font-size: 9.5px; color: var(--nav-muted); }
 
 .nav { flex: 1; display: flex; flex-direction: column; gap: 1px; padding: 0 10px; }
-.nav-grupa { padding: 20px 10px 7px; font-size: 9px; color: var(--faint); }
+.nav-grupa { padding: 20px 10px 7px; font-size: 9px; color: var(--nav-faint); }
 .nav-grupa:first-child { padding-top: 0; }
 .nav-item {
   display: flex; align-items: center; gap: 11px;
@@ -99,8 +114,8 @@ b { font-weight: 600; }
   transition: color .14s, background .14s;
 }
 .nav-item span { flex: 1; }
-.nav-item:hover { color: var(--text); background: rgba(255,255,255,.035); }
-.nav-item.aktywny { color: var(--text); background: rgba(255,255,255,.06); }
+.nav-item:hover { color: var(--nav-text); background: var(--nav-hover); }
+.nav-item.aktywny { color: var(--nav-text); background: var(--nav-hover); }
 .nav-item.aktywny .ico { color: var(--akcent); }
 .badge {
   font-family: var(--mono); font-style: normal;
@@ -108,7 +123,7 @@ b { font-weight: 600; }
   font-size: 10px; min-width: 19px; text-align: center;
   padding: 1px 6px; border-radius: 999px;
 }
-.sidebar-stopka { padding: 16px 20px 0; font-size: 9px; color: var(--faint); border-top: 1px solid var(--border-soft); }
+.sidebar-stopka { padding: 16px 20px 0; font-size: 9px; color: var(--nav-faint); border-top: 1px solid rgba(255,255,255,.1); }
 
 /* ══ MAIN ══ */
 /* Treść w jednej, wyśrodkowanej kolumnie — wszystkie elementy tej samej szerokości. */
@@ -130,7 +145,7 @@ b { font-weight: 600; }
   padding: 6px 6px 6px 16px;
   transition: border-color .15s;
 }
-.pasek:focus-within { border-color: #3a3a42; }
+.pasek:focus-within { border-color: var(--border-mocny); }
 .pasek input {
   flex: 1; min-width: 0;
   background: none; border: none; outline: none;
@@ -186,10 +201,10 @@ button { font-family: var(--sans); }
    odróżnione wizualnie i postawione nad listą, a nie w jej środku. */
 .tag-glowny {
   display: inline-flex; align-items: center; gap: 6px; margin-bottom: 9px;
-  background: rgba(240,78,42,.1); border-color: rgba(240,78,42,.4);
+  background: rgba(var(--akcent-rgb),.1); border-color: rgba(var(--akcent-rgb),.4);
   color: var(--akcent); cursor: pointer;
 }
-.tag-glowny:hover { background: rgba(240,78,42,.16); }
+.tag-glowny:hover { background: rgba(var(--akcent-rgb),.16); }
 
 /* Filtr kategorii nad listą firm wzorcowych. Pokazuje się dopiero przy więcej
    niż jednej kategorii — przy jednej byłby przyciskiem, który nic nie zmienia. */
@@ -219,8 +234,8 @@ button { font-family: var(--sans); }
 
 /* Tag „całego ujęcia" (branża, kategoria) obok pojedynczych usług. Wyróżniony,
    bo działa inaczej: usługa zawęża, branża trzyma szeroko. */
-.tag.tag-szeroki { border-color: rgba(240,78,42,.3); }
-.tag.tag-szeroki.zaznaczony { border-color: rgba(240,78,42,.6); }
+.tag.tag-szeroki { border-color: rgba(var(--akcent-rgb),.3); }
+.tag.tag-szeroki.zaznaczony { border-color: rgba(var(--akcent-rgb),.6); }
 .grupa-tagow { margin-top: 12px; }
 .preset-etykieta-mini {
   display: block; margin-bottom: 6px;
@@ -253,7 +268,7 @@ button { font-family: var(--sans); }
 /* ── Moduł maili ── */
 .mail-akcje { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
 .mail-data { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-left: 10px; }
-.mail-draft.otwarty { border-color: rgba(240,78,42,.35); }
+.mail-draft.otwarty { border-color: rgba(var(--akcent-rgb),.35); }
 /* Polecenie poprawki zostaje widoczne przy wersji — po tygodniu inaczej nie wiadomo,
    czym ta wersja różni się od poprzedniej. */
 .mail-polecenie {
@@ -267,7 +282,7 @@ button { font-family: var(--sans); }
   border-radius: 8px; padding: 9px 13px;
   color: var(--text); font-family: var(--sans); font-size: 13.5px; outline: none;
 }
-.mail-polecenie-input:focus { border-color: #3a3a42; }
+.mail-polecenie-input:focus { border-color: var(--border-mocny); }
 .mail-polecenie-input::placeholder { color: var(--faint); }
 /* Brak osoby decyzyjnej to informacja o JAKOŚCI maila, który powstanie — nie usterka. */
 .sim-opis.brak-osoby { color: var(--zolty); }
@@ -312,7 +327,7 @@ button { font-family: var(--sans); }
 .czat-watek:not(:empty) { margin-bottom: 12px; max-height: 420px; overflow-y: auto; }
 .czat-pytanie-wiersz {
   margin: 10px 0 6px; padding: 8px 12px; border-radius: 8px;
-  background: rgba(240,78,42,.1); border: 1px solid rgba(240,78,42,.25);
+  background: rgba(var(--akcent-rgb),.1); border: 1px solid rgba(var(--akcent-rgb),.25);
   color: var(--text); font-size: 13.5px;
 }
 .czat-odpowiedz {
@@ -334,7 +349,7 @@ button { font-family: var(--sans); }
   text-decoration: none; padding: 2px 7px; border-radius: 4px;
   border: 1px solid var(--border-soft);
 }
-.czat-zrodla a:hover { color: var(--akcent); border-color: rgba(240,78,42,.4); }
+.czat-zrodla a:hover { color: var(--akcent); border-color: rgba(var(--akcent-rgb),.4); }
 
 .wynik:not(:empty) { margin-top: 26px; }
 
@@ -436,13 +451,13 @@ button { font-family: var(--sans); }
 
 .tryb-btn em {
   font-style: normal; font-size: 10px; letter-spacing: .04em;
-  color: var(--faint); background: rgba(255,255,255,.05);
+  color: var(--faint); background: var(--surface-2);
   min-width: 18px; text-align: center;
   padding: 2px 6px; border-radius: 999px;
   font-variant-numeric: tabular-nums;
   transition: color .16s, background .16s;
 }
-.tryb-btn.aktywny em { color: var(--akcent); background: rgba(240,78,42,.13); }
+.tryb-btn.aktywny em { color: var(--akcent); background: rgba(var(--akcent-rgb),.13); }
 
 @media (prefers-reduced-motion: reduce) {
   .tryb-btn, .tryb-btn::after, .tryb-btn em { transition: none; }
@@ -463,7 +478,7 @@ button { font-family: var(--sans); }
 .firma-nazwa { margin: 0 0 5px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
 .firma-url { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12.5px; text-decoration: none; word-break: break-all; }
 .firma-url:hover { color: var(--akcent); }
-.firma-opis { color: #cfcdc9; margin: 16px 0 10px; }
+.firma-opis { color: var(--muted); margin: 16px 0 10px; }
 .uzasadnienie { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
 .uzasadnienie .etyk { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--akcent); text-transform: uppercase; margin-right: 6px; }
 
@@ -499,13 +514,13 @@ button { font-family: var(--sans); }
 .tagi { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .tag {
   background: var(--surface-2); border: 1px solid var(--border);
-  color: #c5c3bf; font-family: var(--sans); font-size: 12.5px;
+  color: var(--muted); font-family: var(--sans); font-size: 12.5px;
   padding: 5px 11px; border-radius: 7px;
 }
 .tagi.wybieralne .tag { cursor: pointer; transition: all .14s; }
-.tagi.wybieralne .tag:hover { border-color: #43434c; color: var(--text); }
+.tagi.wybieralne .tag:hover { border-color: var(--border-mocny); color: var(--text); }
 .tagi.wybieralne .tag.zaznaczony {
-  background: rgba(240,78,42,.13); border-color: rgba(240,78,42,.5); color: var(--akcent); font-weight: 550;
+  background: rgba(var(--akcent-rgb),.13); border-color: rgba(var(--akcent-rgb),.5); color: var(--akcent); font-weight: 550;
 }
 
 .zrodlo { margin-top: 18px; font-size: 12.5px; color: var(--muted); }
@@ -524,7 +539,7 @@ button { font-family: var(--sans); }
   padding: 9px 15px; border-radius: 8px; cursor: pointer;
   transition: all .14s;
 }
-.akcja:hover { border-color: #43434c; }
+.akcja:hover { border-color: var(--border-mocny); }
 .akcja .ico { color: var(--akcent); }
 .akcja:disabled { opacity: .5; cursor: default; }
 .akcja.glowna { background: var(--akcent); border-color: var(--akcent); color: #fff; }
@@ -541,7 +556,7 @@ button { font-family: var(--sans); }
   transition: border-color .14s, background .14s;
 }
 .firma-row { background: var(--surface); border-color: var(--border-soft); padding: 15px 18px; margin-bottom: 8px; cursor: pointer; }
-.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: #3a3a42; background: var(--surface-2); }
+.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mocny); background: var(--surface-2); }
 .sim-info, .firma-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sim-name { font-weight: 550; font-size: 14px; }
 /* Tag faktu, nie oceny — dlatego neutralny, a nie ostrzegawczy jak .niepewna.
@@ -571,7 +586,7 @@ button { font-family: var(--sans); }
   font-size: 13px; padding: 7px 13px; border-radius: 8px; cursor: pointer; transition: all .14s;
 }
 .usun { border: none; background: none; color: var(--faint); padding: 6px; border-radius: 7px; cursor: pointer; display: flex; }
-.usun:hover { background: rgba(240,78,42,.14); color: var(--akcent); }
+.usun:hover { background: rgba(var(--akcent-rgb),.14); color: var(--akcent); }
 .sim-err { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; width: 100%; }
 .niepewna { display: inline-flex; align-items: center; gap: 5px; color: var(--zolty); font-size: 11.5px; margin-top: 3px; }
 
@@ -591,7 +606,7 @@ button { font-family: var(--sans); }
   font-size: 13.5px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
   margin-bottom: 18px; transition: all .14s;
 }
-.wroc:hover { border-color: #43434c; color: var(--text); }
+.wroc:hover { border-color: var(--border-mocny); color: var(--text); }
 
 /* ══ MAILE ══ */
 .mail-draft { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 15px 17px; margin-bottom: 10px; }
@@ -603,7 +618,7 @@ button { font-family: var(--sans); }
   font-size: 12px; padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: all .14s;
 }
 .kopiuj:hover { border-color: var(--akcent); color: var(--akcent); }
-.mail-tresc { margin: 0; white-space: pre-wrap; font-family: var(--sans); font-size: 13.8px; color: #cfcdc9; line-height: 1.65; }
+.mail-tresc { margin: 0; white-space: pre-wrap; font-family: var(--sans); font-size: 13.8px; color: var(--muted); line-height: 1.65; }
 
 /* ══ TABELA ══ */
 .tabela-scroll { overflow-x: auto; margin-top: 18px; border: 1px solid var(--border-soft); border-radius: 10px; }
@@ -613,18 +628,18 @@ button { font-family: var(--sans); }
   color: var(--muted); text-align: left; padding: 11px 14px;
   background: var(--surface-2); border-bottom: 1px solid var(--border);
 }
-.tabela td { padding: 11px 14px; color: #c5c3bf; border-bottom: 1px solid var(--border-soft); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.tabela td { padding: 11px 14px; color: var(--muted); border-bottom: 1px solid var(--border-soft); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .tabela tr:last-child td { border-bottom: none; }
-.tabela tr:hover td { background: rgba(255,255,255,.015); }
+.tabela tr:hover td { background: var(--surface-2); }
 .tabela td.brak { color: var(--faint); }
 
 /* ══ STANY ══ */
 .loading { display: flex; align-items: center; gap: 15px; color: var(--muted); }
 .spinner { width: 19px; height: 19px; border: 2px solid var(--border); border-top-color: var(--akcent); border-radius: 50%; animation: spin .75s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error { border-color: rgba(240,78,42,.3); }
+.error { border-color: rgba(var(--akcent-rgb),.3); }
 .error .mono { color: var(--akcent); }
-.error p { margin: 0; color: #cfcdc9; font-size: 13.5px; }
+.error p { margin: 0; color: var(--muted); font-size: 13.5px; }
 
 /* ══ RESPONSYWNOŚĆ ══ */
 @media (max-width: 900px) {
@@ -670,8 +685,8 @@ button { font-family: var(--sans); }
 
 /* strony treści */
 .r-strona { padding: 40px 44px; border-top: 1px solid var(--border-soft); }
-.r-strona > p { color: #c8c6c2; max-width: 62ch; margin: 0 0 14px; }
-.wiodacy { font-size: 16px; color: #d5d3cf !important; max-width: 60ch; }
+.r-strona > p { color: var(--muted); max-width: 62ch; margin: 0 0 14px; }
+.wiodacy { font-size: 16px; color: var(--muted) !important; max-width: 60ch; }
 
 .r-h2 {
   display: flex; align-items: baseline; gap: 14px;
@@ -699,7 +714,7 @@ button { font-family: var(--sans); }
 }
 .status.jest { background: rgba(111,191,135,.1); color: var(--zielony); border: 1px solid rgba(111,191,135,.28); }
 .status.brak { color: var(--faint); border: 1px solid var(--border); }
-.status.cyt { background: rgba(240,78,42,.1); color: var(--akcent); border: 1px solid rgba(240,78,42,.3); }
+.status.cyt { background: rgba(var(--akcent-rgb),.1); color: var(--akcent); border: 1px solid rgba(var(--akcent-rgb),.3); }
 
 .pytanie blockquote {
   margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--border);
@@ -715,7 +730,7 @@ button { font-family: var(--sans); }
   font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); text-align: left; padding: 0 14px 10px 0; border-bottom: 1px solid var(--border);
 }
-.tabela-dok td { padding: 11px 14px 11px 0; color: #c8c6c2; border-bottom: 1px solid var(--border-soft); }
+.tabela-dok td { padding: 11px 14px 11px 0; color: var(--muted); border-bottom: 1px solid var(--border-soft); }
 .tabela-dok .pr { text-align: right; padding-right: 0; padding-left: 22px; white-space: nowrap; }
 .tabela-dok .waska { width: 88px; }
 .typ { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
@@ -723,16 +738,16 @@ button { font-family: var(--sans); }
 .typ.handlowa { background: rgba(111,191,135,.1); color: var(--zielony); border: 1px solid rgba(111,191,135,.25); }
 .typ.informacyjna { color: var(--faint); border: 1px solid var(--border); }
 .typ { color: var(--faint); border: 1px solid var(--border); }
-.typ.luka { background: rgba(240,78,42,.13); color: var(--akcent); border: 1px solid rgba(240,78,42,.4); }
+.typ.luka { background: rgba(var(--akcent-rgb),.13); color: var(--akcent); border: 1px solid rgba(var(--akcent-rgb),.4); }
 .luka-blok { margin: 26px 0 8px; }
 .luka-blok p { font-size: 15px; }
 .zrodlo-danych { font-family: var(--mono); font-size: 10.5px; line-height: 1.65;
-  color: #86868f; margin: 18px 0 26px; padding-top: 10px; border-top: 1px solid #e6e4e0; }
+  color: var(--faint); margin: 18px 0 26px; padding-top: 10px; border-top: 1px solid var(--border); }
 .zrodlo-danych b { color: #55555c; font-weight: 500; }
 
 /* Ustalenia audytu technicznego — dokument, nie dashboard: bez ramek i cieni,
    hierarchię niesie lewa krawędź i typografia. */
-.ustalenie { margin: 22px 0; padding-left: 18px; border-left: 2px solid #e0ded9; }
+.ustalenie { margin: 22px 0; padding-left: 18px; border-left: 2px solid var(--border); }
 .ustalenie.blokada { border-left-color: var(--akcent); }
 .ustalenie.ok { border-left-color: #c9d6cb; }
 .ustalenie.drobne { border-left-color: #eceae5; }
@@ -742,14 +757,14 @@ button { font-family: var(--sans); }
 .ust-znacznik {
   font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase;
   padding: 3px 7px; border-radius: 4px; white-space: nowrap;
-  color: #86868f; border: 1px solid #e0ded9;
+  color: var(--faint); border: 1px solid var(--border);
 }
-.ust-znacznik.blokada { background: rgba(240,78,42,.1); color: var(--akcent-dim);
-  border-color: rgba(240,78,42,.35); }
+.ust-znacznik.blokada { background: rgba(var(--akcent-rgb),.1); color: var(--akcent-dim);
+  border-color: rgba(var(--akcent-rgb),.35); }
 .ust-znacznik.ok { color: #5d7a63; border-color: #cfdcd1; }
 .dowod {
   font-family: var(--mono); font-size: 11px; line-height: 1.75; color: #55555c;
-  background: #f6f5f2; border: 1px solid #e6e4e0; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
   padding: 11px 13px; margin: 11px 0 0; white-space: pre-wrap; overflow-x: auto;
 }
 .ust-rada { color: #55555c; font-size: 13.5px !important; }
@@ -759,28 +774,28 @@ button { font-family: var(--sans); }
 }
 
 .ostrzezenie-inline {
-  background: rgba(240,78,42,.08); border: 1px solid rgba(240,78,42,.3);
+  background: rgba(var(--akcent-rgb),.08); border: 1px solid rgba(var(--akcent-rgb),.3);
   border-radius: 8px; padding: 11px 14px; margin: 0 0 14px;
   font-size: 13px; color: var(--text); line-height: 1.55;
 }
 
 .metodyka { font-size: 13px; color: #6a6a72; line-height: 1.6; margin-top: 14px;
-            padding-top: 12px; border-top: 1px solid #e6e4e0; }
+            padding-top: 12px; border-top: 1px solid var(--border); }
 .tabela-dok .url { word-break: break-all; font-size: 12.5px; }
 .tabela-dok .w-nr { width: 34px; color: var(--faint); font-family: var(--mono); font-size: 11px; }
 
 /* udziały rynku — płasko, bez gradientu */
 .slupki { display: flex; flex-direction: column; gap: 9px; margin: 24px 0 10px; max-width: 560px; }
 .slupek { display: grid; grid-template-columns: 128px 1fr 46px; align-items: center; gap: 14px; }
-.slupek-nazwa { font-size: 13px; color: #c8c6c2; }
+.slupek-nazwa { font-size: 13px; color: var(--muted); }
 .slupek-tor { background: var(--surface-2); height: 6px; }
 .slupek-wypeln { background: var(--akcent); height: 100%; }
 .slupek-proc { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
-.ostrzezenie { border-left: 3px solid var(--zolty); padding-left: 16px; color: #c8c6c2 !important; }
+.ostrzezenie { border-left: 3px solid var(--zolty); padding-left: 16px; color: var(--muted) !important; }
 .zrodlo-danych { font-size: 11px; color: var(--faint); margin: 4px 0 0; font-style: italic; }
 
 .wyimek { border-left: 3px solid var(--akcent); padding: 4px 0 4px 20px; margin-top: 30px; }
-.wyimek p { font-size: 16px; color: #d5d3cf; margin: 8px 0 0; max-width: 58ch; }
+.wyimek p { font-size: 16px; color: var(--muted); margin: 8px 0 0; max-width: 58ch; }
 
 .r-stopka {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
@@ -832,3 +847,152 @@ button { font-family: var(--sans); }
   font-size: 11px;
   letter-spacing: .08em;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   NOWA POWŁOKA — miejsca zamiast narzędzi
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Nawigacja siedzi na granacie, więc kolory tekstu bierze z własnego zestawu. */
+.sidebar .nav-item { color: var(--nav-muted); }
+.sidebar .nav-item .ico { color: var(--nav-faint); }
+.sidebar .nav-item:hover .ico, .sidebar .nav-item.aktywny .ico { color: var(--akcent-jasny); }
+.sidebar .badge { background: rgba(255,255,255,.12); color: var(--nav-text); }
+.sidebar .nav-item.aktywny .badge { background: var(--akcent-jasny); color: #fff; }
+
+/* Nagłówki sekcji i kart idą szeryfem — tym samym, co tytuły w materiałach
+   wysyłanych dalej. To jedyne miejsce, gdzie aplikacja pozwala sobie na ozdobę,
+   i dlatego działa: reszta jest maszyną do pracy. */
+.sekcja-head h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(30px, 3.4vw, 40px);
+  letter-spacing: -.01em;
+  line-height: 1.08;
+  margin: 0 0 10px;
+}
+.sekcja-head p { max-width: 68ch; }
+
+/* ── Zakładki: pozyskiwanie i karta firmy ── */
+.zakladki {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 24px;
+}
+.zakladka {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 10px 14px; margin-bottom: -1px;
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+}
+.zakladka:hover { color: var(--text); }
+.zakladka.aktywna { color: var(--text); border-bottom-color: var(--akcent); }
+.zakladka em {
+  font-style: normal; font-size: 11px; font-variant-numeric: tabular-nums;
+  background: var(--surface-2); color: var(--muted);
+  border-radius: 20px; padding: 1px 7px;
+}
+.poz-panel { display: none; }
+.poz-panel.aktywny { display: block; }
+
+/* ── Karta firmy: jedno miejsce pracy nad jednym partnerem ── */
+.karta-head {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 22px 24px 0;
+  margin-bottom: 22px;
+}
+.karta-gora { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.karta-gora > div:first-child { flex: 1 1 320px; min-width: 0; }
+.karta-eyebrow {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--akcent);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.karta-tytul {
+  font-family: var(--serif); font-weight: 400;
+  font-size: clamp(26px, 2.8vw, 34px); line-height: 1.1;
+  letter-spacing: -.01em; margin: 0 0 6px;
+}
+.karta-url { font-size: 13.5px; color: var(--muted); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 5px; }
+.karta-url:hover { color: var(--akcent); }
+.karta-akcje { display: flex; gap: 8px; flex-wrap: wrap; }
+.karta-head .zakladki { margin: 20px 0 0; border-bottom: 0; }
+.karta-pane { display: none; }
+.karta-pane.aktywny { display: block; }
+
+/* W karcie firma jest już wybrana, więc kroki „wybierz firmę" z narzędzi
+   nie mają czego wybierać — przycisk powrotu do listy prowadziłby donikąd. */
+.karta-pane .zmien-geo, .karta-pane .zmien-audyt,
+.karta-pane .zmien-rozmowe, .karta-pane .zmien-dok { display: none; }
+
+/* ── Przegląd: profil partnera czytany jak materiał, nie jak formularz ── */
+.prz-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px;
+  align-items: start; margin-bottom: 34px; }
+.prz-lead { font-size: 16.5px; color: var(--muted); max-width: 60ch; margin: 0 0 18px; }
+.prz-liczby {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--surface); overflow: hidden;
+}
+.prz-liczba { padding: 20px 22px; }
+.prz-liczba + .prz-liczba { border-left: 1px solid var(--border); }
+.prz-liczba b { display: block; font-family: var(--serif); font-weight: 400;
+  font-size: 34px; line-height: 1.1; letter-spacing: -.02em; }
+.prz-liczba span { display: block; font-size: 13.5px; margin-top: 4px; }
+.prz-liczba em { display: block; font-style: normal; font-size: 12px; color: var(--faint); margin-top: 2px; }
+
+.prz-sekcja { display: grid; grid-template-columns: 300px 1fr; gap: 40px;
+  padding: 30px 0; border-top: 1px solid var(--border); }
+.prz-sekcja h2 { font-family: var(--serif); font-weight: 400; font-size: 27px;
+  line-height: 1.1; margin: 6px 0 8px; letter-spacing: -.01em; }
+.prz-sekcja .prz-podpis { font-size: 13.5px; color: var(--muted); margin: 0; max-width: 34ch; }
+.prz-poz { display: grid; grid-template-columns: 40px 1fr; gap: 14px;
+  padding: 16px 0; border-top: 1px solid var(--border-soft); }
+.prz-poz:first-child { border-top: 0; padding-top: 0; }
+.prz-nr { font-family: var(--mono); font-size: 12px; color: var(--akcent); padding-top: 3px; }
+.prz-poz h3 { font-size: 16.5px; margin: 0 0 5px; }
+.prz-poz p { margin: 0; font-size: 14.5px; color: var(--muted); }
+.prz-dane { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 2px 26px; }
+
+/* ── Lista partnerów jako tabela pracy, nie jako kafelki ── */
+.lista-narzedzia { display: flex; gap: 10px; align-items: center;
+  flex-wrap: wrap; margin-bottom: 16px; }
+.lista-narzedzia input[type="search"] {
+  flex: 1 1 240px; min-width: 200px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 13px;
+  font-family: var(--sans); font-size: 14px; color: var(--text);
+}
+.lista-narzedzia input[type="search"]:focus { outline: none; border-color: var(--akcent); }
+
+@media (max-width: 1000px) {
+  .prz-hero, .prz-sekcja { grid-template-columns: 1fr; gap: 20px; }
+  .prz-liczby { grid-template-columns: 1fr; }
+  .prz-liczba + .prz-liczba { border-left: 0; border-top: 1px solid var(--border); }
+}
+
+/* Lista źródeł w Przeglądzie: adresy bywają długie i muszą się łamać, bo inaczej
+   rozpychają kolumnę. */
+.zrodla-lista { list-style: none; margin: 0; padding: 0; }
+.zrodla-lista li { padding: 6px 0; border-top: 1px solid var(--border-soft); }
+.zrodla-lista li:first-child { border-top: 0; }
+.zrodla-lista a { color: var(--muted); font-size: 13.5px; text-decoration: none;
+  overflow-wrap: anywhere; }
+.zrodla-lista a:hover { color: var(--akcent); }
+
+/* „Pokaż pozostałe" — ten sam rytm co wiersze listy, żeby nie wyglądał
+   na doklejony przycisk, tylko na jej ostatni wiersz. */
+.prz-wiecej {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; gap: 12px;
+  background: none; border: 0; border-top: 1px solid var(--border-soft);
+  padding: 16px 0 0; margin-top: 4px;
+  font-family: var(--sans); font-size: 14.5px; font-weight: 500;
+  color: var(--text); cursor: pointer; text-align: left;
+}
+.prz-wiecej:hover { color: var(--akcent); }
+.prz-wiecej em { font-style: normal; color: var(--akcent); font-variant-numeric: tabular-nums; }

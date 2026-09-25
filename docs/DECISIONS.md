@@ -655,3 +655,53 @@ przed zapisem). To szkice do wysłania, nie zapis tego, co wysłano — narzędz
 maili nie wysyła. Gdyby zostały po staremu, pierwszy skopiowany szkic wyszedłby
 pod nieistniejącą marką.
 
+
+## Nawigacja to miejsca, nie narzędzia
+
+**Data:** 25.09.2026
+
+Sześć z czternastu pozycji w menu zaczynało się od pytania „którą firmę?" —
+Rozmowa, Maile, Mikroaudyt, Audyt GEO, Dokument i Szukaj podobnych. Każde
+narzędzie miało własną listę tych samych firm i własny krok wyboru. Praca nad
+jednym partnerem znaczyła sześć razy wybrać go od nowa.
+
+**Co się zmieniło.** Firmę wybiera się RAZ, wchodząc w nią z listy. Narzędzia są
+w zakładkach jej karty: Przegląd, Widoczność (oba audyty), Synergia, Maile,
+Materiały. W menu zostały dwa rodzaje miejsc: PRACA (Partnerzy, Do zbadania,
+Pozyskiwanie) i PRZEGLĄD (Maile, Audyty, Eksport). Z czternastu pozycji zostało
+sześć, z jedenastu sekcji — sześć.
+
+**Karta renderuje się od nowa przy każdym wejściu.** Wcześniej każda firma miała
+własny `<div class="panel">` chowany przez `display:none` i wszystkie leżały
+w DOM-ie naraz. Narzędzia piszą po stałych identyfikatorach (`rozmowa-box`,
+`audytgeo-raport`), więc dwie karty naraz biłyby się o te same id. Jedna karta na
+ekranie to jedna karta w drzewie.
+
+**Narzędzia nie zostały przepisane.** Każde z nich pomijało krok wyboru, gdy jego
+zmienna stanu była ustawiona — karta ustawia ją, wchodząc w zakładkę. Dzięki temu
+przebudowa dotknęła powłoki, a nie ośmiu działających formularzy.
+
+**Widoki zbiorcze zamiast kolejnego wyboru firmy.** „Maile" w menu to dziś
+biblioteka wszystkich szkiców pogrupowanych po firmach, a „Audyty" to historia
+pomiarów — bo tego z karty jednej firmy nie widać, a porównanie dwóch pomiarów
+wymaga spojrzenia z góry.
+
+**Motyw jasny, identyfikacja ICEA.** Treść na bieli, nawigacja na granacie
+(#000623) — ten sam kontrast, co w materiałach wysyłanych partnerom. Nagłówki
+sekcji i kart idą szeryfem (Instrument Serif), tym samym, którym pisane są tytuły
+w dokumentach. Narzędzie i materiał wyglądają wreszcie jak jedna rzecz.
+
+**Przegląd czyta się jak materiał, nie jak formularz.** Research zbiera kilkanaście
+pól i wszystkie leżały w jednej siatce — zrzut z bazy. Teraz jest kolejność: kim
+firma jest, trzy liczby, co robi, co zrobiła, a dopiero na końcu dane rejestrowe
+i źródła. Listy dłuższe niż sześć pozycji zwijają się: zmierzone na Sellision, 20
+usług i 13 realizacji to 33 ponumerowane wiersze, których nikt nie czyta.
+
+**Szukanie na liście partnerów.** Przy 180 firmach chipy kategorii przestają
+wystarczać. Filtruje przy pisaniu, po tym, co widać w wierszu: nazwa, adres,
+branża, kategoria, miasto.
+
+**Czego NIE zrobiliśmy.** Ścieżka Klientów została wyłączona jak była
+(`POKAZUJ_KLIENTOW`), a listy nie dostały sortowania ani kolumn statusu — to
+wymaga najpierw decyzji, co jest statusem partnera, a tej jeszcze nie ma.
+

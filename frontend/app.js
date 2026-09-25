@@ -30,6 +30,7 @@ let trybPokazany = "partner";
 // Świadomie NIE jest trwałe: wejście do Firm z menu i zmiana ścieżki je zdejmują,
 // żeby nikt nie oglądał niepełnej listy, nie wiedząc dlaczego.
 let filtrFirm = null;
+let szukajFirm = "";     // tekst wpisany w pole nad listą partnerów
 const TRYBY = {
   partner: { nazwa: "Partnerzy", jeden: "partnera",
              opis: "Firmy, które mogą polecać nas swoim klientom albo odsprzedawać nasze usługi." },
@@ -48,7 +49,6 @@ async function wczytajPamiec() {
     for (const f of d.firmy || []) {
       const id = "tab" + ++tabSeq;
       tabs.push({ id, nazwa: hostname(f.url), firma: f, tryb: f.tryb || "partner" });
-      document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, f));
       if (f.w_koszyku) koszyk.push({ ...f, tryb: f.tryb || "partner" });
     }
     odswiezBadge("badge-firmy", firmyTrybu().length);
@@ -101,16 +101,11 @@ function pokazSekcje(nazwa) {
     trybPokazany = tryb;
   }
 
-  if (nazwa === "research") renderResearchPanel();
-  if (nazwa === "szukaj") renderPresety();   // inne kategorie dla partnera, inne dla klienta
+  if (nazwa === "pozyskiwanie") renderPozyskiwanie();
   if (nazwa === "eksport") renderEksport();
-  if (nazwa === "podobne") renderPodobne();
-  if (nazwa === "audyt") renderAudyt();
   if (nazwa === "kolejka") renderKolejke();
   if (nazwa === "maile") renderMaile();
-  if (nazwa === "rozmowa") renderRozmowa();
-  if (nazwa === "audytgeo") renderAudytGeo();
-  if (nazwa === "dokument") renderDokument();
+  if (nazwa === "audyty") renderAudyty();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
@@ -884,7 +879,6 @@ function otworzFirme(firma) {
     const id = "tab" + ++tabSeq;
     wpis = { id, nazwa: hostname(firma.url), firma, tryb: firma.tryb || tryb };
     tabs.push(wpis);
-    document.getElementById("panels").insertAdjacentHTML("beforeend", panelHTML(id, firma));
     odswiezBadge("badge-firmy", firmyTrybu().length);
     renderResearchPanel();
   }
@@ -902,16 +896,17 @@ function pokazListe() {
   renderListeFirm();
 }
 
-// widok szczegółów jednej firmy
+// Widok jednej firmy. KARTA JEST RENDEROWANA OD NOWA, a nie chowana i pokazywana
+// jak wcześniej: narzędzia w zakładkach piszą po stałych identyfikatorach
+// (`rozmowa-box`, `audytgeo-raport`…), więc dwie karty naraz w DOM-ie biłyby się
+// o te same id. Jedna karta na ekranie to jedna karta w drzewie.
 function pokazDetal(id) {
   activeId = id;
   document.getElementById("firmy-lista").hidden = true;
   document.getElementById("firmy-pusto").hidden = true;
   document.getElementById("firmy-head").hidden = true;
   document.getElementById("firmy-detal").hidden = false;
-  document.querySelectorAll("#panels .panel").forEach((p) => {
-    p.style.display = p.dataset.id === id ? "block" : "none";
-  });
+  renderKarte();
   window.scrollTo(0, 0);
 }
 
@@ -944,7 +939,35 @@ function przelacznikTrybu(liczOd = tabs) {
 
 function renderListeFirm() {
   const wszystkie = firmyTrybu();
-  const lista = filtrFirm === "ma_seo" ? wszystkie.filter((t) => t.firma.ma_seo) : wszystkie;
+  const poFladze = filtrFirm === "ma_seo" ? wszystkie.filter((t) => t.firma.ma_seo) : wszystkie;
+  // Szukamy po nazwie, adresie i branży — czyli po tym, co widać w wierszu.
+  // Szukanie po polach, których na liście nie ma, dawałoby wyniki bez wytłumaczenia.
+  const fraza = szukajFirm.trim().toLowerCase();
+  const lista = !fraza ? poFladze : poFladze.filter((t) => {
+    const f = t.firma;
+    return [f.nazwa, f.url, f.branza, f.kategoria, f.miasto]
+      .some((x) => (x || "").toLowerCase().includes(fraza));
+  });
+
+  const narzedzia = document.getElementById("firmy-filtry");
+  if (narzedzia && narzedzia.dataset.gotowe !== "1") {
+    narzedzia.dataset.gotowe = "1";
+    narzedzia.innerHTML = `<div class="lista-narzedzia">
+      <input type="search" id="szukaj-firm" placeholder="Szukaj po nazwie, adresie, branży…"
+             autocomplete="off" value="${escAttr(szukajFirm)}">
+      <span class="mono" id="szukaj-licznik"></span>
+    </div>`;
+  }
+  const licznik = document.getElementById("szukaj-licznik");
+  if (licznik) licznik.textContent = fraza
+    ? `${lista.length} z ${poFladze.length}`
+    : `${wszystkie.length} ${wszystkie.length === 1 ? "firma" : "firm"}`;
+
+  if (fraza && !lista.length) {
+    document.getElementById("firmy-lista").innerHTML =
+      `<div class="pusto"><p>Nic nie pasuje do „${esc(szukajFirm)}".</p></div>`;
+    return;
+  }
 
   // Filtr musi być WIDOCZNY i odwracalny jednym kliknięciem. Skrócona lista bez
   // wyjaśnienia wygląda jak zgubione firmy.
@@ -1015,74 +1038,10 @@ function usunFirme(id) {
     koszyk = koszyk.filter((k) => k.url !== wpis.firma.url);
   }
   tabs = tabs.filter((t) => t.id !== id);
-  document.querySelector(`#panels .panel[data-id="${id}"]`)?.remove();
+
   odswiezBadge("badge-firmy", firmyTrybu().length);
   renderResearchPanel();
   pokazListe();
-}
-
-function panelHTML(id, f) {
-  const wKoszyku = koszyk.some((k) => k.url === f.url);
-  return `<div class="panel" data-id="${id}">
-    ${kartaHTML(f)}
-    <div class="card">
-      <div class="akcje">
-        <button class="akcja mail" type="button"><svg class="ico sm"><use href="#i-mail"/></svg>Generuj maile</button>
-        <label class="akcja check">
-          <input type="checkbox" class="do-eksportu" ${wKoszyku ? "checked" : ""}> Dodaj do eksportu
-        </label>
-      </div>
-    </div>
-    <div class="mail-box"></div>
-  </div>`;
-}
-
-function kartaHTML(f) {
-  // Fakt, nie werdykt. Czy to konkurent, czy partner — ocenia zespół.
-  const badge = f.ma_seo
-    ? `<div class="flaga ma-seo"><svg class="ico xs"><use href="#i-search"/></svg>Ma SEO w ofercie</div>`
-    : `<div class="flaga bez-seo"><svg class="ico xs"><use href="#i-check"/></svg>Bez SEO w ofercie</div>`;
-  return `<div class="card firma">
-    <div class="firma-head">
-      <div>
-        <h2 class="firma-nazwa">${esc(f.nazwa)}</h2>
-        <a class="firma-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">${esc(f.url)}<svg class="ico xs"><use href="#i-external"/></svg></a>
-      </div>
-      ${badge}
-    </div>
-    <p class="firma-opis">${esc(f.opis)}</p>
-    <p class="uzasadnienie"><span class="etyk">Zakres SEO</span> ${esc(f.seo_zakres)}</p>
-
-    <div class="pola">
-      ${pole("Branża", f.branza)}
-      ${pole("Wielkość zespołu", f.wielkosc_zespolu)}
-      ${pole("Liczba projektów", f.liczba_projektow)}
-      ${pole("Telefon (firma)", f.telefon)}
-      ${pole("Email (firma)", f.email)}
-    </div>
-
-    <div class="pola dane-spolki">
-      ${pole("Nazwa prawna", f.nazwa_prawna)}
-      ${pole("NIP", f.nip)}
-      ${pole("Adres", f.adres)}
-      ${pole("Miasto", f.miasto)}
-    </div>
-    <div class="pola osoba">
-      ${pole("Osoba decyzyjna", f.persona_imie)}
-      ${pole("Stanowisko", f.persona_stanowisko)}
-      ${pole("Email osoby", f.persona_email)}
-      ${pole("Telefon osoby", f.persona_telefon)}
-    </div>
-
-    ${lista("Usługi", f.uslugi)}
-    ${lista("Case studies / realizacje", f.case_studies)}
-
-    <details class="zrodlo">
-      <summary>Źródło danych (${(f.zrodlo_danych || []).length} podstron)</summary>
-      <ul>${(f.zrodlo_danych || []).map((u) =>
-        `<li><a href="${escAttr(u)}" target="_blank" rel="noopener">${esc(u)}</a></li>`).join("")}</ul>
-    </details>
-  </div>`;
 }
 
 function pole(etykieta, wartosc) {
@@ -1093,13 +1052,6 @@ function pole(etykieta, wartosc) {
   </div>`;
 }
 
-function lista(etykieta, elementy) {
-  if (!elementy || !elementy.length) return "";
-  return `<div class="lista">
-    <span class="pole-etykieta">${esc(etykieta)}</span>
-    <div class="tagi">${elementy.map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>
-  </div>`;
-}
 
 // ══ Kliknięcia (delegacja na całym dokumencie) ══
 document.addEventListener("click", (e) => {
@@ -1128,6 +1080,50 @@ document.addEventListener("click", (e) => {
     filtrFirm = cel === "seo" ? "ma_seo" : null;
     return pokazSekcje("firmy");
   }
+  // Zakładki pozyskiwania i karty firmy — jeden mechanizm, dwa miejsca.
+  const zakPoz = e.target.closest("#poz-zakladki .zakladka");
+  if (zakPoz) { pozZakladka = zakPoz.dataset.poz; return renderPozyskiwanie(); }
+
+  const zakKarty = e.target.closest("[data-karta-tab]");
+  if (zakKarty) {
+    kartaZakladka = zakKarty.dataset.kartaTab;
+    document.querySelectorAll("[data-karta-tab]").forEach((b) =>
+      b.classList.toggle("aktywna", b.dataset.kartaTab === kartaZakladka));
+    return renderKartaPane();
+  }
+
+  if (e.target.closest(".wroc-do-listy")) return pokazListe();
+
+  const wiecej = e.target.closest(".prz-wiecej");
+  if (wiecej) {
+    const reszta = wiecej.previousElementSibling;
+    const schowane = reszta.hidden;
+    reszta.hidden = !schowane;
+    wiecej.innerHTML = schowane ? "Zwiń listę" : wiecej.dataset.etykieta;
+    return;
+  }
+
+  // „Znajdź podobne" z karty: firma jest już wybrana, więc narzędzie nie ma
+  // o co pytać — przenosimy ją razem z przejściem do pozyskiwania.
+  if (e.target.closest(".podobne-do-tej")) {
+    podobneWybrana = activeId;
+    podobneTagi = new Set();
+    resetPodobnychWynikow();
+    pozZakladka = "podobne";
+    pokazSekcje("pozyskiwanie");
+    return renderPozyskiwanie();
+  }
+
+  const zAudytu = e.target.closest(".otworz-firme-z-audytu");
+  if (zAudytu) { pokazSekcje("firmy"); return pokazDetal(zAudytu.dataset.id); }
+
+  const zMaili = e.target.closest(".otworz-maile-firmy");
+  if (zMaili) {
+    kartaZakladka = "maile";
+    pokazSekcje("firmy");
+    return pokazDetal(zMaili.dataset.id);
+  }
+
   if (e.target.closest("[data-zdejmij-filtr]")) { filtrFirm = null; return renderListeFirm(); }
   const wiersz = e.target.closest(".firma-row");
   if (wiersz) { pokazSekcje("firmy"); return pokazDetal(wiersz.dataset.id); }
@@ -1285,6 +1281,13 @@ document.addEventListener("click", (e) => {
   if (e.target.classList.contains("researchuj")) return researchujZListy(e.target);
   if (e.target.classList.contains("kopiuj")) return kopiuj(e.target);
   if (e.target.classList.contains("pobierz-csv")) return pobierzCSV();
+});
+
+// Szukanie filtruje PRZY PISANIU, nie po opuszczeniu pola. Reszta formularzy
+// siedzi w "change", bo tam liczy się wybór, a nie każdy znak — przy liście
+// filtrowanej dopiero po blurze człowiek nie wie, czy pole w ogóle działa.
+document.addEventListener("input", (e) => {
+  if (e.target.id === "szukaj-firm") { szukajFirm = e.target.value; renderListeFirm(); }
 });
 
 document.addEventListener("change", (e) => {
@@ -2484,8 +2487,11 @@ function maileFirmy(url) {
   return maileTrybu().filter((m) => m.url === url);
 }
 
-function renderMaile() {
-  const box = document.getElementById("maile-box");
+// `cel` bierze się stąd, że ten sam widok żyje w dwóch miejscach: w przeglądzie
+// wszystkich maili i w karcie jednej firmy. Bez parametru oba musiałyby użyć tego
+// samego identyfikatora kontenera i przepisywałyby się nawzajem.
+function renderMaile(cel = "maile-box") {
+  const box = document.getElementById(cel);
   if (!box) return;
   const firmy = firmyTrybu();
 
@@ -2494,6 +2500,37 @@ function renderMaile() {
       <svg class="ico xl"><use href="#i-inbox"/></svg>
       <p>Najpierw zbadaj jakąś firmę.<br><span>Mail piszemy na podstawie tego,
         co wiemy z researchu — bez danych byłby ogólnikiem.</span></p></div>`;
+    return;
+  }
+
+  // ── Widok zbiorczy: wszystkie szkice, pogrupowane po firmach ──
+  // W menu „Maile" to jest PRZEGLĄD, nie warsztat. Wybór firmy byłby tu siódmym
+  // pytaniem „którą firmę?" w aplikacji — a od tego właśnie odchodzimy. Pisze się
+  // w karcie partnera; tutaj się patrzy na całość i decyduje, co wysłać.
+  if (cel === "maile-box") {
+    const zSzkicami = firmy.filter((t) => maileFirmy(t.firma.url).length);
+    if (!zSzkicami.length) {
+      box.innerHTML = `<div class="pusto">
+        <svg class="ico xl"><use href="#i-mail"/></svg>
+        <p>Nie ma jeszcze żadnego szkicu.<br><span>Maile pisze się w karcie partnera,
+          w zakładce Maile — na podstawie tego, co wiemy z researchu.</span></p></div>`;
+      return;
+    }
+    box.innerHTML = zSzkicami.map((t) => {
+      const wersje = maileFirmy(t.firma.url);
+      return `<div class="card">
+        <div class="wzor-head">
+          <div>
+            <div class="firma-row-nazwa">${esc(t.firma.nazwa)}</div>
+            <span class="firma-row-meta">${esc(hostname(t.firma.url))} · ${wersje.length} ${
+              wersje.length === 1 ? "szkic" : "szkice"}</span>
+          </div>
+          <button class="btn-lekki otworz-maile-firmy" type="button" data-id="${t.id}">
+            Otwórz w karcie<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+        </div>
+        ${bibliotekaHTML(wersje)}
+      </div>`;
+    }).join("");
     return;
   }
 
@@ -3198,4 +3235,304 @@ function plikDokumentuAudytu(pobierz) {
     window.open(url, "_blank");
   }
   setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  KARTA FIRMY — jedno miejsce pracy nad jednym partnerem
+// ══════════════════════════════════════════════════════════════════════
+// Wcześniej każde narzędzie zaczynało od pytania „którą firmę?" i sześć pozycji
+// w menu robiło dokładnie to samo: pokazywało listę do wyboru. Firmę wybiera się
+// teraz raz, wchodząc w nią z listy — a narzędzia są w zakładkach jej karty
+// i dostają ją w stanie, bez pytania.
+const ZAKLADKI_KARTY = [
+  { id: "przeglad", nazwa: "Przegląd" },
+  { id: "widocznosc", nazwa: "Widoczność" },
+  { id: "synergia", nazwa: "Synergia" },
+  { id: "maile", nazwa: "Maile" },
+  { id: "dokumenty", nazwa: "Materiały" },
+];
+let kartaZakladka = "przeglad";
+
+function kartaFirma() {
+  return tabs.find((t) => t.id === activeId) || null;
+}
+
+function renderKarte() {
+  const wpis = kartaFirma();
+  const box = document.getElementById("firmy-detal");
+  if (!wpis || !box) return;
+  const f = wpis.firma;
+  const wKoszyku = koszyk.some((k) => k.url === f.url);
+  const ileMaili = maileFirmy(f.url).length;
+
+  const droga = [f.kategoria && f.kategoria !== BRAK ? f.kategoria : null,
+                 f.miasto && f.miasto !== BRAK ? f.miasto : null]
+    .filter(Boolean).map(esc).join(" · ");
+
+  box.innerHTML = `
+    <button class="wroc wroc-do-listy" type="button">
+      <svg class="ico xs"><use href="#i-back"/></svg>Wszyscy partnerzy</button>
+
+    <div class="karta-head">
+      <div class="karta-gora">
+        <div>
+          <div class="karta-eyebrow"><i class="sq"></i>Profil partnera${droga ? " · " + droga : ""}</div>
+          <h1 class="karta-tytul">${esc(f.nazwa)}</h1>
+          <a class="karta-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">
+            ${esc(hostname(f.url))}<svg class="ico xs"><use href="#i-external"/></svg></a>
+        </div>
+        <div class="karta-akcje">
+          <button class="akcja podobne-do-tej" type="button">
+            <svg class="ico sm"><use href="#i-target"/></svg>Znajdź podobne</button>
+          <label class="akcja check">
+            <input type="checkbox" class="do-eksportu" ${wKoszyku ? "checked" : ""}> W eksporcie
+          </label>
+          <button class="usun" type="button" data-usun="${wpis.id}" title="Usuń z listy">
+            <svg class="ico xs"><use href="#i-x"/></svg></button>
+        </div>
+      </div>
+      <div class="zakladki" role="tablist">
+        ${ZAKLADKI_KARTY.map((z) => `
+          <button class="zakladka ${kartaZakladka === z.id ? "aktywna" : ""}"
+                  data-karta-tab="${z.id}" type="button" role="tab">${z.nazwa}${
+            z.id === "maile" && ileMaili ? `<em>${ileMaili}</em>` : ""
+          }</button>`).join("")}
+      </div>
+    </div>
+
+    <div id="karta-pane" class="karta-pane aktywna"></div>`;
+
+  renderKartaPane();
+}
+
+// Narzędzia dostają firmę przez swój stan — ten sam, którego używały przy wyborze
+// z listy. Dzięki temu nie trzeba ich przepisywać: pomijają krok „wybierz firmę",
+// bo firma jest już wybrana.
+function renderKartaPane() {
+  const wpis = kartaFirma();
+  const pane = document.getElementById("karta-pane");
+  if (!wpis || !pane) return;
+  const id = wpis.id;
+
+  if (kartaZakladka === "przeglad") {
+    pane.innerHTML = przegladHTML(wpis.firma);
+    return;
+  }
+
+  if (kartaZakladka === "widocznosc") {
+    geoWybrana = id;
+    audytWybrana = id;
+    pane.innerHTML = `
+      <div class="wiodacy" style="margin-bottom:18px">Dwa pomiary tej samej rzeczy z dwóch stron:
+        pierwszy pyta modele naszymi kluczami, drugi dokłada dane z wyszukiwarki.</div>
+      <div class="mono" style="margin-bottom:10px"><i class="sq"></i>Audyt GEO — widoczność w odpowiedziach AI</div>
+      <div id="audytgeo-wybor"></div>
+      <div id="audytgeo-raport"></div>
+      <div class="mono" style="margin:34px 0 10px"><i class="sq"></i>Mikroaudyt SEO/GEO — z danymi z wyszukiwarki</div>
+      <div id="audyt-wybor"></div>
+      <div id="audyt-raport"></div>`;
+    renderAudytGeo();
+    renderAudyt();
+    return;
+  }
+
+  if (kartaZakladka === "synergia") {
+    rozmowaWybrana = id;
+    pane.innerHTML = `<div id="rozmowa-box"></div>`;
+    renderRozmowa();
+    return;
+  }
+
+  if (kartaZakladka === "maile") {
+    maileWybrana = id;
+    pane.innerHTML = `<div id="karta-maile-box"></div>`;
+    renderMaile("karta-maile-box");
+    return;
+  }
+
+  if (kartaZakladka === "dokumenty") {
+    dokWybrana = id;
+    pane.innerHTML = `<div id="dokument-wybor"></div><div id="dokument-wynik"></div>`;
+    renderDokument();
+  }
+}
+
+// ── Przegląd: profil czytany jak materiał, nie jak formularz ─────────
+// Research zbiera kilkanaście pól i wcześniej wszystkie leżały obok siebie
+// w jednej siatce — czytało się to jak zrzut z bazy. Tu jest kolejność: kim ta
+// firma jest, co robi, co zrobiła, a dopiero na końcu dane rejestrowe.
+function przegladHTML(f) {
+  const ma = (x) => x && x !== BRAK;
+  const uslugi = (f.uslugi || []).filter(ma);
+  const realizacje = (f.case_studies || []).filter(ma);
+  const zrodla = (f.zrodlo_danych || []).filter(Boolean);
+
+  const liczby = [
+    [realizacje.length ? String(realizacje.length) : (ma(f.liczba_projektow) ? esc(f.liczba_projektow) : "—"),
+     realizacje.length ? "Opisanych realizacji" : "Liczba projektów",
+     realizacje.length ? "z researchu strony" : "deklaracja firmy"],
+    [ma(f.wielkosc_zespolu) ? esc(f.wielkosc_zespolu) : "—", "Wielkość zespołu", "deklaracja firmy"],
+    [String(uslugi.length || "—"), "Usług w ofercie", "zebranych z serwisu"],
+  ];
+
+  const sekcja = (etykieta, tytul, podpis, tresc) => !tresc ? "" : `
+    <section class="prz-sekcja">
+      <div>
+        <div class="karta-eyebrow">${esc(etykieta)}</div>
+        <h2>${esc(tytul)}</h2>
+        ${podpis ? `<p class="prz-podpis">${esc(podpis)}</p>` : ""}
+      </div>
+      <div>${tresc}</div>
+    </section>`;
+
+  // SZEŚĆ I RESZTA POD PRZYCISKIEM. Zmierzone na Sellision: 20 usług i 13 realizacji
+  // to 33 ponumerowane wiersze jeden pod drugim — lista, której nikt nie czyta,
+  // tylko przewija. Pierwsze sześć mówi, czym firma jest; reszta jest na żądanie.
+  const PELNA_LISTA = 6;
+  const numerowane = (pozycje) => {
+    const wiersz = (x, i) => `
+      <div class="prz-poz">
+        <span class="prz-nr">${String(i + 1).padStart(2, "0")}</span>
+        <div><h3>${esc(x)}</h3></div>
+      </div>`;
+    if (pozycje.length <= PELNA_LISTA) return pozycje.map(wiersz).join("");
+    const reszta = pozycje.length - PELNA_LISTA;
+    return pozycje.slice(0, PELNA_LISTA).map(wiersz).join("")
+      + `<div class="prz-reszta" hidden>${
+          pozycje.slice(PELNA_LISTA).map((x, i) => wiersz(x, i + PELNA_LISTA)).join("")}</div>`
+      + `<button class="prz-wiecej" type="button"
+          data-etykieta="Pokaż pozostałe <em>+${reszta}</em>">Pokaż pozostałe
+          <em>+${reszta}</em></button>`;
+  };
+
+  return `
+    <div class="prz-hero">
+      <div>
+        <p class="prz-lead">${esc(f.opis)}</p>
+        ${ma(f.seo_zakres) ? `<p class="uzasadnienie"><span class="etyk">Zakres SEO</span> ${esc(f.seo_zakres)}</p>` : ""}
+        <div class="akcje" style="margin-top:16px">
+          <a class="akcja" href="${escAttr(f.url)}" target="_blank" rel="noopener">
+            <svg class="ico sm"><use href="#i-external"/></svg>Odwiedź stronę</a>
+        </div>
+      </div>
+      <div class="card" style="margin:0">
+        <div class="mono"><i class="sq"></i>Co o niej wiemy</div>
+        <div class="pola" style="margin-top:12px">
+          ${pole("Branża", f.branza)}
+          ${pole("Kategoria", f.kategoria)}
+          ${pole("Miasto", f.miasto)}
+        </div>
+        <p class="hint" style="margin-top:10px">${
+          f.ma_seo
+            ? "Ma SEO w ofercie — to fakt z opisu, nie ocena. Czy to konkurent, czy partner, rozstrzygasz Ty."
+            : "Bez SEO w ofercie — uzupełniamy to, czego nie robi."
+        }</p>
+      </div>
+    </div>
+
+    <div class="prz-liczby">
+      ${liczby.map(([b, opis, drobne]) => `
+        <div class="prz-liczba"><b>${b}</b><span>${esc(opis)}</span><em>${esc(drobne)}</em></div>`).join("")}
+    </div>
+
+    ${sekcja("Zakres kompetencji", "Usługi i specjalizacje",
+             "Zebrane z serwisu firmy, nie z katalogu.",
+             uslugi.length ? numerowane(uslugi) : "")}
+
+    ${sekcja("Udokumentowana praca", "Wybrane realizacje",
+             "To, co firma sama pokazuje jako swoje.",
+             realizacje.length ? numerowane(realizacje) : "")}
+
+    ${sekcja("Kontakt i dane", "Z kim i z czym rozmawiamy", "",
+      `<div class="prz-dane">
+        ${pole("Osoba decyzyjna", f.persona_imie)}
+        ${pole("Stanowisko", f.persona_stanowisko)}
+        ${pole("Email osoby", f.persona_email)}
+        ${pole("Telefon osoby", f.persona_telefon)}
+        ${pole("Email firmy", f.email)}
+        ${pole("Telefon firmy", f.telefon)}
+        ${pole("Nazwa prawna", f.nazwa_prawna)}
+        ${pole("NIP", f.nip)}
+        ${pole("Adres", f.adres)}
+      </div>`)}
+
+    ${sekcja("Skąd to wiemy", "Źródła",
+             "Podstrony, z których zebraliśmy dane. Każdą można sprawdzić.",
+      zrodla.length ? `<ul class="zrodla-lista">${zrodla.map((u) =>
+        `<li><a href="${escAttr(u)}" target="_blank" rel="noopener">${esc(u)}</a></li>`).join("")}</ul>` : "")}
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  POZYSKIWANIE — trzy wejścia, jedna robota
+// ══════════════════════════════════════════════════════════════════════
+let pozZakladka = "url";
+
+function renderPozyskiwanie() {
+  document.querySelectorAll("#poz-zakladki .zakladka").forEach((b) =>
+    b.classList.toggle("aktywna", b.dataset.poz === pozZakladka));
+  document.querySelectorAll(".poz-panel").forEach((x) =>
+    x.classList.toggle("aktywna", x.dataset.poz === pozZakladka));
+
+  if (pozZakladka === "url") renderResearchPanel();
+  if (pozZakladka === "branza") renderPresety();
+  if (pozZakladka === "podobne") renderPodobne();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  AUDYTY — widok przekrojowy
+// ══════════════════════════════════════════════════════════════════════
+// Pojedynczy audyt robi się w karcie firmy. Tutaj widać, kto i kiedy był badany,
+// bo tego z karty nie da się zobaczyć: żeby porównać dwa pomiary, trzeba wyjść
+// ponad jedną firmę.
+async function renderAudyty() {
+  const box = document.getElementById("audyty-box");
+  if (!box) return;
+  box.innerHTML = loadingHTML("Wczytuję historię pomiarów…");
+  try {
+    const d = await (await fetch("/api/audyty")).json();
+    const wszystkie = d.audyty || [];
+    if (!wszystkie.length) {
+      box.innerHTML = `<div class="pusto">
+        <svg class="ico xl"><use href="#i-chart"/></svg>
+        <p>Żaden audyt nie został jeszcze zapisany.<br><span>Audyt robi się w karcie
+          partnera, w zakładce Widoczność.</span></p></div>`;
+      return;
+    }
+
+    // Grupujemy po firmie, bo drugi pomiar tej samej firmy jest wart czegoś tylko
+    // w zestawieniu z pierwszym.
+    const wg = new Map();
+    wszystkie.forEach((a) => {
+      const k = a.url || "—";
+      if (!wg.has(k)) wg.set(k, []);
+      wg.get(k).push(a);
+    });
+
+    box.innerHTML = [...wg.entries()].map(([url, lista]) => {
+      const wpis = tabs.find((t) => t.firma.url === url);
+      const nazwa = wpis ? wpis.firma.nazwa : hostname(url);
+      return `<div class="card">
+        <div class="wzor-head">
+          <div>
+            <div class="firma-row-nazwa">${esc(nazwa)}</div>
+            <span class="firma-row-meta">${esc(hostname(url))} · ${lista.length} ${
+              lista.length === 1 ? "pomiar" : "pomiary"}</span>
+          </div>
+          ${wpis ? `<button class="btn-lekki otworz-firme-z-audytu" type="button"
+            data-id="${wpis.id}">Otwórz kartę<svg class="ico xs"><use href="#i-arrow"/></svg></button>` : ""}
+        </div>
+        <table class="tabela"><thead><tr>
+          <th>Kiedy</th><th>Czym</th><th>Ścieżka</th></tr></thead>
+        <tbody>${lista.map((a) => `<tr>
+          <td>${esc((a.data || "").slice(0, 16).replace("T", ", "))}</td>
+          <td>${esc(a.dostawca === "geo" ? "Audyt GEO (nasze klucze)" : "Mikroaudyt SEO/GEO")}</td>
+          <td>${esc(TRYBY[a.tryb]?.nazwa || a.tryb || "—")}</td>
+        </tr>`).join("")}</tbody></table>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = errorHTML(e.message);
+  }
 }
