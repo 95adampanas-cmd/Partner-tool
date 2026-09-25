@@ -1169,6 +1169,86 @@ def sprawdz_raport_geo() -> int:
     return bledy
 
 
+def sprawdz_marke() -> int:
+    """Czy narzędzie mówi jedną marką — ICEA — wszędzie tam, gdzie widzi to człowiek.
+
+    PO CO TEN TEST. Zmiana marki to nie jedna podmiana w jednym pliku: nazwa siedzi
+    w profilu, w trzech promptach, w pliku synergii, we wzorcach maili, w tytule
+    strony i w stopce eksportu. Wystarczy, że jedno miejsce zostanie po staremu,
+    i partner dostaje maila podpisanego nazwą, która już nie istnieje. Test patrzy
+    na WSZYSTKIE te miejsca naraz, bo pojedynczo każde wygląda na dopilnowane.
+    """
+    from pathlib import Path
+
+    import audyt
+    import profil
+
+    bledy = 0
+    STARA = "Last Agency"
+    korzen = Path(__file__).resolve().parent.parent
+
+    # Profil to źródło wiedzy o nas dla każdego promptu — jego brak jest awarią.
+    ok = profil.PLIK.exists() and profil.PLIK.name == "profil_icea.md"
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | profil agencji: {profil.PLIK.name}")
+    bledy += not ok
+
+    tresc = profil.pelny()
+    ok = "ICEA" in tresc and STARA not in tresc
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | profil mówi ICEA ({tresc.count('ICEA')} wzmianek)")
+    bledy += not ok
+
+    # Fakty z materiału wysyłanego klientom muszą być też w profilu — inaczej czat
+    # i maile nie wiedzą o dowodzie, którym podpisany jest dokument.
+    for fragment, opis in (("2007", "rok założenia"),
+                           ("Botland", "case study"),
+                           ("European Search Awards", "nominacja"),
+                           ("grupa-icea.pl", "adres agencji")):
+        ok = fragment in tresc
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | profil zna {opis}")
+        bledy += not ok
+
+    ok = STARA not in profil.synergie()
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | plik synergii bez starej marki")
+    bledy += not ok
+
+    # Prompty: stała część idzie do cache i powtarza się w każdym wywołaniu.
+    for nazwa, zadanie in (("dokument dla klienta", app.zadanie_dokument),
+                           ("raport z audytu", app.zadanie_raport_geo)):
+        ok = STARA not in (zadanie.staly or "")
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | prompt „{nazwa}” bez starej marki")
+        bledy += not ok
+
+    for nazwa, tekst in (("maile", app.MAIL_SYSTEM),
+                         ("ekstrakcja researchu", app.EKSTRAKCJA_PROMPT)):
+        ok = STARA not in tekst
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | instrukcja „{nazwa}” bez starej marki")
+        bledy += not ok
+
+    ok = STARA not in (korzen / "docs/maile-do-partnerow.md").read_text(encoding="utf-8")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | wzorce maili podpisane nową marką")
+    bledy += not ok
+
+    # To, co widzi człowiek w przeglądarce.
+    for plik, opis in (("frontend/index.html", "tytuł strony i sidebar"),
+                       ("frontend/app.js", "stopki eksportu i okładki"),
+                       ("frontend/style.css", "arkusz stylów")):
+        tekst = (korzen / plik).read_text(encoding="utf-8")
+        ok = STARA not in tekst and "lastagency" not in tekst.lower()
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+        bledy += not ok
+
+    # Case study wraca: pod marką ICEA Botland jest projektem własnym, a nie cudzym.
+    case = audyt.TRESC_STALA.get("case") or {}
+    ok = case.get("pokaz") and "Botland" in (case.get("naglowek") or "")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | raport z audytu pokazuje case study Botland")
+    bledy += not ok
+
+    ok = "192 588" in (case.get("tekst") or "") and "353,7%" in (case.get("tekst") or "")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | liczby w case study zgodne z materiałem")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -1219,6 +1299,12 @@ def sprawdz_regresje() -> int:
     print("DOKUMENT DLA KLIENTA — trzy sekcje podmienione, reszta wzoru nietknięta")
     print("=" * 74)
     bledy += sprawdz_dokument()
+    print()
+
+    print("=" * 74)
+    print("MARKA — czy całe narzędzie mówi ICEA, od profilu po stopkę w przeglądarce")
+    print("=" * 74)
+    bledy += sprawdz_marke()
     print()
 
     print("=" * 74)

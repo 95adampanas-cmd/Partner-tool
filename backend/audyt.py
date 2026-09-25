@@ -91,14 +91,23 @@ TRESC_STALA = {
         ],
         "zrodlo": "StatCounter, mar 2025 – mar 2026",
     },
-    # Miejsce na case study Last Agency — DO UZUPEŁNIENIA przez PM.
-    # Wcześniej był tu przykład Botland, ale to nie jest klient Last Agency;
-    # powoływanie się na cudzą firmę w raporcie dla partnera jest ryzykowne.
-    # Ustaw "pokaz": True i wpisz własne dane, gdy będzie gotowy case.
+    # Case study wraca po zmianie marki. Botland był tu kiedyś wyłączony, bo nie
+    # był klientem agencji, pod którą działało narzędzie — powoływanie się na
+    # cudzy projekt w raporcie dla partnera jest ryzykowne. Pod marką ICEA to
+    # jest projekt własny, ten sam, którym podpisany jest materiał wysyłany
+    # klientom. Liczby przepisane z niego co do jednej.
     "case": {
-        "pokaz": False,
-        "naglowek": "",
-        "tekst": "",
+        "pokaz": True,
+        "naglowek": "Zrobiliśmy to dla Botland",
+        "tekst": "Sklep z elektroniką i robotyką, dwanaście miesięcy pracy nad "
+                 "widocznością w odpowiedziach AI: **5 830 wejść z AI rocznie przed "
+                 "projektem** i **192 588 po dwunastu miesiącach**. Liczba fraz, "
+                 "w których odpowiedź AI sięgała po treści firmy, wzrosła o **353,7%**. "
+                 "Kupienie tego ruchu w reklamie kosztowałoby **565 740 zł**; projekt "
+                 "wyniósł około 13% tej kwoty. Okres: maj 2025 – luty 2026. "
+                 "Projekt nominowany do European Search Awards 2025 w kategorii "
+                 "Best Use of Search. To jedna branża i jeden punkt wyjścia — "
+                 "potencjał liczymy osobno dla każdej firmy.",
     },
 }
 

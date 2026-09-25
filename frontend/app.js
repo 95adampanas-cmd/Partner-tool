@@ -1904,7 +1904,7 @@ function raportHTML(r) {
         <h1>Widoczność w AI Search<br><span>${esc(r.firma.nazwa)}</span></h1>
         <p class="okladka-meta">${esc(r.firma.domena)} · ${esc(dzis)}</p>
       </div>
-      <div class="okladka-dol mono">© 2026 Last Agency · lastagency.pl</div>
+      <div class="okladka-dol mono">© 2026 ICEA · grupa-icea.pl</div>
     </section>
 
     <!-- KLUCZOWE LICZBY -->
@@ -2288,7 +2288,7 @@ function raportHTML(r) {
     </section>` : ""}
 
     <div class="r-stopka">
-      <span class="mono">Partner Tool · Last Agency · ${esc(dzis)}</span>
+      <span class="mono">Partner Tool · ICEA · ${esc(dzis)}</span>
       <span class="hint">koszt danych $${r.koszt_api} · saldo $${r.saldo_po}</span>
       <button class="akcja glowna drukuj" type="button">
         <svg class="ico sm"><use href="#i-print"/></svg>Drukuj / zapisz PDF</button>

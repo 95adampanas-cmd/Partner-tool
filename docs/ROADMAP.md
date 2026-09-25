@@ -40,7 +40,7 @@
 
 ### Ponad zakres MVP (zrobione wcześniej) ✅
 - ✅ **Tryb B — szukanie po branży i mieście** (bez firmy wejściowej), 4 warianty zapytania
-- ✅ Aplikacja webowa: sidebar, 5 sekcji, lista → szczegóły, ikony SVG, branding Last Agency
+- ✅ Aplikacja webowa: sidebar, 5 sekcji, lista → szczegóły, ikony SVG, branding ICEA
 
 ### Wdrożenie ⬜
 - ⬜ Repo na GitHub
@@ -53,11 +53,13 @@
 - ✅ AI Search: prompty generowane przez nasz model → Perplexity sonar
 - ✅ AI Overviews: llm_mentions + analiza luki (SERP, $0.002/fraza)
 - ✅ Raport jako dokument + druk do PDF (`@media print`)
-- ⬜ **Case study Last Agency** — `TRESC_STALA["case"]`, dziś `pokaz: False`
-      (był tam Botland, usunięty — to nie jest klient Last Agency)
+- ✅ **Case study ICEA** — `TRESC_STALA["case"]`, `pokaz: True` od 25.09.2026.
+      Botland był tu kiedyś wyłączony, bo nie był klientem agencji, pod którą
+      działało narzędzie. Pod marką ICEA to projekt własny — ten sam, którym
+      podpisany jest materiał wysyłany klientom, z liczbami przepisanymi co do jednej.
 
 ### ⬜ OTWARTE: zweryfikować liczbę fraz względem Senuto/Ahrefs
-**Blokada:** brak dostępu do Senuto/Ahrefs po stronie Last Agency (stan: 29.08.2026).
+**Blokada:** brak dostępu do Senuto/Ahrefs po stronie ICEA (stan: 29.08.2026).
 
 **Problem.** Dla elektromaniacy.pl DataForSEO podaje **748 fraz łącznie / 42 w TOP3**,
 a audyt ICEA (Senuto) — **655 fraz w samym TOP3**. Rząd wielkości różnicy.
@@ -154,7 +156,7 @@ Nie potrzebujemy od nich ruchu ani konkurencji — te warstwy z DataForSEO są z
    potrzebna jest jedna brakująca warstwa.
 
 **Do sprawdzenia przez Adama (nie zgaduję cen):**
-- Czy Last Agency ma już subskrypcję Senuto lub Ahrefs na potrzeby klientów? Jeśli tak,
+- Czy ICEA ma już subskrypcję Senuto lub Ahrefs na potrzeby klientów? Jeśli tak,
   API bywa dodatkiem do istniejącego planu, a nie osobnym kosztem.
 - Jaki jest koszt API i limity zapytań — musi zmieścić się w budżecie z PRD (~500 zł/mies.
   na całe narzędzie, razem z OpenAI, Tavily i DataForSEO).
@@ -175,4 +177,4 @@ Patrz PRD sekcja 6.
 ---
 
 **Aktualnie pracujemy nad:** Faza 2 — mikroaudyt działa end-to-end i jest zweryfikowany
-względem audytu ICEA. Do zrobienia: wdrożenie (GitHub + Render) i case study Last Agency.
+względem audytu ICEA. Do zrobienia: wdrożenie (GitHub + Render).

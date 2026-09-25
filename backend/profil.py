@@ -1,7 +1,7 @@
 """
-Profil Last Agency — stały kontekst, ten sam przy każdej firmie.
+Profil ICEA — stały kontekst, ten sam przy każdej firmie.
 
-TREŚĆ SIEDZI W MARKDOWNIE, NIE TUTAJ. `profil_last_agency.md` to dokument
+TREŚĆ SIEDZI W MARKDOWNIE, NIE TUTAJ. `profil_icea.md` to dokument
 biznesowy, nie kod: pisze go i poprawia człowiek, który zna agencję, a nie ten,
 kto akurat edytuje Pythona. Zmiana oferty czy prowizji nie ma wymagać dotykania
 modułu — stąd rozdział. Ten plik tylko go wczytuje i pilnuje, żeby dało się go
@@ -27,7 +27,7 @@ przekracza próg modelu (Sonnet 1024 tokeny). Sprawdzasz stan poleceniem:
 
 from pathlib import Path
 
-PLIK = Path(__file__).resolve().parent / "profil_last_agency.md"
+PLIK = Path(__file__).resolve().parent / "profil_icea.md"
 PLIK_SYNERGIE = Path(__file__).resolve().parent / "synergie.md"
 
 # Doklejane do profilu przy zadaniach, które piszą tekst wychodzący na zewnątrz.
@@ -41,7 +41,7 @@ ZASADY_PISANIA = """ZASADY PISANIA DO PARTNERÓW:
 - Pokazujemy, że weszliśmy na ich stronę i wiemy, co robią — jednym konkretem,
   nie listą komplementów.
 - Nie przypisujemy firmie usług ani klientów, których nie ma na jej stronie.
-- Nie podajemy liczb o Last Agency, których nie ma w profilu powyżej.
+- Nie podajemy liczb o ICEA, których nie ma w profilu powyżej.
 - Nie udajemy, że znamy kogoś z zespołu odbiorcy."""
 
 

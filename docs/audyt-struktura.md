@@ -78,7 +78,7 @@ ICEA korzysta z **Senuto + Ahrefs**, my z **DataForSEO**:
 - **Liczby będą się różnić** — każde narzędzie ma własny model estymacji ruchu. To normalne,
   ale trzeba to wiedzieć, żeby nie tłumaczyć się przed klientem.
 - **Nie skopiujemy zrzutów UI** Senuto/Ahrefs — generujemy **własne wykresy i tabele**
-  w identyfikacji Last Agency (co jest zresztą lepsze: raport wygląda na nasz, nie na cudzy).
+  w identyfikacji ICEA (co jest zresztą lepsze: raport wygląda na nasz, nie na cudzy).
 - **Trendy historyczne** (wykresy „od 2022") zależą od tego, jak głęboko sięga historia w DataForSEO
   — do sprawdzenia przy pierwszym realnym wywołaniu.
 
@@ -140,7 +140,7 @@ Przy 20 audytach/mies. ≈ **$9 ≈ 35 zł** — mieści się w progu 500 zł z 
    do `backend/fixtures/*.json`
 2. **Parsowanie + szablon raportu** — rozwijane offline na fixture'ach, **zero kosztu**
 3. **Sekcje stałe** — treść edukacyjna, wykres rynku chatbotów, case Botland
-4. **PDF** w identyfikacji Last Agency
+4. **PDF** w identyfikacji ICEA
 5. **Test end-to-end** na 1-2 realnych domenach
 
 ## Priorytet, gdyby zabrakło budżetu

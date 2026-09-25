@@ -875,7 +875,7 @@ REGULY_KATEGORII = (
     'na stronie głównej. Przewaga wdrożeń sklepowych to "Sklepy internetowe".'
 )
 
-EKSTRAKCJA_PROMPT = f"""Jesteś analitykiem researchu partnerskiego Last Agency (SEO/SEM/GEO/AI Search).
+EKSTRAKCJA_PROMPT = f"""Jesteś analitykiem researchu partnerskiego ICEA (SEO/SEM/GEO/AI Search).
 Dostajesz TEKST ze strony firmy (strona główna + podstrony). Wyciągnij z niego dane o firmie.
 
 ŻELAZNA ZASADA — NIE ZMYŚLAJ:
@@ -1168,7 +1168,7 @@ zadanie_prompty = claude.Zadanie(
 )
 
 
-MAIL_SYSTEM = """Jesteś partnership managerem w Last Agency — agencji SEO/GEO/SEM.
+MAIL_SYSTEM = """Jesteś partnership managerem w ICEA — agencji SEO/GEO/SEM.
 Piszesz krótkiego, spersonalizowanego maila z propozycją współpracy partnerskiej.
 
 MYŚL PRZEWODNIA: nasi klienci potrzebują usług partnera, a jego klienci — naszych.
@@ -1198,7 +1198,7 @@ wychodziło inaczej:
   zapisany jako **Temat:**, ale to formatowanie dokumentu, nie treść maila.
 - W podpisie zostaw [Imię Nazwisko] i [Stanowisko] w nawiasach — mail wysyła człowiek
   i to on je uzupełni. Telefonu NIE zmyślaj i nie zostawiaj jako „+48 [telefon]":
-  albo podaj numer z profilu Last Agency, albo pomiń linię.
+  albo podaj numer z profilu ICEA, albo pomiń linię.
 
 Zwróć SAM MAIL (temat w pierwszej linii + treść), bez komentarzy i wyjaśnień."""
 
@@ -1377,10 +1377,10 @@ NARZEDZIE_PODSTRONA = {
 }
 
 
-# Czat dostaje profil Last Agency jako blok stały — ten sam, którego używają maile.
+# Czat dostaje profil ICEA jako blok stały — ten sam, którego używają maile.
 #
 # Bez niego agent nie wiedział, dla kogo pracuje: na pytanie o synergię odpowiadał
-# „nie mam dostępu do lastagency.pl, podaj czym się zajmujecie". Formalnie uczciwe,
+# „nie mam dostępu do grupa-icea.pl, podaj czym się zajmujecie". Formalnie uczciwe,
 # praktycznie bezużyteczne — user musiał przepisywać własną ofertę do okienka,
 # żeby dostać odpowiedź o własnej firmie.
 #
@@ -1398,7 +1398,7 @@ zadanie_czat = claude.Zadanie(
         + _NOWA_LINIA + _NOWA_LINIA +
         "DWA ŹRÓDŁA, NIE MIESZAJ ICH:" + _NOWA_LINIA +
         "- O BADANEJ firmie wiesz tylko to, co przeczytasz na jej stronie." + _NOWA_LINIA +
-        "- O LAST AGENCY (czyli o nas) wiesz z profilu powyżej — i to jest pełna "
+        "- O ICEA (czyli o nas) wiesz z profilu powyżej — i to jest pełna "
         "wiedza, jaką masz. Pytania o synergię, sens współpracy czy dopasowanie "
         "partnera odpowiadasz zestawiając profil z tym, co wiesz o badanej firmie. "
         "Nie proś użytkownika, żeby opisał Ci własną agencję." + _NOWA_LINIA +
@@ -1433,7 +1433,7 @@ zadanie_poprawka = claude.Zadanie(
 )
 
 
-# Blok stały maili: profil Last Agency + zasady pisania. IDENTYCZNY dla wszystkich
+# Blok stały maili: profil ICEA + zasady pisania. IDENTYCZNY dla wszystkich
 # trzech stylów — i to jest warunek, żeby cache miał sens. Styl jest zmienny, więc
 # trafia do `instrukcje`, czyli ZA blok cache'owany. Gdyby styl wszedł do prefiksu,
 # każdy z trzech maili unieważniałby cache poprzedniego.
@@ -1445,7 +1445,7 @@ if not profil.istnieje():
     # prowizja albo zmyślony zakres usług w pierwszym mailu do partnera to nie
     # literówka, tylko wpadka przy pierwszym kontakcie.
     MAIL_STALY += (_NOWA_LINIA * 2 +
-                   "UWAGA: brakuje profilu Last Agency. NIE opisuj naszej oferty, "
+                   "UWAGA: brakuje profilu ICEA. NIE opisuj naszej oferty, "
                    "warunków współpracy ani prowizji — nie znasz ich. Napisz mail "
                    "oparty wyłącznie na tym, co wiesz o odbiorcy.")
 
@@ -1530,7 +1530,7 @@ CO MA BYĆ W POLACH:
   opisana od strony klienta, nie od strony agencji.
 - rola_partner_tytul: „Zostaje u [nazwa partnera]" albo naturalniejszy wariant tej frazy.
 - rola_partner: 4 punkty — to, co partner robi i co zostaje u niego. Z researchu.
-- rola_my: 4 punkty — co bierzemy na siebie. Z profilu Last Agency i ujęć synergii.
+- rola_my: 4 punkty — co bierzemy na siebie. Z profilu ICEA i ujęć synergii.
 - role_puenta: 2-3 zdania domykające. Ostatnie ma brzmieć jak ze wzoru: nikt nikogo nie
   zastępuje.
 

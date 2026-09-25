@@ -1,8 +1,8 @@
 # SYNERGIE GEO/SEO × PARTNERZY — prompt dla Partner Tool
 
-> Plik doklejany PO profilu Last Agency (`profil_last_agency.md`) i PO researchu partnera:
+> Plik doklejany PO profilu ICEA (`profil_icea.md`) i PO researchu partnera:
 >
->   [profil_last_agency.md]  +  [RESEARCH PARTNERA z narzędzia]  +  [ten plik]
+>   [profil_icea.md]  +  [RESEARCH PARTNERA z narzędzia]  +  [ten plik]
 >
 > Wiodąca część to **gotowe ujęcia dla branż** (część 2). Część 2A napisał człowiek,
 > część 2B to nowe ujęcia w tym samym stylu — do przeglądu przez zespół. Model nie wymyśla
@@ -17,7 +17,7 @@
 
 ## Zadanie
 
-Przygotuj synergię między Last Agency a badanym partnerem, do wykorzystania **na spotkaniu**.
+Przygotuj synergię między ICEA a badanym partnerem, do wykorzystania **na spotkaniu**.
 Ma pokazać partnerowi prostym językiem: co robi on, co robimy my i dlaczego razem to ma sens.
 
 1. Wybierz z części 2 (2A lub 2B) **jedną sekcję**, która najlepiej pasuje do partnera
@@ -46,20 +46,20 @@ go nie używa. Nie dokładaj zdań tylko dlatego, że format ma miejsce.
 
 - **Żadnego modelu współpracy.** Nie pisz „white label”, „ukryty”, „jawny”, „referral”,
   „model polecający” ani nic, co przypisuje partnera do jednej formy współpracy.
-  Formę współpracy wybiera **partner**, a proponuje ją **pracownik Last Agency na rozmowie**,
+  Formę współpracy wybiera **partner**, a proponuje ją **pracownik ICEA na rozmowie**,
   dając partnerowi wybór. Materiał przygotowany przed rozmową, który rozstrzyga to z góry,
   brzmi jak oferta wysłana przed poznaniem drugiej strony.
 - **Żadnych pieniędzy.** Bez rabatu, prowizji i marży.
 
-Informacje o modelach i warunkach są w profilu Last Agency po to, żebyś rozumiał,
+Informacje o modelach i warunkach są w profilu ICEA po to, żebyś rozumiał,
 jak działamy — nie po to, żeby je ogłaszać.
 
 ## Zasady
 
-- Opieraj się wyłącznie na profilu Last Agency, researchu partnera i części 2.
-- Nie zmyślaj faktów o partnerze ani o Last Agency. Gdzie w researchu brakuje danych
+- Opieraj się wyłącznie na profilu ICEA, researchu partnera i części 2.
+- Nie zmyślaj faktów o partnerze ani o ICEA. Gdzie w researchu brakuje danych
   potrzebnych do dopasowania — napisz wprost, czego brakuje.
-- Szukaj **komplementarności**: co robi partner, czego nie robi i gdzie wchodzi Last Agency.
+- Szukaj **komplementarności**: co robi partner, czego nie robi i gdzie wchodzi ICEA.
 - Jeśli partner sam robi SEO — powiedz to otwarcie i wskaż, gdzie mimo to jest miejsce
   na współpracę (np. widoczność w ChatGPT i podobnych, jeśli jej nie mają).
 - Ton rzeczowy: wynik, nie próżność. Bez obietnic cudów i marketingowego pustosłowia.
@@ -67,7 +67,7 @@ jak działamy — nie po to, żeby je ogłaszać.
 ## Format wyniku
 
 ```
-## [Nazwa partnera] × Last Agency
+## [Nazwa partnera] × ICEA
 *ujęcie bazowe: [nazwa sekcji z części 2] — przy sekcji z 2B dopisz „(nowe ujęcie)”*
 
 **Oni:** [1 zdanie o tym partnerze]
@@ -81,7 +81,7 @@ jak działamy — nie po to, żeby je ogłaszać.
 **Co robimy**
 - [2–4 punkty]
 
-**Na otwarcie rozmowy:** [jedno mocne zdanie — dlaczego ten partner i Last Agency pasują do siebie]
+**Na otwarcie rozmowy:** [jedno mocne zdanie — dlaczego ten partner i ICEA pasują do siebie]
 
 **Braki w researchu:** [tylko jeśli są — czego zabrakło do dopasowania]
 ```

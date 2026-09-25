@@ -20,7 +20,7 @@ CO SIĘ ZMIENIA:
   2. Sekcja „Co się zmienia dla Twojej firmy" — mikroaudyt GEO: trzy pytania zadane
      ChatGPT o kategorię klienta plus sprawdzenie, czy roboty AI mają wstęp na jego
      stronę. Prawdziwy pomiar, nie przykład.
-  3. Sekcja o podziale ról — jak partner i Last Agency się uzupełniają, na podstawie
+  3. Sekcja o podziale ról — jak partner i ICEA się uzupełniają, na podstawie
      tego, co partner realnie robi, i gotowych ujęć z `synergie.md`.
 
 MODEL ZWRACA TEKST, NIE HTML. Składanie znaczników zostaje po stronie Pythona.

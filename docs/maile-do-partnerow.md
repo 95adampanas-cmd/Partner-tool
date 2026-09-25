@@ -24,7 +24,7 @@ jednym-dwoma zdaniami, bez wykładu.
 
 Dzień dobry,
 
-nazywam się [Imię Nazwisko] i odpowiadam za współpracę partnerską w Last Agency.
+nazywam się [Imię Nazwisko] i odpowiadam za współpracę partnerską w ICEA.
 Zajmujemy się widocznością firm w Google i w odpowiedziach AI.
 
 Piszę, bo nasze usługi naturalnie się uzupełniają. Nasi klienci regularnie potrzebują
@@ -40,7 +40,7 @@ nawzajem pomóc?
 
 Pozdrawiam
 [Imię Nazwisko]
-[Stanowisko], Last Agency
+[Stanowisko], ICEA
 [telefon]
 
 ---
@@ -65,7 +65,7 @@ w przyszłym tygodniu?
 
 Pozdrawiam
 [Imię Nazwisko]
-[Stanowisko], Last Agency
+[Stanowisko], ICEA
 
 ---
 
@@ -87,7 +87,7 @@ Czy byliby Państwo otwarci na krótką rozmowę o tym, jak możemy się uzupeł
 
 Pozdrawiam
 [Imię Nazwisko]
-[Stanowisko], Last Agency
+[Stanowisko], ICEA
 
 ---
 
@@ -110,7 +110,7 @@ Czy moglibyśmy porozmawiać 20 minut o tym, jak możemy się nawzajem wspierać
 
 Pozdrawiam
 [Imię Nazwisko]
-[Stanowisko], Last Agency
+[Stanowisko], ICEA
 
 ---
 
@@ -129,4 +129,4 @@ nie będę więcej zawracać głowy.
 
 Pozdrawiam
 [Imię Nazwisko]
-[Stanowisko], Last Agency
+[Stanowisko], ICEA

@@ -56,7 +56,7 @@ CENY = {MOCNY: (2.0, 10.0), TANI: (1.0, 5.0)}
 # Ile znaków polskiego tekstu przypada na jeden token. ZMIERZONE 16.09.2026 przez
 # count_tokens na pięciu naszych prawdziwych promptach: 1,83 / 1,87 / 1,87 / 1,93 /
 # 1,93. Pierwsza wersja zakładała 2,7 — wartość z intuicji o angielskim — i myliła
-# się o 40%: profil Last Agency wychodził na 931 tokenów przy prawdziwych 1300,
+# się o 40%: profil ICEA wychodził na 931 tokenów przy prawdziwych 1300,
 # czyli kod wyłączyłby cache dla bloku, który próg spokojnie przekracza.
 #
 # Polski ma więcej tokenów na znak niż angielski (odmiana, ogonki), więc szacowanie
@@ -96,7 +96,7 @@ class Zadanie:
     """Jedno zadanie dla modelu.
 
     `staly` to część promptu, która NIGDY się nie zmienia między firmami — profil
-    Last Agency, zasady ekstrakcji. Tylko ona nadaje się do cache. `instrukcje` to
+    ICEA, zasady ekstrakcji. Tylko ona nadaje się do cache. `instrukcje` to
     reszta systemowego promptu. Rozdzielamy je, bo cache obejmuje PREFIKS: cokolwiek
     zmiennego trafi przed blok stały, unieważnia go przy każdym wywołaniu.
     """

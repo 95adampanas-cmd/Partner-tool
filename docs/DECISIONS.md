@@ -16,7 +16,7 @@ Wzmianki poboczne, które **NIE** czynią konkurenta: „optymalizacja SEO" na l
 SEO jako dodatek do wdrożenia, „Pozycjonowanie" w formularzu/menu, „strona zoptymalizowana pod SEO".
 **Powód:** Pierwsza wersja promptu („główna, eksponowana oferta") **nie zadziałała** — test na Tebimie
 dał fałszywie `konkurent=true`, bo model zobaczył „optymalizacja SEO" wśród usług. Po przejściu na test
-„czym firma nazywa samą siebie" + przykład-kotwica: Tebim → `false`, lastagency.pl → `true` (poprawnie).
+„czym firma nazywa samą siebie" + przykład-kotwica: Tebim → `false`, grupa-icea.pl → `true` (poprawnie).
 KPI zakłada 80% trafności, więc reguła musi być testowalna, nie ocenna.
 **Uwaga:** scraping wielostronicowy **zwiększa** ryzyko fałszywych alarmów (więcej wzmianek SEO w tekście),
 więc ta reguła jest tym ważniejsza.
@@ -267,7 +267,7 @@ Dlatego `_da_sie_cachowac()` sprawdza długość i włącza cache tylko realnie,
 wypisuje stan każdego bloku. To ta sama klasa błędu co fałszywe zera — brak efektu ma
 być widoczny.
 
-**Profil Last Agency jako osobny plik.** Wcześniej kontekst „kim jesteśmy" był rozsypany
+**Profil ICEA jako osobny plik.** Wcześniej kontekst „kim jesteśmy" był rozsypany
 po dwóch promptach, więc nie dało się go ani cache'ować (cache obejmuje prefiks — musi
 być jednym blokiem), ani poprawić w jednym miejscu. Teraz `profil.py`. Stan na dziś:
 sam profil ma ~930 tokenów, czyli **pod progiem**; sklejony z zasadami maila daje 1347
@@ -285,7 +285,7 @@ modelowi wypełniacz do kontekstu. Cache włączy się sam, gdy profil urośnie 
 **Szacunek długości promptu mylił się o 40%.** Zakładaliśmy 2,7 znaku na token —
 wartość z intuicji o angielskim. Pomiar `count_tokens` na pięciu naszych promptach dał
 **1,83–1,93**: polski ma więcej tokenów na znak przez odmianę i ogonki. Skutek był
-konkretny i cichy: profil Last Agency wychodził na 931 tokenów przy prawdziwych 1300,
+konkretny i cichy: profil ICEA wychodził na 931 tokenów przy prawdziwych 1300,
 więc kod **wyłączyłby cache dla bloku, który próg spokojnie przekracza** — i nikt by
 się nie dowiedział, bo objawem jest tylko wyższy rachunek. Stała poprawiona na 1,9,
 szacunek trafia teraz w ±2%. Rozstrzyga i tak `stan_cache()` prawdziwym pomiarem.
@@ -364,7 +364,7 @@ Rozstrzygnęło sprawdzenie, SKĄD ta strona jest linkowana: wyłącznie z
 PrestaShopa; SEO nie ma tam wcale. Tytuł strony — „Pozycjonowanie **Kalisz** — SEO dla
 stron www i sklepów" — dopowiada resztę: to landing pod lokalną frazę, utrzymywany dla
 widoczności, nie pozycja w ofercie. Adam potwierdził od strony biznesowej: leady SEO
-Tebim przekazuje Last Agency w kanale referral.
+Tebim przekazuje ICEA w kanale referral.
 
 **Reguła, która z tego wynika i siedzi teraz w prompcie ekstrakcji:** ofertą firmy jest
 jej MENU USŁUG. Osobna strona pod frazę, nieobecna w menu, nie czyni usługi częścią
@@ -611,3 +611,47 @@ robotą ręczną.
 
 **Czego NIE zrobiliśmy i dlaczego:** Perplexity i Gemini wymagają kluczy, których nie
 mamy. Zgodnie z poleceniem — bez nich, zamiast dokładać rachunki.
+
+
+## Zmiana marki na ICEA — jedno źródło nazwy, nie dziesięć
+
+**Data:** 25.09.2026
+
+Narzędzie mówiło dwiema markami naraz: w kodzie, promptach i sidebarze było
+Last Agency, a materiały wysyłane partnerom i klientom (`szablon_dokumentu.html`)
+były podpisane ICEA. Materiał wychodzi od tej samej osoby co mail, więc partner
+widział dwie nazwy w jednym wątku.
+
+**Co się zmieniło.** Nazwa siedziała w siedmiu miejscach i każde z nich widzi
+człowiek: profil agencji (`profil_icea.md`, dawniej `profil_last_agency.md`),
+plik synergii, wzorce maili, instrukcja ekstrakcji researchu, tytuł strony
+i stopka sidebara, stopki eksportu i okładki, arkusz stylów. Wszystkie idą teraz
+pod ICEA, a `sprawdz_marke()` w testach patrzy na nie naraz — pojedynczo każde
+wygląda na dopilnowane, a wystarczy jedno zapomniane, żeby wyszedł mail podpisany
+nazwą, która już nie istnieje.
+
+**Akcent dostał nazwę od roli, nie od barwy.** Zmienne CSS nazywały się `--orange`
+i trzymały pomarańcz Last Agency. Po zmianie marki nazwa przestałaby być prawdą,
+więc są to dziś `--akcent`, `--akcent-2`, `--akcent-dim` z niebieskim ICEA
+(#5768ff). Ten sam błąd nie powtórzy się przy kolejnej zmianie.
+
+**Znak firmowy zamiast napisu.** W sidebarze był tekst w `<div>` z krojem Georgia.
+Jest wordmark SVG — dokładnie ten sam plik, który stoi w nagłówku materiałów
+wysyłanych partnerom, w białej wersji na ciemne tło.
+
+**Case study wróciło.** `TRESC_STALA["case"]` było wyłączone (`pokaz: False`), bo
+Botland nie był klientem agencji, pod którą działało narzędzie, a powoływanie się
+na cudzy projekt w raporcie dla partnera jest ryzykowne. Pod marką ICEA to projekt
+własny — ten sam, który jest dowodem w dokumencie dla klienta. Liczby przepisane
+z niego co do jednej, razem z zastrzeżeniem, że to jedna branża i jeden punkt wyjścia.
+
+**Czego NIE zrobiliśmy.** Ciemny motyw narzędzia został. Dokument dla klienta jest
+jasny, bo idzie do druku i do skrzynki; narzędzie pracuje po kilka godzin dziennie
+na jednym ekranie i przerabianie go na jasny motyw to osobna decyzja, nie skutek
+uboczny zmiany nazwy.
+
+**Szkice maili w bazie** przepisał `migracja_marki.py` (35 rekordów, kopia bazy
+przed zapisem). To szkice do wysłania, nie zapis tego, co wysłano — narzędzie
+maili nie wysyła. Gdyby zostały po staremu, pierwszy skopiowany szkic wyszedłby
+pod nieistniejącą marką.
+
