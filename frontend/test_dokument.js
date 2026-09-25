@@ -23,8 +23,9 @@ tresc = {"wstep_tytul":"A","wstep_tresc":"B","audyt_wstep":"C","audyt_wniosek":"
          "dostep_tytul":"E","dostep_tresc":"F","role_tytul":"G","role_wstep":"H",
          "braki":[{"tytul":"x","opis":"y"}]*3,"rola_partner_tytul":"Z",
          "rola_partner":["a"],"rola_my":["b"],"role_puenta":"P"}
+dluga = lambda i: f"Odpowiedz numer {i}." + ("\\n- punkt listy o dlugosci paru slow" * 12)
 badanie = {"pytania":["pyt 1","pyt 2","pyt 3"],"data":"25.09.2026",
-           "odpowiedzi":[{"pytanie":f"pytanie {i}","odpowiedz":f"Odpowiedz numer {i}."}
+           "odpowiedzi":[{"pytanie":f"pytanie {i}","odpowiedz":dluga(i)}
                          for i in (1,2,3)]}
 sys.stdout.reconfigure(encoding="utf-8")
 print(dokument.zbuduj(tresc, badanie, "Tebim"))
@@ -70,6 +71,27 @@ klik(d.querySelectorAll(".pytanie-link")[0]);
 sprawdz("Kliknięcie pytania pokazuje jego odpowiedź", widoczny() === 0, `slajd ${widoczny()}`);
 sprawdz("Wybrane pytanie jest podświetlone",
   d.querySelectorAll(".pytanie-link")[0].classList.contains("jest"));
+
+// Rozwijanie odpowiedzi. Ramka zwija długi tekst, żeby nie rozpychać sekcji,
+// ale CAŁA odpowiedź jest w pliku — przycisk tylko ją odsłania.
+const odp = () => d.querySelectorAll("#ekran-odpowiedzi .slajd")[widoczny()].querySelector(".odp");
+const przyciskRozwin = () =>
+  d.querySelectorAll("#ekran-odpowiedzi .slajd")[widoczny()].querySelector(".rozwin");
+
+sprawdz("Długa odpowiedź startuje zwinięta", odp().classList.contains("zwiniete"));
+klik(przyciskRozwin());
+sprawdz("Kliknięcie rozwija odpowiedź", !odp().classList.contains("zwiniete"));
+sprawdz("Przycisk zmienia się na zwijanie",
+  przyciskRozwin().textContent === "Zwiń odpowiedź", przyciskRozwin().textContent);
+klik(przyciskRozwin());
+sprawdz("Drugie kliknięcie zwija z powrotem", odp().classList.contains("zwiniete"));
+
+// Rozwinięta odpowiedź nie może zostać rozwinięta po przejściu na inne pytanie —
+// ramka wróciłaby do rozmiaru pół strony przy każdym następnym slajdzie.
+klik(przyciskRozwin());
+klik(d.querySelector('.slajd-strzalka[data-krok="1"]'));
+klik(d.querySelector('.slajd-strzalka[data-krok="-1"]'));
+sprawdz("Po przewinięciu odpowiedź wraca zwinięta", odp().classList.contains("zwiniete"));
 
 // Zawijanie: z pierwszej w lewo ma być ostatnia, a nie pusto.
 klik(d.querySelector('.slajd-strzalka[data-krok="-1"]'));

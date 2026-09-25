@@ -1190,6 +1190,10 @@ document.addEventListener("click", (e) => {
     return renderPodobne();
   }
   if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
+  const zrobDok = e.target.closest(".zrob-dokument-audyt");
+  if (zrobDok) return zrobDokumentZAudytu(zrobDok);
+  if (e.target.closest(".pobierz-dokument-audyt")) return plikDokumentuAudytu(true);
+  if (e.target.closest(".podglad-dokument-audyt")) return plikDokumentuAudytu(false);
   const wybDok = e.target.closest(".wybierz-dok");
   if (wybDok) { dokWybrana = wybDok.dataset.id; return renderDokument(); }
   if (e.target.classList.contains("zmien-dok")) {
@@ -2845,7 +2849,10 @@ async function generujAudytGeo(przycisk) {
     });
     const d = await res.json();
     if (!d.ok) { box.innerHTML = errorHTML(d.error); return; }
-    box.innerHTML = raportHTML(d.raport);
+    // Raport zostaje w pamięci: dokument składamy z TYCH SAMYCH danych, bez
+    // powtarzania pomiaru. Drugi audyt tej samej firmy kosztowałby znowu.
+    geoRaport = d.raport;
+    box.innerHTML = raportHTML(d.raport) + dokumentZAudytuHTML();
     box.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     box.innerHTML = errorHTML(e.message);
@@ -3120,6 +3127,72 @@ function plikDokumentu(pobierz) {
     const a = document.createElement("a");
     a.href = url;
     a.download = dokPlik || "dokument.html";
+    a.click();
+  } else {
+    window.open(url, "_blank");
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+
+// ══ DOKUMENT Z AUDYTU GEO ═════════════════════════════════════════════
+// Zakładka pokazuje raport w narzędziu. To robi z niego PLIK do wysłania:
+// ten sam wzór co materiał dla klienta partnera, wykresy z pomiaru, pełne
+// odpowiedzi modeli. Szczegóły składania: backend/raport_geo.py.
+let geoRaport = null;      // ostatni raport z audytu — źródło dokumentu
+let geoDokHtml = null;     // wygenerowany plik
+let geoDokPlik = "";
+
+function dokumentZAudytuHTML() {
+  return `<div class="card">
+    <div class="mono"><i class="sq"></i>Dokument do wysłania</div>
+    <p class="hint">Ten sam raport na wzorze ICEA: wykresy z pomiaru, konkurenci,
+      źródła, ustalenia techniczne i pełne odpowiedzi modeli. Case study i identyfikacja
+      zostają bez zmian. Pomiar jest już zrobiony — płacimy tylko za napisanie tekstu.</p>
+    <div class="akcje">
+      <button class="akcja glowna zrob-dokument-audyt" type="button">
+        <svg class="ico sm"><use href="#i-inbox"/></svg>Zrób z tego dokument</button>
+    </div>
+    <div id="dokument-audyt-wynik"></div>
+  </div>`;
+}
+
+async function zrobDokumentZAudytu(przycisk) {
+  if (!geoRaport) return;
+  const wynik = document.getElementById("dokument-audyt-wynik");
+  przycisk.disabled = true;
+  wynik.innerHTML = loadingHTML("Piszę dokument z tego audytu… ~40 s.");
+  try {
+    const res = await fetch("/api/dokument-audyt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ raport: geoRaport }),
+    });
+    const d = await res.json();
+    if (!d.ok) { wynik.innerHTML = errorHTML(d.error); return; }
+    geoDokHtml = d.html;
+    geoDokPlik = d.plik;
+    wynik.innerHTML = `<div class="akcje" style="margin-top:12px">
+      <button class="akcja glowna pobierz-dokument-audyt" type="button">
+        <svg class="ico sm"><use href="#i-table"/></svg>Pobierz plik</button>
+      <button class="akcja podglad-dokument-audyt" type="button">
+        <svg class="ico sm"><use href="#i-external"/></svg>Otwórz podgląd</button>
+    </div>`;
+  } catch (e) {
+    wynik.innerHTML = errorHTML(e.message);
+  } finally {
+    przycisk.disabled = false;
+  }
+}
+
+function plikDokumentuAudytu(pobierz) {
+  if (!geoDokHtml) return;
+  const blob = new Blob([geoDokHtml], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  if (pobierz) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = geoDokPlik || "audyt.html";
     a.click();
   } else {
     window.open(url, "_blank");

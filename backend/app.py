@@ -47,6 +47,7 @@ import mapy
 import krs as krs_api
 import dfs
 import dokument
+import raport_geo
 import geo
 import profil
 import szukaj_google
@@ -2498,9 +2499,140 @@ async def api_columns(request):
     return JSONResponse({"kolumny": [{"naglowek": n, "klucz": k} for n, k in KOLUMNY]})
 
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  RAPORT Z AUDYTU GEO JAKO DOKUMENT
+# ══════════════════════════════════════════════════════════════════════
+# Ten sam wzór co materiał dla klienta partnera, tylko treścią jest pomiar tej
+# firmy: rozbicie na silniki, konkurenci, źródła, ustalenia techniczne. Składanie
+# sekcji i wykresy: backend/raport_geo.py.
+class TrescRaportuGeo(TrescDokumentu):
+    pomiar_tytul: str
+    pomiar_wstep: str
+    pomiar_wniosek: str
+    konkurenci_tytul: str
+    konkurenci_wstep: str
+    konkurenci_wniosek: str
+    zrodla_tytul: str
+    zrodla_wstep: str
+    zrodla_wniosek: str
+    techniczne_tytul: str
+    techniczne_wstep: str
+
+
+RAPORT_GEO_SYSTEM = DOKUMENT_SYSTEM + """
+
+ZMIANA ODBIORCY WZGLĘDEM POWYŻSZEGO: ten materiał dostaje FIRMA, którą właśnie
+zmierzyliśmy, i wysyła go ICEA, nie żaden partner. Mówisz do niej „Ty", „Twoja
+firma". Nie ma tu drugiej firmy, której pracę trzeba docenić — jest pomiar i to,
+co z niego wynika. Sekcja o podziale ról mówi więc, co zostaje po stronie firmy
+(jej produkt, jej klienci, jej zespół), a co bierzemy na siebie my.
+
+LICZBY SĄ ZMIERZONE, NIE SZACOWANE. Dostajesz wynik prawdziwego badania. Nie
+zaokrąglaj w górę, nie dopisuj liczb, których nie ma, i nie nazywaj wyniku
+„katastrofą" ani „świetnym rezultatem" — opisz, co znaczy. Zero wzmianek to nie
+wyrok: to znaczy, że marki nie było w rozmowie, w której klient wybierał.
+
+DODATKOWE POLA:
+- pomiar_tytul, pomiar_wstep: nagłówek i akapit sekcji z wynikami pomiaru.
+  Wstęp mówi, co dokładnie zmierzyliśmy, bez powtarzania samych liczb — one są
+  obok, na kaflach i wykresie.
+- pomiar_wniosek: 2-3 zdania o tym, co wynik oznacza. Gdy modele różnią się
+  między sobą, powiedz to wprost — to najciekawsza rzecz w całym pomiarze.
+- konkurenci_tytul, konkurenci_wstep: sekcja o firmach wymienianych zamiast tej
+  marki. Bez oceniania konkurencji; sam fakt wystarczy.
+- konkurenci_wniosek: co z tej listy wynika. Jeśli wśród wymienianych są duże
+  portale i sklepy, a nie firmy z tej samej półki, to jest osobna informacja.
+- zrodla_tytul, zrodla_wstep: sekcja o tym, skąd model bierze odpowiedzi.
+  Wyjaśnij po ludzku, że model składa odpowiedź z cudzych stron.
+- zrodla_wniosek: najważniejsze zdanie w dokumencie, gdy marki nie ma na
+  stronach, które model cytuje. Powiedz to wprost i bez dramatyzowania: na tę
+  listę da się wejść, to jest robota do zrobienia.
+- techniczne_tytul, techniczne_wstep: sekcja o dostępie robotów i o tym, co
+  strona mówi maszynie. Ustalenia są wypisane pod spodem, więc nie streszczaj
+  ich — wprowadź je jednym akapitem.
+- audyt_wstep, audyt_wniosek: krótszy blok nad ramką z prawdziwymi odpowiedziami
+  modeli. Wstęp zapowiada, że niżej są prawdziwe odpowiedzi, wniosek mówi, czego
+  w nich szukać."""
+
+zadanie_raport_geo = claude.Zadanie(
+    nazwa="raport-geo-dokument",
+    model=MOCNY,                 # dokument idzie do audytowanej firmy
+    schemat=TrescRaportuGeo,
+    staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU
+          + _NOWA_LINIA * 2 + profil.synergie(),
+    instrukcje=RAPORT_GEO_SYSTEM,
+)
+
+
 def _po_polsku(tekst: str) -> bool:
     """Czy zdanie jest w całości zapisane alfabetem łacińskim z polskimi znakami."""
     return all(z.isascii() or z in "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ„”–—…" for z in tekst)
+
+
+async def api_dokument_audyt(request):
+    """Raport z audytu GEO jako plik do wysłania.
+
+    NIE POWTARZAMY POMIARU. Audyt już się odbył i kosztował — tutaj dostajemy
+    gotowy raport z zakładki i przepisujemy go na wzór. Jedyny koszt to napisanie
+    tekstu, czyli jedno wywołanie Sonneta.
+    """
+    try:
+        body = await request.json()
+        raport = body.get("raport") or {}
+        if not (raport.get("prompty") or raport.get("podsumowanie")):
+            return JSONResponse({"ok": False, "error": "Brak danych audytu."})
+
+        firma = raport.get("firma") or {}
+        nazwa = firma.get("nazwa") or "firma"
+        p = raport.get("podsumowanie") or {}
+        z = raport.get("zrodla") or {}
+        tech = raport.get("techniczne") or {}
+
+        wejscie = _NOWA_LINIA.join([
+            "FIRMA (odbiorca raportu): " + _json.dumps(firma, ensure_ascii=False),
+            "",
+            "POMIAR: " + _json.dumps({
+                "pytan": p.get("promptow"),
+                "z_nazwa_firmy": p.get("wspomniana"),
+                "z_linkiem_do_strony": p.get("cytowana"),
+                "procent_wzmianek": p.get("udzial_wspomnien"),
+                "powtorzenia_kazdego_pytania": raport.get("powtorzenia"),
+                "per_silnik": p.get("per_silnik"),
+                "pytania": [w.get("prompt") for w in (raport.get("prompty") or [])][:10],
+            }, ensure_ascii=False),
+            "",
+            "KONKURENCI WYMIENIANI ZAMIAST NIEJ: " + _json.dumps(
+                p.get("konkurenci") or [], ensure_ascii=False),
+            "",
+            "ŹRÓDŁA, Z KTÓRYCH MODEL SKŁADA ODPOWIEDZI: " + _json.dumps({
+                "linkow_lacznie": z.get("zrodel_lacznie"),
+                "roznych_serwisow": z.get("domen_unikalnych"),
+                "cytowan_strony_firmy": z.get("nasze_cytowania"),
+                "miejsce_wsrod_zrodel": z.get("nasze_miejsce"),
+                "najczestsze": (z.get("top_zrodla") or [])[:8],
+            }, ensure_ascii=False),
+            "",
+            "CZY MARKA JEST NA TYCH STRONACH: " + _json.dumps(
+                [{k: x.get(k) for k in ("domena", "typ", "stan")}
+                 for x in (raport.get("obecnosc_w_zrodlach") or [])],
+                ensure_ascii=False),
+            "",
+            "USTALENIA TECHNICZNE: " + _json.dumps(
+                [{"waga": u.get("waga"), "tytul": u.get("tytul")}
+                 for u in (tech.get("ustalenia") or [])], ensure_ascii=False),
+        ])
+
+        w = await claude.uruchom(zadanie_raport_geo, wejscie)
+        tresc = w.final_output.model_dump()
+        badanie = raport_geo.badanie_z_raportu(raport)
+        badanie["data"] = f"{_dt.now():%d.%m.%Y}"
+        html = raport_geo.zbuduj(raport, tresc, badanie, nazwa)
+
+        return JSONResponse({"ok": True, "html": html,
+                             "plik": raport_geo.nazwa_pliku(nazwa)})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
 
 
 async def api_dokument_klienci(request):
@@ -2683,6 +2815,7 @@ app = Starlette(routes=[
     Route("/api/audyt", api_audyt, methods=["POST"]),
     Route("/api/audyt-geo", api_audyt_geo, methods=["POST"]),
     Route("/api/dokument", api_dokument, methods=["POST"]),
+    Route("/api/dokument-audyt", api_dokument_audyt, methods=["POST"]),
     Route("/api/dokument/klienci", api_dokument_klienci, methods=["POST"]),
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),

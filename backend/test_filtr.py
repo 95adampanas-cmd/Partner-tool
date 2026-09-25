@@ -977,6 +977,37 @@ def sprawdz_dokument() -> int:
     print(f"  {'OK  ' if ok else 'BŁĄD'} | przypisy z linkami wycięte z odpowiedzi")
     bledy += not ok
 
+    # ── Odpowiedzi w całości ─────────────────────────────────────────
+    # Wcześniej ucinaliśmy na 850 znakach: model wymieniał dziesięć firm, klient
+    # widział trzy i wielokropek. Dowód, który urywa się w połowie, jest gorszy
+    # niż brak dowodu — czytający nie wie, czy dalej padła jego marka.
+    nl = chr(10)
+    dluga = ("Polecam kilka sklepów:" + nl * 2
+             + nl.join(f"{i}. **Firma {i}** z opisem, który zajmuje trochę miejsca"
+                       for i in range(1, 21))
+             + nl * 2 + "Na koniec warto sprawdzic ZAKONCZENIE-ODPOWIEDZI.")
+    html_d = dokument.zbuduj(tresc, dict(badanie3, odpowiedzi=[
+        {"pytanie": "gdzie kupić", "odpowiedz": dluga}], pytania=["gdzie kupić"]), "Tebim")
+
+    ok = "ZAKONCZENIE-ODPOWIEDZI" in html_d and "Firma 20" in html_d
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | odpowiedź modelu idzie do dokumentu w całości")
+    bledy += not ok
+
+    ok = "…</p>" not in html_d and "…</li>" not in html_d
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nic nie jest ucięte wielokropkiem")
+    bledy += not ok
+
+    # Zwijanie zamiast ucinania: ramka nie rozpycha sekcji, ale treść zostaje.
+    ok = 'class="odp zwiniete"' in html_d and 'class="rozwin"' in html_d
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | długa odpowiedź zwija się i rozwija")
+    bledy += not ok
+
+    # Markdown modelu to listy, nie myślniki na początku linii.
+    ok = html_d.count("<li value=") == 20
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | numerowana lista z odpowiedzi ma 20 pozycji "
+          f"({html_d.count('<li value=')})")
+    bledy += not ok
+
     # Kartki nie da się kliknąć, więc w druku wszystkie odpowiedzi są pod sobą.
     ok = ".ekran .slajd[hidden]{display:block !important;}" in dokument.STYLE_SLAJDOW
     print(f"  {'OK  ' if ok else 'BŁĄD'} | w wydruku widać wszystkie trzy odpowiedzi")
@@ -1001,6 +1032,139 @@ def sprawdz_dokument() -> int:
     ok = app._po_polsku("Gdzie kupić sukienkę na wesele?") and not app._po_polsku(
         "Gdzie kupić eleganck\u044e sukienkę?")
     print(f"  {'OK  ' if ok else 'BŁĄD'} | pytanie z cyrylicą odrzucone")
+    bledy += not ok
+    return bledy
+
+
+def sprawdz_raport_geo() -> int:
+    """Czy audyt GEO wychodzi jako dokument i czy nie gubi po drodze sekcji.
+
+    CZEGO TU PILNUJEMY. Audyt zwraca pięć rzeczy, których nie ma w materiale dla
+    klienta: rozbicie na silniki, konkurentów, źródła, obecność marki na
+    cytowanych stronach i ustalenia techniczne. Każda z nich ma własną sekcję
+    i własny wykres — a że składamy je stringami, jedna literówka w nazwie klucza
+    dałaby pustą sekcję zamiast błędu. Stąd test na każdą z osobna.
+    """
+    import raport_geo
+
+    bledy = 0
+    raport = {
+        "firma": {"nazwa": "Tebim", "domena": "tebim.pro", "url": "https://tebim.pro"},
+        "podsumowanie": {
+            "promptow": 10, "wspomniana": 2, "cytowana": 3, "udzial_wspomnien": 20,
+            "per_silnik": [
+                {"nazwa": "ChatGPT", "udzial": 86, "pytan": 5, "wspomniana": 1, "cytowana": 2},
+                {"nazwa": "Claude", "udzial": 4, "pytan": 5, "wspomniana": 1, "cytowana": 1}],
+            "konkurenci": [{"marka": "Waynet", "wystapien": 3},
+                           {"marka": "ARTGRUPA", "wystapien": 2}],
+        },
+        # Dziesięć wierszy, ale PIĘĆ pytań — każde poszło do dwóch modeli.
+        "prompty": [{"prompt": f"pytanie {i % 5}", "odpowiedz": f"odpowiedź {i}",
+                     "wspomniana": False, "cytowana": False, "marki": [], "zrodla": []}
+                    for i in range(10)],
+        "powtorzenia": 2,
+        "zrodlo_promptow": {"google": 0, "model": 5},
+        "zrodla": {"zrodel_lacznie": 132, "domen_unikalnych": 74, "nasze_cytowania": 3,
+                   "nasze_miejsce": 6, "remisujacych": 3,
+                   "top_zrodla": [{"domena": "experts.prestashop.com", "cytowan": 13},
+                                  {"domena": "sellision.pl", "cytowan": 11}]},
+        "obecnosc_w_zrodlach": [
+            {"domena": "experts.prestashop.com", "cytowan": 13, "stan": "brak",
+             "typ": "strona firmy", "tytul": "Waynet \u00e2\x80\x94 Certified agency"},
+            {"domena": "webixa.pl", "cytowan": 4, "stan": "jest",
+             "typ": "ranking", "tytul": "Agencje PrestaShop 2026"}],
+        "techniczne": {"blokady": 1, "braki": 2, "ok": 3, "ustalenia": [
+            {"waga": "ok", "tytul": "Roboty mają dostęp", "fakt": "f", "co_zrobic": ""},
+            {"waga": "brak", "tytul": "Brak FAQ", "fakt": "f", "co_zrobic": "dodać"},
+            {"waga": "blokada", "tytul": "Serwer odmawia", "fakt": "f", "co_zrobic": "zdjąć"}]},
+    }
+    tresc = {
+        "wstep_tytul": "A", "wstep_tresc": "B", "audyt_wstep": "C", "audyt_wniosek": "D",
+        "dostep_tytul": "E", "dostep_tresc": "F", "role_tytul": "G", "role_wstep": "H",
+        "braki": [{"tytul": "x", "opis": "y"}] * 3, "rola_partner_tytul": "Z",
+        "rola_partner": ["a"], "rola_my": ["b"], "role_puenta": "P",
+        "pomiar_tytul": "Co zmierzyliśmy", "pomiar_wstep": "PW", "pomiar_wniosek": "PWN",
+        "konkurenci_tytul": "Kto zamiast Was", "konkurenci_wstep": "KW",
+        "konkurenci_wniosek": "KWN", "zrodla_tytul": "Skąd model bierze",
+        "zrodla_wstep": "ZW", "zrodla_wniosek": "ZWN",
+        "techniczne_tytul": "Co blokuje", "techniczne_wstep": "TW",
+    }
+
+    badanie = raport_geo.badanie_z_raportu(raport)
+    badanie["data"] = "25.09.2026"
+    html = raport_geo.zbuduj(raport, tresc, badanie, "Tebim")
+
+    # Pięć pytań, nie dziesięć wierszy — ramka pokazuje pytania, nie powtórzenia.
+    ok = len(badanie["pytania"]) == 5
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | ramka bierze pytania, nie wiersze "
+          f"({len(badanie['pytania'])} z 10 wierszy)")
+    bledy += not ok
+
+    for klasa, opis in (("s-pomiar", "pomiar z rozbiciem na silniki"),
+                        ("s-konkurenci", "konkurenci wymieniani zamiast marki"),
+                        ("s-zrodla", "skąd model bierze odpowiedzi"),
+                        ("s-techniczne", "ustalenia techniczne")):
+        ok = f'class="{klasa}"' in html
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcja audytu: {opis}")
+        bledy += not ok
+
+    # Sekcje audytu wchodzą PRZED case study, nie za stopką.
+    ok = 0 < html.index('class="s-pomiar"') < html.index('class="s-case"')
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcje audytu stoją przed case study")
+    bledy += not ok
+
+    for fragment, opis in (("Zrobiliśmy to dla Botland", "case study Botland"),
+                           ("European Search Awards 2025", "nominacja"),
+                           ("Agencja Search od 2007 roku", "stopka ICEA")):
+        ok = fragment in html
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | zostaje nietknięte: {opis}")
+        bledy += not ok
+
+    # Kafel liczy PYTANIA. Wcześniej brał liczbę wierszy i przy dwóch modelach
+    # pokazywał dwa razy za dużo.
+    ok = "<strong>5</strong>" in html and "20 zapytań łącznie" in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | kafel pokazuje 5 pytań i 20 zapytań")
+    bledy += not ok
+
+    # Słupki: dwa silniki + dwóch konkurentów + źródła (w tym nasza domena).
+    ok = html.count('class="slupek') >= 7 and 'class="wypelnienie"' in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | wykresy słupkowe są wypełnione "
+          f"({html.count('class=\"slupek')} słupków)")
+    bledy += not ok
+
+    # Procent musi być widać jako procent: skala silników idzie od zera do stu,
+    # nie do najwyższego wyniku. Inaczej dwa razy „1 z 5" rysowało dwa pełne paski.
+    ok = "width:20.0%" in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | wykres silników ma skalę 0–100%, nie względną")
+    bledy += not ok
+
+    # Nasza domena wyróżniona na tle cytowanych źródeł.
+    ok = 'class="slupek nasz"' in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | strona badanej firmy wyróżniona w źródłach")
+    bledy += not ok
+
+    ok = 'class="tabelka"' in html and "marka jest" in html and "brak marki" in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | tabela obecności marki na cytowanych stronach")
+    bledy += not ok
+
+    # Blokady na górze: to jedyne ustalenia, przez które reszta pracy nie liczy się.
+    ok = html.index('class="ustalenie blokada"') < html.index('class="ustalenie ok"')
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | blokady wypisane przed resztą ustaleń")
+    bledy += not ok
+
+    # Tytuł wrócił ze scrapera w złym kodowaniu — w dokumencie ma być czysty.
+    ok = "â" not in html.split("s-zrodla")[1].split("</section>")[0]
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | tytuły ze scrapera odkodowane")
+    bledy += not ok
+
+    # Raport wysyła ICEA, nie audytowana firma.
+    ok = ("materiał przygotowany dla: Tebim" in html
+          and "rozmowę umówi i poprowadzi razem z nami Tebim" not in html)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nadawcą jest ICEA, nie badana firma")
+    bledy += not ok
+
+    ok = raport_geo.nazwa_pliku("Tebim").startswith("audyt-ai-tebim-")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nazwa pliku: {raport_geo.nazwa_pliku('Tebim')}")
     bledy += not ok
     return bledy
 
@@ -1055,6 +1219,12 @@ def sprawdz_regresje() -> int:
     print("DOKUMENT DLA KLIENTA — trzy sekcje podmienione, reszta wzoru nietknięta")
     print("=" * 74)
     bledy += sprawdz_dokument()
+    print()
+
+    print("=" * 74)
+    print("RAPORT Z AUDYTU GEO — wykresy, źródła, ustalenia na wzorze dokumentu")
+    print("=" * 74)
+    bledy += sprawdz_raport_geo()
     print()
 
     print("=" * 74)

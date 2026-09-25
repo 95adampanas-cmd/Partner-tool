@@ -80,25 +80,59 @@ def _wstepniak(t: dict) -> str:
             f'</div>')
 
 
-def _odpowiedz_html(tekst: str, limit: int = 850) -> str:
-    """Odpowiedź modelu w HTML — bez surowego markdownu.
+def _odpowiedz_html(tekst: str) -> str:
+    """Odpowiedź modelu w HTML — CAŁA, z zachowaną strukturą.
 
-    ChatGPT odpowiada markdownem i we wzorze widać było `**Zalando**` z gwiazdkami.
-    W dokumencie dla klienta to wygląda jak wklejony log. Zamieniamy pogrubienie na
-    <strong> (tak samo, jak zrobił to człowiek w oryginale ICEA) i usuwamy przypisy
-    z linkami, bo w wydruku i tak są nieklikalne, a rozbijają zdanie.
+    Wcześniej ucinaliśmy po 850 znakach i w dokumencie zostawał ogryzek: model
+    wymieniał dziesięć firm, a klient widział trzy i wielokropek. Dowód, który
+    urywa się w połowie, jest gorszy niż brak dowodu — czytający nie wie, czy
+    dalej padła jego marka. Teraz idzie całość; za mieszczenie się na ekranie
+    odpowiada ramka (zwija się i rozwija), nie nożyczki w Pythonie.
+
+    ChatGPT odpowiada markdownem, więc zamieniamy go na znaczniki: pogrubienie na
+    <strong>, listy na <ul>/<ol>, akapity na <p>. Bez tego w dokumencie lądował
+    surowy zapis — `**Zalando**` z gwiazdkami i myślniki na początkach linii,
+    czyli coś, co wygląda jak wklejony log.
     """
     t = escape((tekst or "").strip())
     t = re.sub(r"\(\[[^\]]+\]\([^)]*\)\)", "", t)      # ([domena](url)) — przypis
     t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)     # [tekst](url) — link
     t = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t, flags=re.S)
-    t = re.sub(r"[ \t]{2,}", " ", t)
-    if len(t) > limit:
-        t = t[:limit].rsplit(" ", 1)[0] + "…"
-        # Ucięcie mogło rozciąć znacznik w połowie — wtedy domykamy go sami.
-        if t.count("<strong>") > t.count("</strong>"):
-            t += "</strong>"
-    return t
+    t = re.sub(r"^#{1,6}\s*", "", t, flags=re.M)        # nagłówki — zwykły akapit
+
+    czesci, lista, rodzaj = [], [], None
+
+    def domknij():
+        nonlocal lista, rodzaj
+        if lista:
+            czesci.append(f"<{rodzaj}>" + "".join(f"<li{a}>{x}</li>" for a, x in lista)
+                          + f"</{rodzaj}>")
+            lista, rodzaj = [], None
+
+    for linia in t.split("\n"):
+        linia = linia.strip()
+        if not linia:
+            domknij()
+            continue
+        punkt = re.match(r"^[-*•]\s+(.*)$", linia)
+        numer = re.match(r"^\d+[.)]\s+(.*)$", linia)
+        if punkt or numer:
+            nowy_rodzaj = "ul" if punkt else "ol"
+            if rodzaj and rodzaj != nowy_rodzaj:
+                domknij()
+            rodzaj = nowy_rodzaj
+            # Numer z odpowiedzi trafia do `value`, bo listy bywają przerywane
+            # podpunktami i bez tego druga część zaczynałaby liczyć od jedynki.
+            if numer:
+                lista.append((f' value="{linia.split(chr(46))[0].split(chr(41))[0]}"',
+                              numer.group(1)))
+            else:
+                lista.append(("", punkt.group(1)))
+        else:
+            domknij()
+            czesci.append(f"<p>{linia}</p>")
+    domknij()
+    return "".join(czesci) or "<p></p>"
 
 
 def _zmiana(t: dict, badanie: dict) -> str:
@@ -121,7 +155,8 @@ def _zmiana(t: dict, badanie: dict) -> str:
     slajdy = "".join(
         f'<div class="slajd" data-slajd="{i}"{"" if i == 0 else " hidden"}>'
         f'<p class="pyt">{escape(o.get("pytanie") or "")}</p>'
-        f'<p class="odp">„{_odpowiedz_html(o.get("odpowiedz") or "")}”</p>'
+        f'<div class="odp zwiniete">{_odpowiedz_html(o.get("odpowiedz") or "")}</div>'
+        f'<button class="rozwin" type="button">Pokaż całą odpowiedź</button>'
         f'</div>'
         for i, o in enumerate(odpowiedzi))
 
@@ -199,6 +234,19 @@ STYLE_SLAJDOW = """
 text-align:left;cursor:pointer;border-bottom:1px dashed #b9bece;}
 .pytanie-link:hover,.pytanie-link.jest{color:#4653EA;border-bottom-color:#4653EA;}
 .ekran .slajd{animation:pokaz .18s ease;}
+.ekran .odp{font-size:15.5px;}
+.ekran .odp p{margin:0 0 10px;}
+.ekran .odp ul,.ekran .odp ol{margin:0 0 10px;padding-left:20px;}
+.ekran .odp li{margin-bottom:4px;}
+/* Odpowiedzi modeli bywają na pół ekranu. Zwijamy je do stałej wysokości,
+   żeby ramka nie rozpychała sekcji, ale NIE ucinamy treści — pełna odpowiedź
+   jest w pliku i rozwija się jednym kliknięciem. */
+.ekran .odp.zwiniete{max-height:260px;overflow:hidden;position:relative;}
+.ekran .odp.zwiniete::after{content:"";position:absolute;left:0;right:0;bottom:0;
+height:56px;background:linear-gradient(to bottom,rgba(255,255,255,0),#fff);}
+.rozwin{background:none;border:0;padding:4px 0;font:inherit;font-size:13px;
+color:#4653EA;cursor:pointer;}
+.rozwin:hover{text-decoration:underline;}
 @keyframes pokaz{from{opacity:0;}to{opacity:1;}}
 .slajd-nawigacja{display:flex;align-items:center;gap:10px;margin:14px 0 10px;}
 .slajd-strzalka{width:28px;height:28px;border:1px solid #e3e5ec;background:#fff;
@@ -209,6 +257,9 @@ border-radius:8px;font-size:17px;line-height:1;color:#000623;cursor:pointer;}
 .kropka.jest{background:#5768ff;}
 .slajd-licznik{margin-left:auto;font-size:12px;color:#6B7186;}
 @media print{
+.ekran .odp.zwiniete{max-height:none;}
+.ekran .odp.zwiniete::after{display:none;}
+.rozwin{display:none;}
 .ekran .slajd[hidden]{display:block !important;}
 .ekran .slajd+.slajd{margin-top:14px;padding-top:14px;border-top:1px solid #eef0f5;}
 .slajd-nawigacja{display:none;}
@@ -232,8 +283,20 @@ SKRYPT_SLAJDOW = """
     kropki.forEach(function(k,n){k.classList.toggle("jest",n===teraz);});
     pytania.forEach(function(p,n){p.classList.toggle("jest",n===teraz);});
     if(licznik)licznik.textContent=teraz+1;
+    slajdy.forEach(function(s){
+      var o=s.querySelector(".odp"),b=s.querySelector(".rozwin");
+      if(o&&b&&!o.classList.contains("zwiniete")){
+        o.classList.add("zwiniete");b.textContent="Pokaż całą odpowiedź";
+      }
+    });
   }
   ekran.addEventListener("click",function(e){
+    var rozwin=e.target.closest(".rozwin");
+    if(rozwin){
+      var odp=rozwin.previousElementSibling,zwiniete=odp.classList.toggle("zwiniete");
+      rozwin.textContent=zwiniete?"Pokaż całą odpowiedź":"Zwiń odpowiedź";
+      return;
+    }
     var strzalka=e.target.closest(".slajd-strzalka");
     if(strzalka)return pokaz(teraz+ +strzalka.dataset.krok);
     var kropka=e.target.closest(".kropka");

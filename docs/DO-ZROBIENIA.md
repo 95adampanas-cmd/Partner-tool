@@ -105,7 +105,7 @@ ucięte („All 4", „SaM", „Brand"). Sitemapa profili jest źródłem stabil
 
 ---
 
-## 3. Raport z audytu GEO na tym samym wzorze co dokument dla klienta
+## 3. Raport z audytu GEO na tym samym wzorze co dokument dla klienta — ZROBIONE 25.09.2026
 
 **Skąd to się wzięło.** 25.09.2026 powstał generator dokumentu dla klienta partnera
 (`backend/dokument.py` + `szablon_dokumentu.html`): wzór ICEA, logo, case study
@@ -137,3 +137,16 @@ trybami, czy dwa osobne. Dokument dla klienta jest krótki i sprzedażowy, rapor
 z audytu jest długi i dowodowy. Wspólny jest wzór, nie treść — więc najpewniej
 wspólna zostaje warstwa składania (podmiana sekcji, style, skrypt), a każdy
 produkt ma własny zestaw sekcji.
+
+**Jak wyszło.** `backend/raport_geo.py` bierze gotowy raport z zakładki i wstawia
+przed case study cztery sekcje: pomiar z rozbiciem na silniki, konkurentów,
+źródła wraz z tabelą obecności marki, ustalenia techniczne. Wykresy to słupki
+z szerokością w procentach — zero bibliotek, bo plik bywa otwierany bez internetu.
+Pomiar się nie powtarza: dokument powstaje z danych, które już są, więc kosztuje
+tylko jedno napisanie tekstu.
+
+**Rozstrzygnięcie pytania z góry:** dwa produkty, jedna warstwa składania.
+`dokument.py` trzyma szablon, podmianę sekcji, style i skrypt; `raport_geo.py`
+dokłada własne sekcje. Wspólna okazała się też ramka z odpowiedziami — i to ona
+wymusiła poprawkę: odpowiedzi modeli były ucinane na 850 znakach. Teraz idą
+w całości i zwijają się do 260 px z przyciskiem „Pokaż całą odpowiedź".
