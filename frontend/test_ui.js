@@ -104,6 +104,13 @@ setTimeout(() => {
   const zKlientami = [...d.querySelectorAll(".nav-grupa")]
     .some((g) => g.textContent.trim() === "Klienci");
 
+  // Lista musi być gotowa PRZED pierwszym kliknięciem w menu: „Partnerzy" jest
+  // sekcją domyślną, a firmy przychodzą z bazy już po narysowaniu strony.
+  // Bez tego aplikacja startowała z pustą listą i wyglądało to na zepsuty backend.
+  sprawdz("Start: lista partnerów jest gotowa bez klikania w menu",
+    d.querySelectorAll("#firmy-lista .firma-row").length === 2,
+    `${d.querySelectorAll("#firmy-lista .firma-row").length} wierszy`);
+
   nav("firmy");
   sprawdz("Firmy: pokazuje partnerów", nazwy(".firma-row-nazwa").length === 2,
     nazwy(".firma-row-nazwa").join(", "));

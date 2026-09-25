@@ -55,6 +55,13 @@ async function wczytajPamiec() {
     odswiezBadge("badge-eksport",
       koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
     renderResearchPanel();
+    // WCZYTANIE MUSI SIĘ ZOBACZYĆ. Firmy przychodzą z bazy asynchronicznie, już
+    // po narysowaniu strony, a „Partnerzy" jest teraz sekcją domyślną — bez tego
+    // wywołania aplikacja startowała z pustą listą i zapełniała ją dopiero po
+    // wyjściu do innej sekcji i powrocie. Wyglądało to na zepsuty backend.
+    if (document.querySelector('.sekcja.aktywna[data-sekcja="firmy"]') && !activeId) {
+      pokazListe();
+    }
   } catch (e) {
     console.warn("Nie udało się wczytać zapisanych firm:", e);
   }
