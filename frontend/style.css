@@ -131,8 +131,13 @@ b { font-weight: 600; }
 
 /* ══ MAIN ══ */
 /* Treść w jednej, wyśrodkowanej kolumnie — wszystkie elementy tej samej szerokości. */
-.main { margin-left: var(--nav); padding: 52px 40px 110px; }
-.sekcja { display: none; max-width: 880px; margin: 0 auto; }
+.main { margin-left: var(--nav); padding: 44px 44px 110px; }
+/* 880 px było szerokością do CZYTANIA i pasowało, gdy każda sekcja była
+   formularzem albo panelem researchu. Lista partnerów to sześć kolumn i przy tej
+   szerokości nazwa firmy łamała się na dwie linie, a po bokach zostawało po
+   400 px pustki. 1280 px mieści tabelę bez łamania i dalej nie rozciąga się
+   w nieskończoność na szerokim monitorze. */
+.sekcja { display: none; max-width: 1280px; margin: 0 auto; }
 .sekcja.aktywna { display: block; animation: wejscie .22s ease; }
 @keyframes wejscie { from { opacity: 0; transform: translateY(5px); } }
 
@@ -1071,3 +1076,16 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
 @media (max-width: 900px) {
   .kol-kat, .kol-praca, .kol-data { display: none; }
 }
+
+
+/* ══ SZEROKOŚCI TREŚCI ══
+   Nie wszystko ma korzystać z szerokiej sekcji. Pole na jeden adres rozciągnięte
+   na 1280 px wygląda jak błąd, a tekst czyta się źle powyżej mniej więcej
+   siedemdziesięciu znaków w wierszu. Szeroko idą tabele i listy, wąsko —
+   formularze i proza. */
+.pasek, .lista-narzedzia { max-width: 780px; }
+.sekcja-head p, .hint, .prz-lead, .metoda, .skala { max-width: 68ch; }
+/* Rozmowa to czytanie odpowiedzi, nie skanowanie tabeli. */
+#rozmowa-box { max-width: 900px; }
+/* Ramka z odpowiedziami modeli i tekst raportu zostają w szerokości do czytania. */
+.r-strona > p, .wiodacy { max-width: 68ch; }
