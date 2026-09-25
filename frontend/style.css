@@ -898,7 +898,7 @@ button { font-family: var(--sans); }
   border-radius: 20px; padding: 1px 7px;
 }
 .poz-panel { display: none; }
-.poz-panel.aktywny { display: block; }
+.poz-panel.aktywna { display: block; }
 
 /* ── Karta firmy: jedno miejsce pracy nad jednym partnerem ── */
 .karta-head {

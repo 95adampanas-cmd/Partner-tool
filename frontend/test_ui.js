@@ -261,6 +261,20 @@ setTimeout(() => {
   sprawdz("Karta: powrót do listy jednym kliknięciem",
     !d.getElementById("firmy-lista").hidden && d.getElementById("firmy-detal").hidden);
 
+  // Zakładki pozyskiwania: regresja z 25.09.2026. CSS i HTML mówiły „aktywny",
+  // a JS przełączał „aktywna" — panel „Po adresie" miał więc klasę, której nikt
+  // nie zdejmuje, a dwa pozostałe nigdy nie dostawały tej, na którą patrzy CSS.
+  // Zakładka się podświetlała, treść pod spodem się nie zmieniała.
+  nav("pozyskiwanie");
+  ["url", "branza", "podobne"].forEach((t) => {
+    klik(d.querySelector(`#poz-zakladki [data-poz="${t}"]`));
+    const widoczne = [...d.querySelectorAll(".poz-panel")]
+      .filter((x) => widac(x)).map((x) => x.dataset.poz);
+    sprawdz(`Pozyskiwanie: zakładka „${t}” pokazuje swój panel`,
+      widoczne.length === 1 && widoczne[0] === t,
+      `widoczne: ${widoczne.join(",") || "żaden"}`);
+  });
+
   pozTab("podobne");
   sprawdz("Podobne: lista firm wzorcowych niepusta",
     nazwy("#podobne-wybor .sim-name").length > 0, nazwy("#podobne-wybor .sim-name").join(", "));
@@ -461,7 +475,67 @@ setTimeout(() => {
   }, 60);
 }, 400);
 
+// ══════════════════════════════════════════════════════════════════════
+//  STRAŻNIK NAZW KLAS STANU
+// ══════════════════════════════════════════════════════════════════════
+// Trzy razy pod rząd ten sam błąd: CSS mówił `.komponent.aktywny`, a JS ustawiał
+// `aktywna` (albo odwrotnie). Reguła nigdy nie pasowała, element zostawał
+// niewidoczny, a testy przechodziły, bo sprawdzały obecność w drzewie.
+//
+// W tej aplikacji obie formy są w użyciu i to jest w porządku — „aktywny wiersz",
+// „aktywna sekcja". Nie w porządku jest, gdy JEDEN komponent używa obu naraz.
+// Sprawdzamy więc zgodność per komponent, a nie ujednolicamy na siłę.
+function sprawdzNazwyStanu() {
+  const cssTekst = fs.readFileSync(path.join(KAT, "style.css"), "utf8");
+  const jsTekst = fs.readFileSync(path.join(KAT, "app.js"), "utf8");
+  const htmlTekst = fs.readFileSync(path.join(KAT, "index.html"), "utf8");
+
+  // Z CSS: które komponenty mają regułę stanu i w jakim rodzaju.
+  const wCss = new Map();
+  for (const m of cssTekst.matchAll(/\.([a-z][a-z0-9-]*)\.(aktywn[ay])\b/g)) {
+    if (!wCss.has(m[1])) wCss.set(m[1], new Set());
+    wCss.get(m[1]).add(m[2]);
+  }
+
+  // Z JS: `querySelectorAll(".komponent")` … `classList.toggle("aktywnX"`.
+  // Szukamy w obrębie jednej instrukcji, nie całego pliku — inaczej `aktywny`
+  // użyte gdzie indziej maskowałoby błąd.
+  const wKodzie = new Map();
+  const dodaj = (komponent, forma) => {
+    if (!wKodzie.has(komponent)) wKodzie.set(komponent, new Set());
+    wKodzie.get(komponent).add(forma);
+  };
+  for (const m of jsTekst.matchAll(
+      /querySelectorAll\("\.([a-z][a-z0-9-]*)"\)[\s\S]{0,220}?classList\.toggle\("(aktywn[ay])"/g)) {
+    dodaj(m[1], m[2]);
+  }
+  // Z JS i HTML: klasa wpisana wprost w znacznik, np. class="poz-panel aktywna".
+  for (const tekst of [jsTekst, htmlTekst]) {
+    for (const m of tekst.matchAll(/class="([^"]*\baktywn[ay]\b[^"]*)"/g)) {
+      const klasy = m[1].split(/\s+/);
+      const forma = klasy.find((k) => /^aktywn[ay]$/.test(k));
+      klasy.filter((k) => k !== forma && /^[a-z][a-z0-9-]*$/.test(k))
+        .forEach((k) => dodaj(k, forma));
+    }
+  }
+
+  const konflikty = [];
+  for (const [komponent, formyCss] of wCss) {
+    const formyKodu = wKodzie.get(komponent);
+    if (!formyKodu) continue;                     // stan nadawany inaczej — nie zgadujemy
+    for (const forma of formyKodu) {
+      if (!formyCss.has(forma)) {
+        konflikty.push(`.${komponent}: kod ustawia „${forma}", CSS zna `
+          + [...formyCss].map((x) => `„${x}"`).join(", "));
+      }
+    }
+  }
+  sprawdz("Klasy stanu: kod i CSS mówią o tym samym komponencie tak samo",
+    konflikty.length === 0, konflikty.join(" | ") || `${wCss.size} komponentów`);
+}
+
 function podsumuj() {
+  sprawdzNazwyStanu();
   let zle = 0;
   console.log("");
   wyniki.forEach((w) => {
