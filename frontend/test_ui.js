@@ -141,6 +141,17 @@ setTimeout(() => {
   sprawdz("Lista: wiersz pokazuje stan pracy nad firmą",
     !!d.querySelector("#firmy-lista .kol-praca"));
 
+  // Regresja z 25.09.2026: `.firma-row` niesie style kafelka z panelu researchu
+  // (display:flex, ramka, padding). Nałożone na <tr> rozbijały tabelę na pionowy
+  // stos komórek — nagłówki stały w jednym rzędzie, a dane pod sobą w słupku.
+  // Klasa jest w dwóch miejscach naraz, więc sprawdzamy WYLICZONY układ.
+  const wierszT = d.querySelector("#firmy-lista .firma-row");
+  sprawdz("Lista: wiersz jest wierszem tabeli, a nie kafelkiem",
+    window.getComputedStyle(wierszT).display === "table-row"
+      && window.getComputedStyle(wierszT.querySelector("td")).display === "table-cell",
+    `tr: ${window.getComputedStyle(wierszT).display}, td: ${
+      window.getComputedStyle(wierszT.querySelector("td")).display}`);
+
   // „Bez SEO" wisiało na szesnastu wierszach z dwudziestu jeden — etykieta, która
   // jest prawie zawsze, nie niesie informacji. Pokazujemy wyjątek.
   sprawdz("Lista: znak SEO tylko przy firmach, które je mają",

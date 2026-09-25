@@ -553,14 +553,14 @@ button { font-family: var(--sans); }
 
 /* ══ LISTY FIRM ══ */
 .similar-list { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; }
-.sim-row, .firma-row {
+.sim-row, div.firma-row {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
   background: var(--surface-2); border: 1px solid var(--border-soft);
   border-radius: 10px; padding: 13px 16px;
   transition: border-color .14s, background .14s;
 }
-.firma-row { background: var(--surface); border-color: var(--border-soft); padding: 15px 18px; margin-bottom: 8px; cursor: pointer; }
-.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mocny); background: var(--surface-2); }
+div.firma-row { background: var(--surface); border-color: var(--border-soft); padding: 15px 18px; margin-bottom: 8px; cursor: pointer; }
+div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mocny); background: var(--surface-2); }
 .sim-info, .firma-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sim-name { font-weight: 550; font-size: 14px; }
 /* Tag faktu, nie oceny — dlatego neutralny, a nie ostrzegawczy jak .niepewna.
@@ -582,7 +582,7 @@ button { font-family: var(--sans); }
   font-size: 13px; font-weight: 500; padding: 8px 14px; border-radius: 8px;
   cursor: pointer; white-space: nowrap; transition: all .14s;
 }
-.sim-row:hover .researchuj, .firma-row:hover .otworz { border-color: var(--akcent); color: var(--akcent); }
+.sim-row:hover .researchuj, div.firma-row:hover .otworz { border-color: var(--akcent); color: var(--akcent); }
 .researchuj:disabled { opacity: .5; cursor: default; }
 .otworz {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1029,7 +1029,7 @@ button { font-family: var(--sans); }
 .tabela-firm th.sort-aktywna { color: var(--akcent); }
 .tabela-firm .strzalka { margin-left: 5px; }
 
-.tabela-firm tbody tr { border-top: 1px solid var(--border-soft); cursor: pointer; }
+.tabela-firm tbody tr { display: table-row; border-top: 1px solid var(--border-soft); cursor: pointer; }
 .tabela-firm tbody tr:first-child { border-top: 0; }
 .tabela-firm tbody tr:hover { background: var(--surface-2); }
 .tabela-firm tbody tr.w-koszyku { background: rgba(var(--akcent-rgb), .04); }
