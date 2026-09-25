@@ -134,17 +134,44 @@
       <div id="research-panel"></div>
     </div>
 
+    <!-- TRZY KROKI W KOLEJNOŚCI, W KTÓREJ SIĘ JE WYKONUJE. Wcześniej formularz
+         stał na górze, a pod nim źródło i kategorie — czyli rzeczy, które ten
+         formularz WYPEŁNIAJĄ. Ekran czytało się od dołu. Źródło jest pierwsze,
+         bo zmienia listę kategorii: Mapy mają własny, krótszy zestaw. -->
     <div class="poz-panel" data-poz="branza">
-      <form id="form-kryteria" class="pasek">
-        <input id="branza" type="text" placeholder="agencja brandingowa" autocomplete="off" required>
-        <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
-        <button id="btn-kryteria" type="submit">Szukaj firm <svg class="ico sm"><use href="#i-arrow"/></svg></button>
-      </form>
-      <!-- Źródło firm. Wyszukiwarka pokazuje wypozycjonowanych, Mapy — wszystkich,
-           którzy mają wizytówkę. Przełącznik pojawia się dopiero, gdy podłączony
-           jest więcej niż jeden klucz (renderZrodla w app.js). -->
-      <div id="zrodla-wyboru" class="zrodla"></div>
-      <div class="presety"><div id="presety-branz"></div></div>
+      <div class="krok">
+        <div class="krok-opis">
+          <span class="krok-nr">01</span>
+          <h3>Skąd bierzemy firmy</h3>
+          <p>Każde źródło widzi inny wycinek sieci — i ma inny zestaw kategorii.</p>
+        </div>
+        <div class="krok-tresc"><div id="zrodla-wyboru" class="zrodla"></div></div>
+      </div>
+
+      <div class="krok">
+        <div class="krok-opis">
+          <span class="krok-nr">02</span>
+          <h3>Czego szukamy</h3>
+          <p>Kategoria wypełnia frazę poniżej. Możesz ją potem dowolnie zmienić.</p>
+        </div>
+        <div class="krok-tresc"><div id="presety-branz"></div></div>
+      </div>
+
+      <div class="krok">
+        <div class="krok-opis">
+          <span class="krok-nr">03</span>
+          <h3>Fraza i miasto</h3>
+          <p>Miasto jest opcjonalne — zawęża wyniki do jednego rynku.</p>
+        </div>
+        <div class="krok-tresc">
+          <form id="form-kryteria" class="pasek">
+            <input id="branza" type="text" placeholder="agencja brandingowa" autocomplete="off" required>
+            <input id="miasto" type="text" placeholder="Kraków (opcjonalnie)" autocomplete="off">
+            <button id="btn-kryteria" type="submit">Szukaj firm <svg class="ico sm"><use href="#i-arrow"/></svg></button>
+          </form>
+        </div>
+      </div>
+
       <div id="szukaj-wynik" class="wynik"></div>
     </div>
 

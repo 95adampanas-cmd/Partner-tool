@@ -1089,3 +1089,52 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
 #rozmowa-box { max-width: 900px; }
 /* Ramka z odpowiedziami modeli i tekst raportu zostają w szerokości do czytania. */
 .r-strona > p, .wiodacy { max-width: 68ch; }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   KROKI POZYSKIWANIA
+   ══════════════════════════════════════════════════════════════════
+   Numeracja jest tu prawdziwa, a nie ozdobna: to sekwencja, w której kolejny
+   krok zależy od poprzedniego. Źródło zmienia listę kategorii, kategoria
+   wypełnia frazę. Wcześniej formularz stał nad rzeczami, które go wypełniają,
+   więc ekran czytało się od dołu. */
+.krok {
+  display: grid; grid-template-columns: 250px 1fr; gap: 36px;
+  padding: 26px 0; border-top: 1px solid var(--border);
+}
+.krok:first-of-type { border-top: 0; padding-top: 6px; }
+.krok-nr {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+  color: var(--akcent); display: block; margin-bottom: 6px;
+}
+.krok-opis h3 { font-size: 16.5px; margin: 0 0 6px; }
+.krok-opis p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 34ch; }
+.krok-tresc { min-width: 0; max-width: 900px; }
+.krok-tresc .pasek { max-width: none; }
+
+/* Źródła: wiersz z opisem, nie pigułka. Opis jest tym, co decyduje o wyborze,
+   a przy pigułkach widać było tylko opis tego już zaznaczonego. */
+.zrodla-lista-wyboru { display: flex; flex-direction: column; gap: 8px; }
+.zrodlo-wiersz {
+  display: flex; align-items: flex-start; gap: 12px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 13px 15px; cursor: pointer;
+  font-family: var(--sans); color: var(--text);
+  transition: border-color .14s, background .14s;
+}
+.zrodlo-wiersz:hover { border-color: var(--border-mocny); }
+.zrodlo-wiersz .ico { color: var(--faint); margin-top: 1px; }
+.zrodlo-wiersz b { display: block; font-size: 14.5px; font-weight: 600; }
+.zrodlo-wiersz em {
+  display: block; font-style: normal; font-size: 13px;
+  color: var(--muted); margin-top: 2px; max-width: 62ch;
+}
+.zrodlo-wiersz.zaznaczony {
+  border-color: var(--akcent); background: rgba(var(--akcent-rgb), .045);
+}
+.zrodlo-wiersz.zaznaczony .ico { color: var(--akcent); }
+
+@media (max-width: 900px) {
+  .krok { grid-template-columns: 1fr; gap: 14px; }
+  .krok-opis p { max-width: none; }
+}

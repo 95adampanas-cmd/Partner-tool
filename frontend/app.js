@@ -639,14 +639,19 @@ function renderZrodla() {
   // Źródło, które zniknęło z konfiguracji, nie może zostać zaznaczone — inaczej
   // pierwsze kliknięcie „Szukaj" kończy się błędem o brakującym kluczu.
   if (!zrodlaDostepne[zrodlo]) zrodlo = podlaczone[0];
-  box.innerHTML = `
-    <div class="mono"><i class="sq"></i>Skąd bierzemy firmy</div>
-    <div class="tagi wybieralne">${podlaczone.map((k) => [k, ZRODLA[k]]).map(([k, z]) => `
-      <button class="tag${zrodlo === k ? " zaznaczony" : ""}" type="button"
-              data-zrodlo="${k}" title="${escAttr(z.opis)}">
-        <svg class="ico xs"><use href="#i-${z.ikona}"/></svg> ${esc(z.nazwa)}
-      </button>`).join("")}</div>
-    <p class="hint">${esc(ZRODLA[zrodlo].opis)}</p>`;
+  // Wiersz z opisem zamiast pigułki. Opisy źródeł są tym, co decyduje o wyborze
+  // („Mapy znajdują firmy bez SEO"), a wcześniej widać było tylko opis tego już
+  // zaznaczonego — żeby porównać trzy, trzeba było kliknąć trzy razy.
+  box.innerHTML = `<div class="zrodla-lista-wyboru">${
+    podlaczone.map((k) => [k, ZRODLA[k]]).map(([k, z]) => `
+      <button class="zrodlo-wiersz${zrodlo === k ? " zaznaczony" : ""}" type="button"
+              data-zrodlo="${k}" aria-pressed="${zrodlo === k}">
+        <svg class="ico sm"><use href="#i-${z.ikona}"/></svg>
+        <span>
+          <b>${esc(z.nazwa)}</b>
+          <em>${esc(z.opis)}</em>
+        </span>
+      </button>`).join("")}</div>`;
 }
 
 // Kolejka kandydatow: firmy znalezione, jeszcze niezbadane. Bez niej wyniki
@@ -849,11 +854,9 @@ function renderPresety() {
   // Całość w karcie z nagłówkiem — tak samo jak „1. Wybierz firmę wzorcową"
   // w „Szukaj podobnych". Chipy bez ramki wisiały luzem pod polem wyszukiwania
   // i nie było widać, że są jednym narzędziem wyboru.
-  document.getElementById("presety-branz").innerHTML = `
-    <div class="card">
-      <div class="mono"><span class="sq"></span> Wybierz kategorię partnera</div>
-      ${kafle}${panel}
-    </div>`;
+  // Bez własnej karty: krok „02 Czego szukamy" już mówi, czym to jest, a druga
+  // ramka wokół ramki dokładała wagi bez informacji.
+  document.getElementById("presety-branz").innerHTML = kafle + panel;
 }
 renderPresety();
 

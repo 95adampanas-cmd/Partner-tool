@@ -341,6 +341,24 @@ setTimeout(() => {
   // Przelacznik zrodel: pokazuje sie dopiero przy DWOCH podlaczonych. Test stubuje
   // /api/zrodla bez pola `zrodla`, wiec sprawdzamy przede wszystkim, ze brak tego
   // pola NIE wywala renderowania — kiedys wywalal, a wyjatek polykal .catch.
+  // Trzy kroki w kolejności, w której się je wykonuje. Wcześniej formularz stał
+  // nad rzeczami, które go wypełniają — źródłem i kategoriami — więc ekran
+  // czytało się od dołu.
+  pozTab("branza");
+  const kroki = [...d.querySelectorAll('.poz-panel[data-poz="branza"] .krok')];
+  sprawdz("Po branży: trzy kroki w kolejności wykonywania",
+    kroki.length === 3
+      && kroki.map((k) => k.querySelector(".krok-nr").textContent).join(",") === "01,02,03",
+    kroki.map((k) => k.querySelector("h3").textContent).join(" → "));
+
+  // Opis źródła decyduje o wyborze („Mapy znajdują firmy bez SEO"), a przy
+  // pigułkach widać było tylko opis tego już zaznaczonego.
+  const zrodlaWiersze = [...d.querySelectorAll(".zrodlo-wiersz")];
+  sprawdz("Po branży: każde źródło pokazuje swój opis od razu",
+    zrodlaWiersze.length > 1
+      && zrodlaWiersze.every((z) => (z.querySelector("em") || {}).textContent?.length > 20),
+    `${zrodlaWiersze.length} źródeł`);
+
   pozTab("branza");
   sprawdz("Zrodla: brak pola w odpowiedzi nie wywala sekcji",
     !!d.querySelector('.poz-panel[data-poz="branza"]'));
@@ -509,7 +527,7 @@ setTimeout(() => {
     const przycisk = d.querySelector(".do-kolejki-wszystkie");
     sprawdz("Kolejka: wyniki maja przycisk dodania do kolejki", !!przycisk);
 
-    const zrodloPrzed = (d.querySelector("#zrodla-wyboru .tag.zaznaczony") || {}).textContent;
+    const zrodloPrzed = (d.querySelector("#zrodla-wyboru .zrodlo-wiersz.zaznaczony") || {}).dataset?.zrodlo;
     klik(przycisk);
 
     setTimeout(() => {
@@ -519,8 +537,8 @@ setTimeout(() => {
         dodania.length ? `${(dodania[0].body.firmy || []).length} firm` : "zadnego zadania");
 
       sprawdz("Kolejka: dodanie NIE przestawia zrodla wyszukiwania",
-        (d.querySelector("#zrodla-wyboru .tag.zaznaczony") || {}).textContent === zrodloPrzed,
-        `${zrodloPrzed} -> ${(d.querySelector("#zrodla-wyboru .tag.zaznaczony") || {}).textContent}`);
+        (d.querySelector("#zrodla-wyboru .zrodlo-wiersz.zaznaczony") || {}).dataset?.zrodlo === zrodloPrzed,
+        `${zrodloPrzed} -> ${(d.querySelector("#zrodla-wyboru .zrodlo-wiersz.zaznaczony") || {}).dataset?.zrodlo}`);
 
       // Tag kategorii dla firm, ktore dopiero czekaja na research. Fraza pochodzi
       // z presetu "Sklepy internetowe", wiec kolejka ma to zapamietac — inaczej
