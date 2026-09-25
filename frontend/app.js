@@ -632,6 +632,33 @@ fetch("/api/zrodla").then((r) => r.json()).then((d) => {
   }
 }).catch(() => {});
 
+// Krok jako kawałek szablonu, a nie tylko jako znaczniki w index.html —
+// „Podobne do firmy" buduje swoje kroki warunkowo (dwa ostatnie pojawiają się
+// dopiero po wybraniu wzorca), więc muszą powstawać w kodzie.
+function krokHTML(nr, tytul, opis, tresc) {
+  return `<div class="krok">
+    <div class="krok-opis">
+      <span class="krok-nr">${esc(nr)}</span>
+      <h3>${esc(tytul)}</h3>
+      ${opis ? `<p>${esc(opis)}</p>` : ""}
+    </div>
+    <div class="krok-tresc">${tresc}</div>
+  </div>`;
+}
+
+// Wiersze źródeł są wspólne dla obu zakładek: te same trzy opcje i te same opisy.
+// Wcześniej każda zakładka rysowała je po swojemu — w jednej pigułki z tooltipem,
+// w drugiej pigułki bez niego — więc ta sama decyzja wyglądała w dwóch miejscach
+// inaczej.
+function zrodlaWierszeHTML(atrybut, wybrane, klucze = Object.keys(ZRODLA)) {
+  return `<div class="zrodla-lista-wyboru">${klucze.map((k) => [k, ZRODLA[k]]).map(([k, z]) => `
+    <button class="zrodlo-wiersz${wybrane === k ? " zaznaczony" : ""}" type="button"
+            ${atrybut}="${k}" aria-pressed="${wybrane === k}">
+      <svg class="ico sm"><use href="#i-${z.ikona}"/></svg>
+      <span><b>${esc(z.nazwa)}</b><em>${esc(z.opis)}</em></span>
+    </button>`).join("")}</div>`;
+}
+
 function renderZrodla() {
   const box = document.getElementById("zrodla-wyboru");
   if (!box) return;
@@ -644,16 +671,7 @@ function renderZrodla() {
   // Wiersz z opisem zamiast pigułki. Opisy źródeł są tym, co decyduje o wyborze
   // („Mapy znajdują firmy bez SEO"), a wcześniej widać było tylko opis tego już
   // zaznaczonego — żeby porównać trzy, trzeba było kliknąć trzy razy.
-  box.innerHTML = `<div class="zrodla-lista-wyboru">${
-    podlaczone.map((k) => [k, ZRODLA[k]]).map(([k, z]) => `
-      <button class="zrodlo-wiersz${zrodlo === k ? " zaznaczony" : ""}" type="button"
-              data-zrodlo="${k}" aria-pressed="${zrodlo === k}">
-        <svg class="ico sm"><use href="#i-${z.ikona}"/></svg>
-        <span>
-          <b>${esc(z.nazwa)}</b>
-          <em>${esc(z.opis)}</em>
-        </span>
-      </button>`).join("")}</div>`;
+  box.innerHTML = zrodlaWierszeHTML("data-zrodlo", zrodlo, podlaczone);
 }
 
 // Kolejka kandydatow: firmy znalezione, jeszcze niezbadane. Bez niej wyniki
@@ -1527,8 +1545,8 @@ function renderPodobne() {
         ${esc(nazwa)} <em class="chip-licznik">${ile}</em>
       </button>`).join("");
 
-    wybor.innerHTML = `<div class="card">
-      <div class="mono"><span class="sq"></span> 1. Wybierz firmę wzorcową</div>
+    wybor.innerHTML = krokHTML("01", "Firma wzorcowa",
+      "Szukamy firm podobnych do tej, którą wskażesz.", `
       ${liczby.size > 1 ? `
         <div class="filtr-kategorii tagi wybieralne">
           <button class="tag${podobneKategoria ? "" : " zaznaczony"}" type="button"
@@ -1544,22 +1562,20 @@ function renderPodobne() {
             <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
           </div>
           <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
-        </div>`).join("")}</div>
-    </div>`;
+        </div>`).join("")}</div>`);
     tagiBox.innerHTML = "";
     return;
   }
 
-  wybor.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> Firma wzorcowa</div>
+  wybor.innerHTML = krokHTML("01", "Firma wzorcowa",
+    "Szukamy firm podobnych do tej.", `
     <div class="wzor-head">
       <div>
         <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
         <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
       </div>
       <button class="btn-lekki zmien-wzor" type="button">Zmień firmę</button>
-    </div>
-  </div>`;
+    </div>`);
 
   // Szerokie ujęcia firmy — kafelki, które idą do wyszukiwarki jako gotowa fraza.
   //
@@ -1600,9 +1616,18 @@ function renderPodobne() {
     `<button class="tag${podobneTagi.has(t) ? " zaznaczony" : ""}${szeroki ? " tag-szeroki" : ""}"
       data-tag="${escAttr(t)}" type="button">${esc(t)}</button>`;
 
-  tagiBox.innerHTML = `<div class="card">
-    <div class="mono"><span class="sq"></span> 2. Zawęź wyszukiwanie <em class="opcjonalne">— opcjonalnie</em></div>
-    <p class="hint">Bez zaznaczenia szukamy po branży: <b>${esc(wpis.firma.branza || wpis.firma.kategoria || "—")}</b>.
+  // Krok 02 — źródło. Stoi PRZED zawężaniem, tak samo jak w szukaniu po branży:
+  // decyduje o tym, jakie firmy w ogóle wejdą w grę. Mapy są tu domyślne, bo
+  // rankingują po wizytówce, więc pokazują też firmy, które nie inwestują w SEO —
+  // zmierzone na Sellision: wyszukiwarka 9 firm, Mapy 30, wspólnych 2.
+  const krokZrodla = !zrodlaDostepne.mapy ? "" : krokHTML("02", "Skąd bierzemy firmy",
+    "Przy podobnych domyślne są Mapy — pokazują też firmy bez SEO.",
+    zrodlaWierszeHTML("data-zrodlo-podobne", zrodloPodobne));
+
+  const nr = zrodlaDostepne.mapy ? "03" : "02";
+  tagiBox.innerHTML = krokZrodla + krokHTML(nr, "Czym ma być podobna",
+    "Bez zaznaczenia szukamy po branży firmy wzorcowej.", `
+    <p class="hint">Szukamy po: <b>${esc(wpis.firma.branza || wpis.firma.kategoria || "—")}</b>.
       Zaznacz tagi, jeśli chcesz węziej — im mniej i konkretniej, tym trafniej.</p>
     ${szerokie.length ? `<div class="grupa-tagow">
       <span class="preset-etykieta-mini">Całe ujęcie firmy</span>
@@ -1610,25 +1635,15 @@ function renderPodobne() {
     </div>` : ""}
     ${uslugi.length ? `<div class="grupa-tagow">
       <span class="preset-etykieta-mini">Pojedyncze usługi</span>
+      <div class="tagi wybieralne">${uslugi.map((u) => tagBtn(u, false)).join("")}</div>
     </div>` : ""}
-    <div class="tagi wybieralne">${uslugi.map((u) => tagBtn(u, false)).join("")}</div>
-    ${zrodlaDostepne.mapy ? `
-      <div class="zrodla-podobne">
-        <span class="preset-etykieta-mini">Skąd szukamy</span>
-        <div class="tagi wybieralne">${Object.entries(ZRODLA).map(([k, z]) => `
-          <button class="tag${zrodloPodobne === k ? " zaznaczony" : ""}" type="button"
-                  data-zrodlo-podobne="${k}" title="${escAttr(z.opis)}">
-            <svg class="ico xs"><use href="#i-${z.ikona}"/></svg> ${esc(z.nazwa)}
-          </button>`).join("")}</div>
-      </div>` : ""}
     <button class="akcja glowna szukaj-wg-tagow" type="button" style="margin-top:18px">
       <svg class="ico sm"><use href="#i-search"/></svg>${
         podobneTagi.size
           ? `Szukaj podobnych (${podobneTagi.size} ${podobneTagi.size === 1 ? "tag" : "tagi"})`
           : "Szukaj podobnych po branży"
       }
-    </button>
-  </div>`;
+    </button>`);
 }
 
 // Wyniki NARASTAJĄ między rundami. Jedno wyszukiwanie zwraca kilka firm, a użytkownik

@@ -425,7 +425,20 @@ setTimeout(() => {
   const tagiFirm = [...d.querySelectorAll("[data-kat-podobne]")]
     .map((x) => x.dataset.katPodobne).filter(Boolean);
 
+  // Ten sam układ kroków co w szukaniu po branży: najpierw wzorzec, potem źródło,
+  // na końcu zawężanie. Wcześniej „Podobne" miało własny układ z kartami i numerami
+  // w nagłówkach — dwie zakładki tej samej sekcji wyglądały jak dwie aplikacje.
+  const krokiP = () => [...d.querySelectorAll('.poz-panel[data-poz="podobne"] .krok')]
+    .map((k) => k.querySelector(".krok-nr").textContent);
+  sprawdz("Podobne: przed wyborem firmy jest tylko krok pierwszy",
+    krokiP().join(",") === "01", krokiP().join(","));
+
   klik(d.querySelector("#podobne-wybor .sim-row button"));
+  sprawdz("Podobne: po wyborze dochodzą kroki źródła i zawężania",
+    krokiP().join(",") === "01,02,03", krokiP().join(","));
+  sprawdz("Podobne: źródła w tej samej formie co w szukaniu po branży",
+    d.querySelectorAll("#podobne-tagi .zrodlo-wiersz").length === 3);
+
   const szerokieTagi = [...d.querySelectorAll(".tag-szeroki")].map((x) => x.textContent.trim());
   sprawdz("Podobne: kafelki szerokie sie pojawily", szerokieTagi.length > 0,
     szerokieTagi.join(" | "));
