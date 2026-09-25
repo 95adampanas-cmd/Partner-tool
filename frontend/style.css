@@ -38,6 +38,10 @@
 
 
 * { box-sizing: border-box; }
+/* `hidden` musi znaczyć „niewidoczny". Domyślna reguła przeglądarki dla [hidden]
+   ma specyficzność (0,0,1) i przegrywa z każdym selektorem klasy — a połowa
+   ukrywanych przez nas elementów ma klasę z własnym `display`. */
+[hidden] { display: none !important; }
 .sprite { display: none; }
 
 body {
@@ -922,7 +926,7 @@ button { font-family: var(--sans); }
 .karta-akcje { display: flex; gap: 8px; flex-wrap: wrap; }
 .karta-head .zakladki { margin: 20px 0 0; border-bottom: 0; }
 .karta-pane { display: none; }
-.karta-pane.aktywny { display: block; }
+.karta-pane.aktywna { display: block; }
 
 /* W karcie firma jest już wybrana, więc kroki „wybierz firmę" z narzędzi
    nie mają czego wybierać — przycisk powrotu do listy prowadziłby donikąd. */

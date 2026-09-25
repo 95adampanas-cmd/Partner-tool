@@ -2794,6 +2794,32 @@ async def api_export(request):
 
 frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 
+
+class FrontBezCache(StaticFiles):
+    """Pliki frontu z `Cache-Control: no-cache`.
+
+    DLACZEGO TO JEST BŁĄD, A NIE OZDOBNIK. Starlette wysyła `etag`
+    i `last-modified`, ale NIE wysyła `cache-control`. Przeglądarka stosuje wtedy
+    buforowanie heurystyczne: sama decyduje, jak długo trzymać plik bez pytania
+    serwera. Po wdrożeniu kończy się to najgorszym możliwym stanem — świeży
+    `index.html` i stary `app.js` (albo odwrotnie). Aplikacja rysuje nowy układ
+    i wywołuje funkcje, których w starym pliku nie ma; ekran jest w połowie pusty,
+    konsola milczy, a wygląda to na zepsuty backend.
+
+    `no-cache` nie znaczy „nie buforuj". Znaczy „buforuj, ale zawsze zapytaj, czy
+    się nie zmieniło". Przy niezmienionym pliku serwer odpowiada 304 i nic się nie
+    przesyła — koszt jest żaden, a front i szablon zawsze pochodzą z jednego wydania.
+    """
+
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return super().is_not_modified(response_headers, request_headers)
+
+    def file_response(self, *args, **kwargs):
+        odpowiedz = super().file_response(*args, **kwargs)
+        odpowiedz.headers["cache-control"] = "no-cache"
+        return odpowiedz
+
+
 app = Starlette(routes=[
     Route("/api/research", api_research, methods=["POST"]),
     Route("/api/similar", api_similar, methods=["POST"]),
@@ -2818,5 +2844,5 @@ app = Starlette(routes=[
     Route("/api/dokument-audyt", api_dokument_audyt, methods=["POST"]),
     Route("/api/dokument/klienci", api_dokument_klienci, methods=["POST"]),
     Route("/api/export", api_export, methods=["POST"]),
-    Mount("/", app=StaticFiles(directory=str(frontend_dir), html=True), name="frontend"),
+    Mount("/", app=FrontBezCache(directory=str(frontend_dir), html=True), name="frontend"),
 ])

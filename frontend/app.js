@@ -898,7 +898,6 @@ function pokazListe() {
   activeId = null;
   document.getElementById("firmy-detal").hidden = true;
   document.getElementById("firmy-lista").hidden = false;
-  document.getElementById("firmy-pusto").hidden = firmyTrybu().length > 0 || !!filtrFirm;
   document.getElementById("firmy-head").hidden = false;
   renderListeFirm();
 }
@@ -910,7 +909,6 @@ function pokazListe() {
 function pokazDetal(id) {
   activeId = id;
   document.getElementById("firmy-lista").hidden = true;
-  document.getElementById("firmy-pusto").hidden = true;
   document.getElementById("firmy-head").hidden = true;
   document.getElementById("firmy-detal").hidden = false;
   renderKarte();
@@ -946,6 +944,15 @@ function przelacznikTrybu(liczOd = tabs) {
 
 function renderListeFirm() {
   const wszystkie = firmyTrybu();
+  if (!wszystkie.length && !filtrFirm) {
+    document.getElementById("firmy-lista").innerHTML = `<div class="pusto">
+      <svg class="ico xl"><use href="#i-inbox"/></svg>
+      <p>Nie ma tu jeszcze żadnej firmy.<br><span>Zacznij od Pozyskiwania — z adresu,
+        z branży albo z listy podobnych.</span></p></div>`;
+    const licznik = document.getElementById("szukaj-licznik");
+    if (licznik) licznik.textContent = "";
+    return;
+  }
   const poFladze = filtrFirm === "ma_seo" ? wszystkie.filter((t) => t.firma.ma_seo) : wszystkie;
   // Szukamy po nazwie, adresie i branży — czyli po tym, co widać w wierszu.
   // Szukanie po polach, których na liście nie ma, dawałoby wyniki bez wytłumaczenia.
@@ -3317,8 +3324,19 @@ function renderKarte() {
 // z listy. Dzięki temu nie trzeba ich przepisywać: pomijają krok „wybierz firmę",
 // bo firma jest już wybrana.
 function renderKartaPane() {
-  const wpis = kartaFirma();
   const pane = document.getElementById("karta-pane");
+  try {
+    rysujZakladke(pane);
+  } catch (e) {
+    // Zakładka, która się wywali, zostawiała pustą kartę bez słowa wyjaśnienia —
+    // wyglądało to jak zepsuty serwer. Błąd ma być widoczny tam, gdzie powstał.
+    if (pane) pane.innerHTML = errorHTML("Nie udało się narysować tej zakładki: " + e.message);
+    console.error(e);
+  }
+}
+
+function rysujZakladke(pane) {
+  const wpis = kartaFirma();
   if (!wpis || !pane) return;
   const id = wpis.id;
 

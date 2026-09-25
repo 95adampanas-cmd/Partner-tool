@@ -22,8 +22,16 @@ const fs = require("fs");
 const path = require("path");
 
 const KAT = __dirname;
+// ARKUSZ STYLÓW WCHODZI DO TESTU. Bez niego test sprawdzał WŁAŚCIWOŚĆ `hidden`
+// i przechodził, podczas gdy w przeglądarce element był widoczny — `.pusto`
+// ustawia `display:flex`, a reguła przeglądarki dla [hidden] przegrywa z każdą
+// klasą. Druga rzecz, której nie dało się złapać bez CSS: literówka w rodzaju
+// gramatycznym (`.karta-pane.aktywny` zamiast `aktywna`) sprawiła, że cała
+// zawartość zakładek karty miała display:none. Test przechodził, ekran był pusty.
+const css = fs.readFileSync(path.join(KAT, "style.css"), "utf8");
 const html = fs.readFileSync(path.join(KAT, "index.html"), "utf8")
-  .replace(/<script src="app.js"><\/script>/, "");
+  .replace(/<script src="app.js"><\/script>/, "")
+  .replace('<link rel="stylesheet" href="style.css">', `<style>${css}</style>`);
 
 // Dwie ścieżki, żeby dało się sprawdzić, czy się nie mieszają.
 const FIRMY = [
@@ -35,7 +43,8 @@ const FIRMY = [
     kategoria: "Marketplace", ma_seo: false, uslugi: ["c"], case_studies: [], zrodlo_danych: [] },
 ];
 
-const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8000/" });
+const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost:8000/",
+  pretendToBeVisual: true });
 const { window } = dom;
 // Zapis zadan do backendu. Bez tego nie da sie sprawdzic, czy klikniecie
 // W OGOLE dotarlo do /api/kolejka — a wlasnie to bylo zepsute: przycisk
@@ -93,6 +102,11 @@ setTimeout(() => {
   const otworzKarte = (i = 0) => klik(d.querySelectorAll("#firmy-lista .firma-row")[i]);
   const kartaTab = (id) => klik(d.querySelector(`[data-karta-tab="${id}"]`));
   const pozTab = (id) => { nav("pozyskiwanie"); klik(d.querySelector(`[data-poz="${id}"]`)); };
+  // Widoczność czytamy z wyliczonego stylu, nie z atrybutu. JSDOM nie wspiera
+  // [hidden] ani !important w getComputedStyle, więc elementy, które mają być
+  // niewidoczne, sprawdzamy przez ich NIEOBECNOŚĆ w drzewie albo przez display
+  // ustawiony klasą — czyli tak, jak faktycznie działa ta aplikacja.
+  const widac = (el) => !!el && window.getComputedStyle(el).display !== "none";
 
   // Ścieżka klientów bywa wyłączona (POKAZUJ_KLIENTOW w app.js). Testy jej nie
   // kasujemy — sprawdzamy to, co w danej konfiguracji ma być prawdą. Dzięki temu
@@ -143,6 +157,18 @@ setTimeout(() => {
     !!d.querySelector(".karta-tytul"), (d.querySelector(".karta-tytul") || {}).textContent);
   sprawdz("Karta: lista partnerów schodzi z ekranu",
     d.getElementById("firmy-lista").hidden);
+  // To jest regresja z 25.09.2026: zawartość zakładki miała display:none przez
+  // literówkę w nazwie klasy, a karta wyglądała na pustą.
+  sprawdz("Karta: zawartość zakładki jest WIDOCZNA, nie tylko obecna",
+    widac(d.getElementById("karta-pane"))
+      && d.getElementById("karta-pane").innerHTML.length > 200,
+    `display: ${window.getComputedStyle(d.getElementById("karta-pane")).display}`);
+  // Druga regresja z tego samego dnia: komunikat „nie ma tu żadnej firmy" wisiał
+  // nad otwartą kartą, bo `hidden` przegrywał z klasą `.pusto`.
+  sprawdz("Karta: pusty stan listy nie wisi nad otwartą firmą",
+    d.querySelectorAll(".pusto").length === 0,
+    `${d.querySelectorAll(".pusto").length} komunikatów`);
+
   sprawdz("Karta: startuje na Przeglądzie",
     (d.querySelector(".zakladka.aktywna") || {}).textContent === "Przegląd");
 
@@ -192,6 +218,13 @@ setTimeout(() => {
     !/seranking|SE Ranking|kredyt/i.test(formularz));
 
   // ══ POZOSTAŁE ZAKŁADKI ══
+  kartaTab("synergia");
+  sprawdz("Zakładki: każda z nich coś pokazuje",
+    ["widocznosc", "synergia", "maile", "dokumenty", "przeglad"].every((t) => {
+      kartaTab(t);
+      const pane = d.getElementById("karta-pane");
+      return widac(pane) && pane.innerHTML.length > 200;
+    }));
   kartaTab("synergia");
   sprawdz("Synergia: rozmowa startuje od razu dla tej firmy",
     !!d.getElementById("rozmowa-box")
