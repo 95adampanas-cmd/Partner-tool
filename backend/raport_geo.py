@@ -28,44 +28,10 @@ from html import escape
 
 import dokument
 
-# Sekcje audytu wchodzą przed case study Botland: najpierw pomiar tej firmy,
-# potem dowód, że umiemy to zmienić. Odwrotna kolejność czytałaby się jak
-# oferta, do której doklejono cudze dane.
-KOTWICA = '<section class="s-case">'
-
-STYLE_RAPORTU = """
-.slupki{display:flex;flex-direction:column;gap:9px;margin:0 0 6px;}
-.slupek{display:grid;grid-template-columns:minmax(120px,26%) 1fr auto;gap:12px;align-items:center;}
-.slupek .etykieta{font-size:14.5px;color:#000623;overflow-wrap:anywhere;}
-.slupek .tor{background:#eef0f5;border-radius:4px;height:14px;overflow:hidden;}
-.slupek .wypelnienie{background:#5768ff;height:100%;border-radius:4px;min-width:2px;}
-.slupek.nasz .wypelnienie{background:#000623;}
-.slupek.nasz .etykieta{font-weight:600;}
-.slupek .licz{font-size:13.5px;color:#5b6070;font-variant-numeric:tabular-nums;}
-.tabelka{width:100%;border-collapse:collapse;font-size:14.5px;background:#fff;
-border:1px solid #e3e5ec;border-radius:12px;overflow:hidden;}
-.tabelka th{text-align:left;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
-color:#5b6070;font-weight:600;padding:12px 16px;border-bottom:1px solid #e3e5ec;}
-.tabelka td{padding:11px 16px;border-top:1px solid #eef0f5;color:#000623;}
-.tabelka td.szara{color:#5b6070;}
-.znacznik{display:inline-block;font-size:12px;padding:2px 9px;border-radius:20px;
-border:1px solid #e3e5ec;color:#5b6070;}
-.znacznik.brak{border-color:#e0b4b4;color:#a4423a;}
-.znacznik.jest{border-color:#b6ceb6;color:#3d6b3d;}
-.ustalenia{display:flex;flex-direction:column;gap:12px;}
-.ustalenie{background:#fff;border:1px solid #e3e5ec;border-radius:12px;
-padding:18px 20px;border-left:3px solid #b9bece;}
-.ustalenie.blokada{border-left-color:#a4423a;}
-.ustalenie.brak{border-left-color:#d8a838;}
-.ustalenie.ok{border-left-color:#3d6b3d;}
-.ustalenie h3{font-size:16.5px;margin:0 0 6px;}
-.ustalenie p{margin:0;font-size:14.5px;color:#5b6070;}
-.ustalenie .robimy{margin-top:8px;font-size:14.5px;color:#000623;}
-.metoda{font-size:12.5px;color:#6B7186;margin:14px 0 0;max-width:760px;}
-@media print{
-.ustalenie,.slupek,.tabelka tr{break-inside:avoid;}
-}
-"""
+# Style sekcji audytu żyją w arkuszu wzoru (wzor_trustmate/styl.css) — raport
+# i materiał to jeden dokument, więc mają jeden arkusz. Sekcje audytu wchodzą
+# jako osobne strony A4 po stronie z pomiarem, a przed podziałem ról: najpierw
+# co zmierzyliśmy, potem kto co z tym robi, na końcu dowód, że umiemy to zmienić.
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -166,9 +132,10 @@ def _sekcja_pomiar(raport: dict, t: dict) -> str:
               'Modele są niedeterministyczne: to samo pytanie zadane ponownie '
               'potrafi dać inną odpowiedź, dlatego każde powtarzamy.')
 
-    return f'''<section class="s-pomiar">
+    return f'''<div class="blok s-pomiar">
+<p class="brew">Wyniki pomiaru</p>
 <h2>{escape(t["pomiar_tytul"])}</h2>
-<p class="pod">{escape(t["pomiar_wstep"])}</p>
+<p class="lead">{escape(t["pomiar_wstep"])}</p>
 {kafle}
 <div class="os">
 <h3>Jak wypada marka w poszczególnych modelach</h3>
@@ -177,7 +144,7 @@ def _sekcja_pomiar(raport: dict, t: dict) -> str:
 </div>
 <p class="skala">{escape(t["pomiar_wniosek"])}</p>
 <p class="metoda">{escape(metoda)}</p>
-</section>'''
+</div>'''
 
 
 def _sekcja_konkurenci(raport: dict, t: dict) -> str:
@@ -192,12 +159,13 @@ def _sekcja_konkurenci(raport: dict, t: dict) -> str:
         return ""
     slupki = _slupki([(k["marka"], k["wystapien"],
                        f'{k["wystapien"]}×') for k in konkurenci[:10]])
-    return f'''<section class="s-konkurenci">
+    return f'''<div class="blok s-konkurenci">
+<p class="brew">Konkurencja w odpowiedziach</p>
 <h2>{escape(t["konkurenci_tytul"])}</h2>
-<p class="pod">{escape(t["konkurenci_wstep"])}</p>
+<p class="lead">{escape(t["konkurenci_wstep"])}</p>
 {slupki}
 <p class="skala">{escape(t["konkurenci_wniosek"])}</p>
-</section>'''
+</div>'''
 
 
 def _sekcja_zrodla(raport: dict, t: dict) -> str:
@@ -234,24 +202,25 @@ def _sekcja_zrodla(raport: dict, t: dict) -> str:
     if obecnosc:
         wiersze = "".join(
             f'<tr><td>{escape(_czysty_tytul(x.get("tytul") or "") or x["domena"])}<br>'
-            f'<span class="szara" style="font-size:12.5px">{escape(x["domena"])}</span></td>'
+            f'<span class="szara" style="font-size:7.6pt">{escape(x["domena"])}</span></td>'
             f'<td class="szara">{escape(x.get("typ") or "—")}</td>'
             f'<td class="szara">{x.get("cytowan", 0)}×</td>'
             f'<td><span class="znacznik {"jest" if x.get("stan") == "jest" else "brak" if x.get("stan") == "brak" else ""}">'
             f'{"marka jest" if x.get("stan") == "jest" else "brak marki" if x.get("stan") == "brak" else "nie sprawdzono"}'
             f'</span></td></tr>' for x in obecnosc)
-        tabela = f'''<h3 style="margin:26px 0 10px">Czy marka jest na stronach, które model cytuje</h3>
+        tabela = f'''<h3 class="podtytul">Czy marka jest na stronach, które model cytuje</h3>
 <table class="tabelka"><thead><tr><th>Strona</th><th>Rodzaj</th><th>Cytowań</th><th>Marka</th></tr></thead>
 <tbody>{wiersze}</tbody></table>'''
 
-    return f'''<section class="s-zrodla">
+    return f'''<div class="blok s-zrodla">
+<p class="brew">Źródła odpowiedzi</p>
 <h2>{escape(t["zrodla_tytul"])}</h2>
-<p class="pod">{escape(t["zrodla_wstep"])}</p>
+<p class="lead">{escape(t["zrodla_wstep"])}</p>
 {kafle}
 {slupki}
 {tabela}
 <p class="skala">{escape(t["zrodla_wniosek"])}</p>
-</section>'''
+</div>'''
 
 
 def _sekcja_techniczne(raport: dict, t: dict) -> str:
@@ -284,12 +253,13 @@ def _sekcja_techniczne(raport: dict, t: dict) -> str:
            if u.get("co_zrobic") else "")
         + '</div>' for u in posortowane)
 
-    return f'''<section class="s-techniczne">
+    return f'''<div class="blok s-techniczne">
+<p class="brew">Dostęp i struktura strony</p>
 <h2>{escape(t["techniczne_tytul"])}</h2>
-<p class="pod">{escape(t["techniczne_wstep"])}</p>
+<p class="lead">{escape(t["techniczne_wstep"])}</p>
 {kafle}
 <div class="ustalenia">{pozycje}</div>
-</section>'''
+</div>'''
 
 
 def _odmiana(n: int, jedna: str, kilka: str, wiele: str) -> str:
@@ -344,26 +314,27 @@ def _sekcja_seo(raport: dict, t: dict) -> str:
             f'<td class="szara">{_liczba(f.get("wolumen"))}</td>'
             f'<td class="szara">{_liczba(f.get("ruch"))}</td></tr>'
             for f in frazy)
-        tabela = f'''<h3 style="margin:26px 0 10px">Frazy, na które strona już się wyświetla</h3>
+        tabela = f'''<h3 class="podtytul">Frazy, na które strona już się wyświetla</h3>
 <table class="tabelka"><thead><tr><th>Fraza</th><th>Pozycja</th><th>Wyszukań / mies.</th><th>Wejść / mies.</th></tr></thead>
 <tbody>{wiersze}</tbody></table>'''
 
     konk = (seo.get("konkurenci") or [])[:8]
     slupki = ""
     if konk:
-        slupki = ("<h3 style=\"margin:26px 0 10px\">Kto konkuruje o te same frazy w Google</h3>"
+        slupki = ("<h3 class=\"podtytul\">Kto konkuruje o te same frazy w Google</h3>"
                   + _slupki([(k["domena"], k.get("wspolne_frazy") or 0,
                               f'{k.get("wspolne_frazy") or 0} wspólnych fraz') for k in konk]))
 
-    return f'''<section class="s-seo">
+    return f'''<div class="blok s-seo">
+<p class="brew">Widoczność w Google</p>
 <h2>{escape(t.get("seo_tytul") or "Jak strona radzi sobie w Google")}</h2>
-<p class="pod">{escape(t.get("seo_wstep") or "")}</p>
+<p class="lead">{escape(t.get("seo_wstep") or "")}</p>
 {kafle}
 {tabela}
 {slupki}
 <p class="skala">{escape(t.get("seo_wniosek") or "")}</p>
 <p class="metoda">Źródło: {escape(seo.get("zrodlo") or "baza Google PL")}.</p>
-</section>'''
+</div>'''
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -390,45 +361,27 @@ def badanie_z_raportu(raport: dict) -> dict:
     return {"pytania": [o["pytanie"] for o in wybrane], "odpowiedzi": wybrane}
 
 
-# Wzór zakłada, że materiał wysyła partner swojemu klientowi. Tu wysyła go ICEA
-# firmie, którą zmierzyła, więc dwa zdania o partnerze trzeba postawić na nogi —
-# inaczej raport przedstawiałby audytowaną firmę jako własnego nadawcę.
-PODMIANY_NADAWCY = [
-    ("otrzymujesz ten materiał od firmy, z którą pracujesz: {firma}",
-     "materiał przygotowany dla: {firma}"),
-    ("Jeśli wolisz, rozmowę umówi i poprowadzi razem z nami {firma}.",
-     "Wszystkie liczby w tym materiale pochodzą z pomiaru wykonanego "
-     "{data} — możemy przejść przez nie razem, pytanie po pytaniu."),
-]
-
-
 def zbuduj(raport: dict, tresc: dict, badanie: dict, nadawca: str,
            od_partnera: bool = False) -> str:
-    """Wzór ICEA z sekcjami audytu. Case study, nagroda i stopka zostają.
+    """Raport z audytu na wzorze ICEA: strony wzoru + strony z pomiarem.
 
-    `od_partnera` — audyt KLIENTA partnera. Wtedy materiał wysyła partner, tak
-    jak w zakładce Materiały: zdanie „otrzymujesz ten materiał od firmy, z którą
-    pracujesz: Tebim" i zaproszenie do rozmowy z partnerem zostają z wzoru, bo są
-    prawdziwe. Podmiany nadawcy dotyczą tylko audytu, który ICEA wysyła sama.
+    `od_partnera` — audyt KLIENTA partnera. Wtedy `nadawca` to partner (Tebim)
+    i materiał wygląda dokładnie jak z zakładki Materiały: „Tebim × ICEA",
+    „Materiał ICEA dla klientów Tebim". Bez partnera raport wysyła sama ICEA
+    firmie, którą zmierzyła — wtedy w nagłówku jest tylko logo ICEA.
     """
-    html = dokument.zbuduj(tresc, badanie, nadawca)
-    if not od_partnera:
-        for stare, nowe in PODMIANY_NADAWCY:
-            html = html.replace(stare.format(firma=nadawca),
-                                nowe.format(firma=nadawca, data=badanie.get("data", "")))
+    import dokument
 
-    sekcje = "\n\n".join(x for x in (
+    strony = [x for x in (
         _sekcja_pomiar(raport, tresc),
         _sekcja_seo(raport, tresc),
         _sekcja_konkurenci(raport, tresc),
         _sekcja_zrodla(raport, tresc),
         _sekcja_techniczne(raport, tresc),
-    ) if x)
-
-    if KOTWICA not in html:
-        raise ValueError("Nie znalazłem w szablonie miejsca na sekcje audytu.")
-    html = html.replace(KOTWICA, sekcje + "\n\n" + KOTWICA, 1)
-    return html.replace("</style>", STYLE_RAPORTU + "</style>", 1)
+    ) if x]
+    odbiorca = (raport.get("firma") or {}).get("nazwa") or nadawca
+    return dokument.zbuduj(tresc, badanie, nadawca if od_partnera else None,
+                           strony_audytu=strony, odbiorca=odbiorca)
 
 
 def nazwa_pliku(firma: str) -> str:

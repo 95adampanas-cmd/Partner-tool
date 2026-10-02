@@ -1,0 +1,270 @@
+/* Wzór materiału ICEA dla klientów partnera — przepisany z PDF-a (A4, 595 × 842 pt).
+   Wymiary i stopnie są w punktach, bo w punktach zapisany jest wzór: „23pt"
+   to dokładnie ten nagłówek, który jest w PDF-ie, a wydruk do PDF wychodzi
+   w tej samej skali. Kolory zmierzone z pliku, nie dobrane na oko. */
+:root{
+--navy:#000523;--tekst:#0b1026;--szary:#565b70;--jasny:#c3c8e2;--blady:#8d93b8;
+--akcent:#5768ff;--akcent-pelny:#5767ff;--akcent-ciemny:#4e5ee6;--brew-ciemny:#9aa3ff;
+--karta:#f5f5fa;--siatka:#2a2f4f;--pomarancz:#f56f4b;--linia:#e3e5ee;
+--linia-ciemna:rgba(255,255,255,.13);
+}
+*{box-sizing:border-box;}
+html{background:#e7e8ee;}
+body{margin:0;background:#e7e8ee;color:var(--tekst);
+font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;font-optical-sizing:auto;
+-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+a{color:inherit;}
+
+/* ── Strona A4 ─────────────────────────────────────────────────────── */
+.strona{width:595.5pt;min-height:842.25pt;margin:28px auto;padding:0 48pt;background:#fff;
+display:flex;flex-direction:column;position:relative;
+box-shadow:0 1px 3px rgba(0,5,35,.06),0 14px 44px rgba(0,5,35,.09);}
+.strona.ciemna{background:var(--navy);color:#fff;}
+.glowka{display:flex;align-items:center;justify-content:space-between;
+padding:18pt 0 14pt;border-bottom:.75pt solid var(--linia);}
+.glowka>span{font-size:7.8pt;color:var(--szary);}
+.tresc{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;padding:16pt 0 20pt;}
+.stopka{display:flex;justify-content:space-between;align-items:center;
+border-top:.75pt solid var(--linia);padding:13pt 0 16pt;font-size:7.8pt;color:var(--szary);}
+.stopka a{text-decoration:none;}
+.stopka .sep{margin:0 5pt;}
+.stopka b{color:var(--tekst);font-weight:600;}
+.ciemna .glowka,.ciemna .stopka{border-color:var(--linia-ciemna);}
+.ciemna .stopka{color:var(--blady);}
+.ciemna .stopka b{color:#fff;}
+
+.logotypy{display:flex;align-items:center;gap:7pt;}
+.logo-icea{display:block;}
+.znak-partnera{font-weight:700;letter-spacing:-.025em;font-size:12pt;line-height:1;color:var(--tekst);}
+.razy{font-size:8pt;color:var(--szary);}
+.ciemna .znak-partnera{color:#fff;}
+.ciemna .razy{color:var(--blady);}
+.okladka .znak-partnera{font-size:16.5pt;}
+.okladka .razy{font-size:10pt;}
+
+/* ── Wspólna typografia ────────────────────────────────────────────── */
+.brew{font-size:7.6pt;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+color:var(--akcent-ciemny);margin:0 0 9pt;}
+h1,h2{font-weight:500;letter-spacing:-.022em;text-wrap:balance;}
+h2{font-size:23pt;line-height:1.17;margin:0 0 12pt;color:var(--tekst);}
+.h2-mniejszy{font-size:21pt;}
+h3{font-weight:600;}
+.lead{font-size:10.2pt;line-height:15.7pt;color:var(--szary);margin:0 0 24pt;max-width:468pt;}
+.blok>.lead:last-child{margin-bottom:0;}
+
+/* ── Okładka ───────────────────────────────────────────────────────── */
+.okladka .glowka{padding:40pt 0 32pt;}
+.okladka-srodek{flex:1;display:flex;flex-direction:column;justify-content:center;}
+.brew-okladka{font-size:8.2pt;letter-spacing:.32em;color:var(--brew-ciemny);margin:0 0 14pt;}
+h1{font-size:39pt;line-height:40.5pt;margin:0 0 24pt;color:#fff;}
+h1 em{font-style:normal;color:var(--akcent);}
+.lead-okladka{font-size:12.6pt;line-height:20pt;color:var(--jasny);margin:0;max-width:392pt;}
+.okladka-cytat{display:grid;grid-template-columns:1fr 97pt;gap:34pt;align-items:start;
+border-top:.75pt solid var(--linia-ciemna);padding:21pt 0 34pt;}
+.cudzyslow{width:20pt;height:14pt;display:block;margin:0 0 9pt;}
+.cytat-tytul{font-size:14.5pt;line-height:18.7pt;font-weight:500;color:#fff;margin:0 0 10pt;
+max-width:330pt;letter-spacing:-.01em;}
+.cytat-akapit{font-size:9.4pt;line-height:15pt;color:var(--jasny);margin:0;max-width:372pt;}
+.cytat-osoba{margin:0;}
+.cytat-osoba img{width:97pt;height:97pt;object-fit:cover;display:block;}
+.cytat-osoba figcaption{margin-top:9pt;}
+.cytat-osoba b{display:block;font-size:9pt;font-weight:600;color:#fff;}
+.cytat-osoba span{display:block;font-size:8.2pt;color:var(--jasny);margin-top:2pt;}
+
+/* ── Karty w trzech kolumnach ──────────────────────────────────────── */
+.trzy{display:grid;grid-template-columns:repeat(3,1fr);gap:12pt;}
+.karta{background:var(--karta);padding:18pt 16pt;min-height:188pt;}
+.karta.ciemna{background:var(--navy);}
+.karta .etykieta{display:block;font-size:7.6pt;font-weight:600;letter-spacing:.14em;
+text-transform:uppercase;color:var(--szary);}
+.karta.ciemna .etykieta{color:var(--brew-ciemny);}
+.karta .ikona{display:block;margin:20pt 0 4pt;}
+.karta h3{font-size:11pt;line-height:14.3pt;margin:0 0 8pt;color:var(--tekst);}
+.karta p{font-size:9pt;line-height:13.5pt;color:var(--szary);margin:0;}
+.karta.ciemna h3{color:#fff;}
+.karta.ciemna p{color:var(--jasny);}
+.trzy-wyzsze .karta{min-height:216.8pt;padding:16pt 14pt;}
+.trzy-wyzsze .karta .ikona{margin:0 0 12pt;}
+.trzy-wyzsze .karta p{font-size:8.8pt;line-height:12.8pt;}
+.trzy-nizsze .karta{min-height:142.5pt;padding:17pt 16pt;}
+.karta .nr{display:block;font-size:7.6pt;font-weight:600;color:var(--akcent-ciemny);margin:0 0 9pt;}
+.karta.ciemna .nr{color:var(--brew-ciemny);}
+
+/* ── Skala zmiany ──────────────────────────────────────────────────── */
+.skala-zmiany{display:grid;grid-template-columns:199pt 1fr;align-items:center;
+background:var(--navy);color:#fff;min-height:147.8pt;padding:24pt 25pt 24pt 25.5pt;}
+.skala-liczba strong{display:block;font-size:74pt;line-height:.95;font-weight:500;
+letter-spacing:-.035em;color:var(--akcent);}
+.skala-liczba span{display:block;font-size:15pt;font-weight:500;margin-top:10pt;}
+.siatka{display:grid;grid-template-columns:repeat(10,21pt);gap:4.4pt 4.5pt;}
+.siatka i{display:block;height:9pt;background:var(--siatka);}
+.siatka i.pelny{background:var(--akcent-pelny);}
+.skala-opis p{font-size:10pt;line-height:15pt;margin:13pt 0 6pt;max-width:250pt;}
+.skala-opis small{font-size:7.8pt;color:var(--jasny);}
+
+/* ── Strona 3: pytania i rozmowa z AI ──────────────────────────────── */
+.test{display:grid;grid-template-columns:1fr 258pt;gap:24pt;align-items:start;margin-top:20pt;}
+.test-tresc{padding-top:16pt;}
+.test-tresc h3{font-size:14pt;line-height:18pt;font-weight:500;margin:0;letter-spacing:-.01em;}
+.pod-h3{font-size:9.6pt;line-height:14pt;color:var(--szary);margin:7pt 0 20pt;}
+.pytania-lista{list-style:none;margin:0;padding:0;}
+.pytania-lista li{display:grid;grid-template-columns:24pt 1fr;align-items:baseline;
+border-top:.75pt solid var(--linia);padding:12pt 0 13pt;}
+.pytania-lista li:last-child{border-bottom:.75pt solid var(--linia);}
+.pytania-lista .nr{font-size:8pt;font-weight:600;color:var(--akcent-ciemny);}
+.pytanie-link{font-size:10.4pt;line-height:14.3pt;}
+.dostep{font-size:8.8pt;line-height:13pt;color:var(--szary);margin:16pt 0 0;}
+.dostep b{color:var(--tekst);font-weight:600;}
+.ramka{margin-top:16pt;}
+.ekran{background:#fff;border:.75pt solid #e6e8f0;
+box-shadow:0 8pt 24pt rgba(0,5,35,.08),0 1pt 3pt rgba(0,5,35,.05);}
+.belka{display:flex;align-items:center;gap:4pt;padding:10pt 14pt;border-bottom:.75pt solid #eceef4;
+font-size:7.8pt;color:var(--szary);}
+.belka span{width:4.5pt;height:4.5pt;border-radius:50%;background:#d5d8e3;}
+.belka span:nth-child(3){margin-right:9pt;}
+.ekran-srodek{padding:14pt 14pt 8pt;}
+.pytanie-klienta{background:var(--karta);margin-left:32pt;padding:9pt 11pt 10pt;}
+.pytanie-klienta span{display:block;font-size:7.6pt;color:var(--szary);margin-bottom:3pt;}
+.pytanie-klienta .pyt{font-size:9.6pt;line-height:14.3pt;margin:0;color:var(--tekst);}
+.odpowiedz-ai{font-size:7.8pt;font-weight:600;color:var(--akcent-ciemny);margin:14pt 0 8pt;}
+.ekran .odp{font-size:9.4pt;line-height:15pt;color:var(--tekst);}
+.ekran .odp strong{font-weight:700;}
+.stopa{border-top:.75pt solid #eceef4;padding:9pt 14pt 11pt;font-size:7.6pt;line-height:12pt;
+color:var(--szary);margin:0;}
+.wyroznienie{background:var(--karta);border-left:3pt solid var(--akcent);
+padding:13pt 20pt 14pt;font-size:10.4pt;line-height:16.5pt;margin:34pt 0 0;}
+
+/* ── Strona 4: podział ról ─────────────────────────────────────────── */
+.przeplyw{display:flex;align-items:center;justify-content:space-between;gap:10pt;
+background:var(--karta);padding:12pt 18pt;min-height:61.5pt;margin-top:19pt;}
+.krok-p{display:flex;align-items:flex-start;gap:10pt;flex:1;}
+.krok-p .ikona{flex:0 0 auto;}
+.krok-p b{display:block;font-size:9.8pt;font-weight:600;margin-bottom:2pt;}
+.krok-p span{display:block;font-size:8pt;line-height:10.5pt;color:var(--szary);max-width:118pt;}
+.strzalka{font-size:12pt;color:var(--akcent-ciemny);flex:0 0 auto;}
+.puenta{font-size:11.2pt;line-height:15.8pt;font-weight:500;margin:12pt 0 30pt;}
+.role{display:grid;grid-template-columns:1fr 1fr;gap:12pt;}
+.rola-kol{background:var(--karta);padding:14pt 16pt 20pt;min-height:210.8pt;}
+.rola-kol.ciemna{background:var(--navy);}
+.rola-kol h3{font-size:11pt;margin:0 0 12pt;}
+.rola-kol.ciemna h3{color:var(--brew-ciemny);}
+.rola-kol ul{list-style:none;margin:0;padding:0;}
+.rola-kol li{position:relative;font-size:9pt;line-height:13.4pt;padding:6pt 0 6pt 14pt;
+border-top:.75pt solid #e1e3eb;}
+.rola-kol li::before{content:"";position:absolute;left:0;top:11.5pt;width:7pt;height:1.6pt;
+background:var(--akcent);}
+.rola-kol.ciemna li{color:#e7e9f5;border-top-color:var(--linia-ciemna);}
+
+/* ── Strona 5: Botland ─────────────────────────────────────────────── */
+.wyniki{display:grid;grid-template-columns:repeat(auto-fit,minmax(110pt,1fr));gap:9.7pt;}
+.wynik{background:var(--navy);color:#fff;padding:13pt 13pt 14pt;min-height:116pt;}
+.wynik strong{display:block;font-size:19pt;line-height:1.1;font-weight:500;letter-spacing:-.02em;
+margin-bottom:8pt;}
+.wynik span{display:block;font-size:8pt;line-height:11.3pt;color:var(--jasny);}
+.wynik em{display:block;font-style:normal;font-size:7.6pt;line-height:11.3pt;color:var(--brew-ciemny);
+margin-top:5pt;}
+.wykres-botland{border:.75pt solid var(--linia);padding:17pt 18pt 14pt;margin-top:46pt;}
+.wykres-botland h3{font-size:11pt;margin:0 0 4pt;}
+.wykres-botland>p{font-size:8.8pt;color:var(--szary);margin:0 0 14pt;}
+.kolumny{display:grid;grid-template-columns:repeat(4,1fr);align-items:end;height:160pt;
+background:linear-gradient(var(--linia),var(--linia)) 0 calc(100% - 27pt)/100% .75pt no-repeat;}
+.kolumna{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;}
+.kolumna .wartosc{font-size:9.3pt;font-weight:600;margin-bottom:6pt;}
+.kolumna .slup{width:55.3pt;background:var(--akcent-pelny);border-radius:2pt 2pt 0 0;}
+.kolumna .miesiac{font-size:7.8pt;font-weight:500;margin-top:7pt;}
+.kolumna .opis{font-size:7.1pt;color:var(--szary);margin-top:2pt;white-space:nowrap;}
+.cytat-czechowski{display:grid;grid-template-columns:50pt 1fr;gap:12pt;align-items:center;margin-top:42pt;}
+.cytat-czechowski img{width:50pt;height:50pt;border-radius:50%;object-fit:cover;display:block;}
+.cytat-czechowski p{font-size:11.8pt;line-height:17.2pt;font-weight:500;margin:0 0 6pt;}
+.cytat-czechowski span{font-size:8.2pt;color:var(--szary);}
+.cytat-czechowski span b{color:var(--tekst);font-weight:600;margin-right:5pt;}
+
+/* ── Strona 6: zapytaj o nas AI ────────────────────────────────────── */
+.fragment-ai{background:var(--navy);color:#fff;padding:20pt 23pt 22pt;margin-top:38pt;}
+.fragment-ai span{font-size:7.6pt;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+color:var(--brew-ciemny);}
+.fragment-ai p{font-size:15.5pt;line-height:20.3pt;font-weight:500;margin:7pt 0 0;letter-spacing:-.01em;}
+.zrzut{margin:44pt 0 0;}
+.zrzut-ramka{background:#fff;border:.75pt solid #e6e8f0;
+box-shadow:0 8pt 24pt rgba(0,5,35,.08),0 1pt 3pt rgba(0,5,35,.05);}
+.zrzut-ramka img{display:block;width:100%;}
+.zrzut figcaption{font-size:7.8pt;color:var(--szary);margin:8pt 0 0;}
+.nagroda{font-size:9.6pt;line-height:14.3pt;color:var(--szary);margin:42pt 0 0;}
+.nagroda::before{content:"";display:inline-block;width:5.5pt;height:5.5pt;background:var(--pomarancz);
+margin-right:6pt;vertical-align:1pt;}
+
+/* ── Strona 7: strata i pierwszy krok ──────────────────────────────── */
+.wyroznienie-pomarancz{border-left:3pt solid var(--pomarancz);padding:2pt 0 2pt 15pt;
+font-size:11pt;line-height:15.8pt;font-weight:500;margin:16pt 0 0;}
+.etapy{display:grid;grid-template-columns:repeat(4,1fr);gap:12pt;}
+.etap{border-top:2.2pt solid var(--tekst);padding-top:13pt;}
+.etap .nr{display:block;font-size:7.6pt;font-weight:600;color:var(--akcent-ciemny);}
+.etap h3{font-size:11pt;margin:6pt 0 5pt;}
+.etap em{display:block;font-style:normal;font-size:7.8pt;font-weight:600;color:var(--akcent-ciemny);
+margin-bottom:9pt;}
+.etap p{font-size:9pt;line-height:13.5pt;color:var(--szary);margin:0;}
+
+/* ── Strona 8: zamknięcie ──────────────────────────────────────────── */
+.cta{display:grid;grid-template-columns:177pt 1fr;gap:27pt;margin-top:150pt;}
+.cta-zdjecie{width:177pt;height:238.5pt;object-fit:cover;display:block;}
+.cta-tresc h2{font-size:21pt;color:#fff;margin:0 0 15pt;}
+.cta-tresc p{font-size:10pt;line-height:15.8pt;color:var(--jasny);margin:0 0 12pt;}
+.cta-osoba{margin-bottom:4pt !important;}
+.cta-osoba b{display:block;font-weight:600;}
+.cta-osoba span{display:block;font-size:8.2pt;margin-top:4pt;}
+.cta-przycisk{display:flex;align-items:center;justify-content:space-between;width:165.8pt;height:39pt;
+padding:0 18pt 0 16pt;background:var(--pomarancz);color:var(--navy);font-size:10.4pt;font-weight:600;
+text-decoration:none;margin:20pt 0 12pt;}
+.cta-kontakt{display:flex;gap:17pt;margin:0;}
+.cta-kontakt a{font-size:9.6pt;color:#fff;text-decoration:none;
+border-bottom:.75pt solid rgba(255,255,255,.45);padding-bottom:3pt;}
+.cel{margin-top:auto;border-top:.75pt solid var(--linia-ciemna);padding:28pt 0 30pt;}
+.cel .znak-partnera{font-size:14.5pt;}
+.cel-tytul{font-size:15pt;line-height:20.2pt;font-weight:500;color:#fff;margin:15pt 0 22pt;
+max-width:445pt;letter-spacing:-.01em;}
+.cel-kolumny{display:grid;grid-template-columns:1fr 1fr;gap:15pt;}
+.cel-kolumny b{display:block;font-size:9.6pt;font-weight:600;color:var(--brew-ciemny);margin-bottom:6pt;}
+.cel-kolumny p{font-size:9pt;line-height:14pt;color:var(--jasny);margin:0;max-width:228pt;}
+
+/* ── Strony z raportu audytu ───────────────────────────────────────── */
+.os{border:.75pt solid var(--linia);padding:16pt 18pt 14pt;margin-top:18pt;}
+.os h3{font-size:11pt;margin:0 0 4pt;}
+.os .pod{font-size:8.8pt;color:var(--szary);margin:0 0 12pt;}
+.slupki{display:flex;flex-direction:column;gap:7pt;margin:0 0 4pt;}
+.slupek{display:grid;grid-template-columns:minmax(100pt,27%) 1fr auto;gap:10pt;align-items:center;}
+.slupek .etykieta{font-size:9pt;color:var(--tekst);overflow-wrap:anywhere;}
+.slupek .tor{background:var(--karta);height:10pt;overflow:hidden;}
+.slupek .wypelnienie{display:block;background:var(--akcent-pelny);height:100%;min-width:2pt;}
+.slupek.nasz .wypelnienie{background:var(--navy);}
+.slupek.nasz .etykieta{font-weight:600;}
+.slupek .licz{font-size:8.4pt;color:var(--szary);font-variant-numeric:tabular-nums;}
+.skala{background:var(--karta);border-left:3pt solid var(--akcent);padding:12pt 18pt 13pt;
+font-size:10pt;line-height:15.6pt;margin:18pt 0 0;}
+.metoda{font-size:7.8pt;line-height:12pt;color:var(--szary);margin:12pt 0 0;max-width:482pt;}
+.tabelka{width:100%;border-collapse:collapse;font-size:8.8pt;margin-top:4pt;}
+.tabelka th{text-align:left;font-size:7.2pt;letter-spacing:.12em;text-transform:uppercase;
+color:var(--szary);font-weight:600;padding:0 8pt 7pt 0;border-bottom:.75pt solid var(--linia);}
+.tabelka td{padding:7pt 8pt 7pt 0;border-bottom:.75pt solid #eef0f5;vertical-align:top;}
+.tabelka td.szara,.tabelka .szara{color:var(--szary);}
+.znacznik{display:inline-block;font-size:7.6pt;padding:1.5pt 6pt;border:.75pt solid var(--linia);
+color:var(--szary);white-space:nowrap;}
+.znacznik.brak{border-color:#e0b4b4;color:#a4423a;}
+.znacznik.jest{border-color:#b6ceb6;color:#3d6b3d;}
+.ustalenia{display:flex;flex-direction:column;gap:8pt;margin-top:14pt;}
+.ustalenie{background:var(--karta);padding:11pt 14pt 12pt;border-left:3pt solid #b9bece;}
+.ustalenie.blokada{border-left-color:#a4423a;}
+.ustalenie.brak{border-left-color:#d8a838;}
+.ustalenie.ok{border-left-color:#3d6b3d;}
+.ustalenie h3{font-size:10pt;margin:0 0 4pt;}
+.ustalenie p{font-size:8.8pt;line-height:13pt;color:var(--szary);margin:0;}
+.ustalenie .robimy{margin-top:5pt;color:var(--tekst);}
+h3.podtytul{font-size:11pt;margin:20pt 0 10pt;}
+
+@media print{
+html,body{background:#fff;}
+@page{size:A4;margin:0;}
+.strona{margin:0;box-shadow:none;break-after:page;page-break-after:always;
+-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.strona:last-of-type{break-after:auto;page-break-after:auto;}
+.karta,.wynik,.role,.etap,.ustalenie,.slupek,.tabelka tr,.przeplyw{break-inside:avoid;}
+}

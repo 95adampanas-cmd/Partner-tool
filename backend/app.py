@@ -1537,7 +1537,13 @@ class TrescDokumentu(BaseModel):
     rola_partner_tytul: str
     rola_partner: list[str]
     rola_my: list[str]
-    role_puenta: str
+    role_puenta: str = ""
+    # Miejsca z wzoru „TrustMate × ICEA" (październik 2026). Domyślne puste, bo
+    # dokument ma się złożyć także wtedy, gdy model któregoś nie wypełni — wzór
+    # ma na nie bezpieczne zastępstwa.
+    przeplyw: list[Kafel] = []
+    partner_opis: str = ""
+    wspolny_cel: str = ""
 
 
 # STYL JEST TU WAŻNIEJSZY NIŻ TREŚĆ i dlatego zajmuje większość promptu. Dokument
@@ -1565,12 +1571,14 @@ JAK PISAĆ (zasady ze wzoru, trzymaj się ich dosłownie):
 - Nie nazywaj modelu współpracy (white label, referral) i nie pisz o pieniądzach.
 
 CO MA BYĆ W POLACH:
-- wstep_tytul: jedno zdanie o tym, co klient JUŻ ma od partnera, i o tym, czego ten
-  materiał dotyczy dalej. Wzór: „Opinie masz zebrane i potwierdzone. Teraz chodzi o to,
-  żeby maszyna miała ich gdzie użyć."
+- wstep_tytul: cytat na okładce, dwa krótkie zdania o tym, co klient JUŻ ma od
+  partnera. Wzór: „Opinie masz zebrane i potwierdzone. To najmocniejsza baza, jaką może
+  mieć marka." Podpisuje go CEO ICEA, więc to głos ICEA, nie partnera.
 - wstep_tresc: jeden akapit, 3-4 zdania. Najpierw uznanie dla tego, co partner zrobił
   (konkretnie), potem jedno zdanie o tym, co dzieje się z tym dalej w odpowiedziach AI.
-- audyt_wstep: jedno zdanie wprowadzające trzy pytania, które zadaliśmy ChatGPT.
+- audyt_wstep: jedno zdanie pod nagłówkiem „Sprawdź to sam, zanim nam uwierzysz.",
+  wprowadzające pytania, które zadaliśmy ChatGPT. Wzór: „Zapytaj AI tak, jak zapytałby
+  Twój klient:" — kończ dwukropkiem, bo pod spodem stoją pytania.
 - audyt_wniosek: co z tego wynika dla klienta. Gdy marka nie padła — bez dramatyzowania,
   ze wzoru: „to nie znaczy, że wypadłeś z wyników; to znaczy, że nie było Cię w rozmowie,
   w której klient podejmował decyzję". Gdy padła — powiedz to wprost i bez przesady.
@@ -1584,9 +1592,19 @@ CO MA BYĆ W POLACH:
   Wprost: to nie jest niczyje niedopatrzenie, to po prostu inna robota.
 - braki: dokładnie trzy kafle. Każdy to jedna rzecz, której praca partnera nie obejmuje,
   opisana od strony klienta, nie od strony agencji.
-- rola_partner_tytul: „Zostaje u [nazwa partnera]" albo naturalniejszy wariant tej frazy.
-- rola_partner: 4 punkty — to, co partner robi i co zostaje u niego. Z researchu.
-- rola_my: 4 punkty — co bierzemy na siebie. Z profilu ICEA i ujęć synergii.
+- rola_partner_tytul: „Zostaje w [nazwa partnera]." — z kropką, jak we wzorze.
+- rola_partner: 4-6 punktów — to, co partner robi i co zostaje u niego. Z researchu.
+- rola_my: 4-6 punktów — co bierzemy na siebie. Z profilu ICEA i ujęć synergii.
+- przeplyw: dokładnie trzy kroki mechanizmu, od pracy partnera do odpowiedzi AI.
+  Wzór dla firmy od opinii: „Opinia — klient zostawia ją po zakupie" → „Pytanie do AI —
+  kolejny klient pyta, komu zaufać" → „Odpowiedź — Twoja nazwa i opinie jako powód".
+  tytul ma 1-3 słowa, opis do sześciu słów.
+- partner_opis: jedno-dwa zdania, czym partner zajmuje się dla klienta, w trzeciej
+  osobie. Wzór: „Zbiera opinie Twoich klientów po zakupie, weryfikuje je i pokazuje
+  tam, gdzie kolejny klient podejmuje decyzję."
+- wspolny_cel: jedno zdanie zaczynające się od „Wspólny cel:", w rytmie wzoru:
+  „Wspólny cel: kiedy ktoś pyta AI, u kogo kupić, ma usłyszeć Twoją nazwę i zobaczyć
+  za nią opinie Twoich klientów."
 - role_puenta: 2-3 zdania domykające. Ostatnie ma brzmieć jak ze wzoru: nikt nikogo nie
   zastępuje.
 
@@ -1594,6 +1612,7 @@ Punkty w listach są krótkie — po kilka słów, bez kropki na końcu."""
 
 zadanie_dokument = claude.Zadanie(
     nazwa="dokument-klienta",
+    max_tokenow=8000,             # ponad 25 pól — domyślny limit ucinał odpowiedź
     model=MOCNY,                 # tekst idzie do klienta partnera — bez oszczędzania
     schemat=TrescDokumentu,
     staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU
@@ -2664,6 +2683,7 @@ RAPORT_KLIENTA_SYSTEM = DOKUMENT_SYSTEM + _ODBIORCA_KLIENT + _POLA_RAPORTU
 
 zadanie_raport_geo = claude.Zadanie(
     nazwa="raport-geo-dokument",
+    max_tokenow=8000,             # ponad 25 pól — domyślny limit ucinał odpowiedź
     model=MOCNY,                 # dokument idzie do audytowanej firmy
     schemat=TrescRaportuGeo,
     staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU
@@ -2673,6 +2693,7 @@ zadanie_raport_geo = claude.Zadanie(
 
 zadanie_raport_klienta = claude.Zadanie(
     nazwa="raport-klienta-dokument",
+    max_tokenow=8000,             # ponad 25 pól — domyślny limit ucinał odpowiedź
     model=MOCNY,                 # dokument idzie do klienta partnera
     schemat=TrescRaportuGeo,
     staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU

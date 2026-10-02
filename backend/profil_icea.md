@@ -58,11 +58,12 @@ miał skąd wiedzieć, że klient istnieje, i powód, żeby go wymienić:
 **Botland (botland.com.pl), sklep z elektroniką i robotyką.** Dwanaście miesięcy
 pracy nad widocznością w odpowiedziach AI, maj 2025 – luty 2026:
 - wejścia z AI: **5 830 rocznie przed projektem → 192 588 po dwunastu miesiącach**,
-- liczba fraz, w których odpowiedź AI sięgała po treści firmy: **+353,7%**
+- liczba zapytań, w których odpowiedź AI sięgała po treści firmy: **+389,4%**
   (2 495 → 12 211),
-- wartość tego ruchu kupiona w reklamie kosztowałaby **565 740 zł**
-  (przy stawce 4 zł za kliknięcie),
-- koszt projektu wyniósł około **13% wartości ruchu**, który przyniósł.
+- wartość tego ruchu kupiona w reklamie kosztowałaby **770 352 zł**
+  (przy stawce 4 zł za kliknięcie).
+Liczby za wzorem „TrustMate × ICEA" (październik 2026). Nie podajemy relacji
+kosztu projektu do wartości ruchu — wzór jej nie zawiera.
 
 Projekt był **nominowany do European Search Awards 2025** w kategorii Best Use
 of Search.

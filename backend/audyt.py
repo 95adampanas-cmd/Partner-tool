@@ -101,10 +101,10 @@ TRESC_STALA = {
         "naglowek": "Zrobiliśmy to dla Botland",
         "tekst": "Sklep z elektroniką i robotyką, dwanaście miesięcy pracy nad "
                  "widocznością w odpowiedziach AI: **5 830 wejść z AI rocznie przed "
-                 "projektem** i **192 588 po dwunastu miesiącach**. Liczba fraz, "
-                 "w których odpowiedź AI sięgała po treści firmy, wzrosła o **353,7%**. "
-                 "Kupienie tego ruchu w reklamie kosztowałoby **565 740 zł**; projekt "
-                 "wyniósł około 13% tej kwoty. Okres: maj 2025 – luty 2026. "
+                 "projektem** i **192 588 po dwunastu miesiącach**. Liczba zapytań, "
+                 "w których odpowiedź AI sięgała po treści firmy, wzrosła o **389,4%**. "
+                 "Kupienie tego ruchu w reklamie kosztowałoby **770 352 zł**. "
+                 "Okres: maj 2025 – luty 2026. "
                  "Projekt nominowany do European Search Awards 2025 w kategorii "
                  "Best Use of Search. To jedna branża i jeden punkt wyjścia — "
                  "potencjał liczymy osobno dla każdej firmy.",

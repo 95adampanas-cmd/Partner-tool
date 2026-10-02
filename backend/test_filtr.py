@@ -877,8 +877,13 @@ def sprawdz_dokument() -> int:
 
     bledy = 0
 
-    ok = dokument.SZABLON.exists()
-    print(f"  {'OK  ' if ok else 'BŁĄD'} | szablon jest na miejscu")
+    # Wzór „TrustMate × ICEA" — zdjęcia, logo i arkusz leżą w wzor_trustmate/.
+    brakujace = [n for n in ("styl.css", "logo_icea_path.txt", "haremza.png",
+                             "czechowski.jpg", "tryb_ai.jpg", "borowik.jpg")
+                 if not (dokument.WZOR / n).exists()]
+    ok = not brakujace
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pliki wzoru na miejscu"
+          + (f" (brak: {', '.join(brakujace)})" if brakujace else ""))
     bledy += not ok
     if not ok:
         return bledy
@@ -889,51 +894,77 @@ def sprawdz_dokument() -> int:
         "dostep_tytul": "Roboty mają wstęp", "dostep_tresc": "Od tej strony jest dobrze.",
         "role_tytul": "Kto co robi", "role_wstep": "Partner robi swoje.",
         "braki": [{"tytul": f"Brak {i}", "opis": "Opis"} for i in range(3)],
-        "rola_partner_tytul": "Zostaje u partnera",
+        "rola_partner_tytul": "Zostaje w Tebim.",
         "rola_partner": ["sklep", "utrzymanie"], "rola_my": ["widoczność", "pomiar"],
         "role_puenta": "Nikt nikogo nie zastępuje.",
+        "przeplyw": [{"tytul": "Sklep", "opis": "Tebim buduje"},
+                     {"tytul": "Pytanie", "opis": "klient pyta AI"},
+                     {"tytul": "Odpowiedź", "opis": "Twoja nazwa"}],
+        "partner_opis": "Buduje sklepy na PrestaShop.",
+        "wspolny_cel": "Wspólny cel: AI ma znać Twoją nazwę.",
     }
     badanie = {"pytania": ["gdzie kupić sukienkę"], "data": "25.09.2026",
                "dowod": {"pytanie": "gdzie kupić sukienkę", "odpowiedz": "Polecam sklepy A i B."}}
-
-    wzor = dokument.SZABLON.read_text(encoding="utf-8")
     html = dokument.zbuduj(tresc, badanie, "Tebim")
 
-    # Wzór ma ~384 tys. znaków (zdjęcia w base64). Gdyby regex zjadł za dużo,
-    # dokument skurczyłby się o dziesiątki tysięcy znaków — stąd próg.
-    ok = abs(len(html) - len(wzor)) < 5000
-    print(f"  {'OK  ' if ok else 'BŁĄD'} | dokument nie stracił treści "
-          f"(wzór {len(wzor)}, wynik {len(html)})")
+    # Osiem stron A4 z numeracją „NN / 08" — wzór jest stronicowany.
+    ok = html.count('<section class="strona') == 8 and "<b>02</b> / 08" in html and "<b>08</b> / 08" in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | osiem stron z numeracją jak we wzorze "
+          f"({html.count('<section class=\"strona')} stron)")
     bledy += not ok
 
-    # Elementy, których nie wolno ruszyć: dowód, nagroda i identyfikacja.
+    # Stałe elementy wzoru: dowód, nagroda, osoby, kontakt.
     for fragment, opis in (("Zrobiliśmy to dla Botland", "case study Botland"),
                            ("European Search Awards 2025", "nominacja"),
                            ("192 588", "liczba wejść z AI"),
-                           ("Tomasz Czechowski", "podpis i zdjęcie"),
-                           ("Agencja Search od 2007 roku", "stopka ICEA")):
+                           ("+389,4%", "wzrost z nowego wzoru"),
+                           ("770 352 zł", "wartość ruchu z nowego wzoru"),
+                           ("Tomasz Czechowski", "cytat Head of SEO"),
+                           ("Wojciech Haremza", "podpis CEO na okładce"),
+                           ("Paweł Borowik", "osoba do kontaktu"),
+                           ("p.borowik@grupa-icea.pl", "mail w stopce"),
+                           ("Jak zaczynamy.", "pierwszy krok"),
+                           ("Agencja Search od 2007 roku", "opis ICEA")):
         ok = fragment in html
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | zostaje nietknięte: {opis}")
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | ze wzoru: {opis}")
         bledy += not ok
 
-    # Trzy sekcje muszą być PODMIENIONE, a nie dołożone obok.
-    for fragment, opis in (("Sklep masz zbudowany.", "wstępniak z modelu"),
-                           ("Zadaliśmy trzy pytania.", "mikroaudyt z pomiaru"),
-                           ("Nikt nikogo nie zastępuje.", "podział ról")):
+    # Stare liczby Botland nie mogą wrócić — 565 740 zł i +353,7% to poprzedni wzór.
+    ok = "565 740" not in html and "353,7" not in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | bez starych liczb Botland")
+    bledy += not ok
+
+    # Zdjęcia i logo są w pliku — dokument idzie mailem i bywa otwierany offline.
+    ok = html.count("data:image/") == 4 and "<svg class=\"logo-icea\"" in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | zdjęcia i logo osadzone w pliku")
+    bledy += not ok
+
+    # Teksty z modelu trafiają na swoje miejsca.
+    for fragment, opis in (("Sklep masz zbudowany.", "cytat na okładce"),
+                           ("Zadaliśmy trzy pytania.", "wstęp do pytań"),
+                           ("Nie padłaś w żadnej.", "wniosek z pomiaru"),
+                           ("Nikt nikogo nie zastępuje.", "puenta podziału ról"),
+                           ("Zostaje w Tebim.", "kolumna partnera"),
+                           ("Tebim buduje", "trzy kroki mechanizmu"),
+                           ("Buduje sklepy na PrestaShop.", "opis partnera na końcu"),
+                           ("Wspólny cel: AI ma znać Twoją nazwę.", "wspólny cel")):
         ok = fragment in html
         print(f"  {'OK  ' if ok else 'BŁĄD'} | wstawione: {opis}")
         bledy += not ok
 
-    for fragment, opis in (("Opinie masz zebrane i potwierdzone", "stary wstępniak"),
-                           ("Sprawdź to sam, zanim nam uwierzysz", "przykładowy audyt"),
-                           ("Opinie są dowodem", "stara sekcja o opiniach")):
-        ok = fragment not in html
-        print(f"  {'OK  ' if ok else 'BŁĄD'} | usunięte ze wzoru: {opis}")
-        bledy += not ok
+    # Nadawcą jest partner: „Tebim × ICEA" i „Materiał ICEA dla klientów Tebim".
+    ok = ("Materiał ICEA dla klientów Tebim" in html
+          and '<span class="znak-partnera">Tebim</span>' in html
+          and "TrustMate" not in html)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | nagłówek mówi o tym partnerze, nie o TrustMate")
+    bledy += not ok
 
-    # Materiał dostaje klient partnera, więc nie może mówić o firmie od opinii.
-    ok = "firma, która prowadzi Twoje opinie" not in html and "Tebim" in html
-    print(f"  {'OK  ' if ok else 'BŁĄD'} | nagłówek i stopka mówią o tym partnerze")
+    # Bez tekstów z modelu na nowe miejsca wzór ma bezpieczne zastępstwa.
+    stara_tresc = {k: v for k, v in tresc.items()
+                   if k not in ("przeplyw", "partner_opis", "wspolny_cel")}
+    html_s = dokument.zbuduj(stara_tresc, badanie, "Tebim")
+    ok = "Pytanie do AI" in html_s and "Wspólny cel:" in html_s
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | brak nowych pól nie psuje dokumentu")
     bledy += not ok
 
     # Cudzysłowy w danych z modelu nie mogą rozwalić znaczników.
@@ -1008,9 +1039,11 @@ def sprawdz_dokument() -> int:
           f"({html_d.count('<li value=')})")
     bledy += not ok
 
-    # Kartki nie da się kliknąć, więc w druku wszystkie odpowiedzi są pod sobą.
-    ok = ".ekran .slajd[hidden]{display:block !important;}" in dokument.STYLE_SLAJDOW
-    print(f"  {'OK  ' if ok else 'BŁĄD'} | w wydruku widać wszystkie trzy odpowiedzi")
+    # W druku jedna odpowiedź w ramce, jak we wzorze. Rozwinięcie wszystkich
+    # wypychało ramkę poza A4 i dokument miał dziewięć stron zamiast ośmiu.
+    ok = (".ekran .slajd[hidden]{display:block" not in dokument.STYLE_SLAJDOW
+          and ".rozwin,.slajd-nawigacja{display:none;}" in dokument.STYLE_SLAJDOW)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | w wydruku ramka mieści się na stronie A4")
     bledy += not ok
 
     # Jedna odpowiedź to nie slajder — nawigacja nie ma wtedy czego przewijać.
@@ -1104,12 +1137,12 @@ def sprawdz_raport_geo() -> int:
                         ("s-konkurenci", "konkurenci wymieniani zamiast marki"),
                         ("s-zrodla", "skąd model bierze odpowiedzi"),
                         ("s-techniczne", "ustalenia techniczne")):
-        ok = f'class="{klasa}"' in html
+        ok = f'class="blok {klasa}"' in html
         print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcja audytu: {opis}")
         bledy += not ok
 
     # Sekcje audytu wchodzą PRZED case study, nie za stopką.
-    ok = 0 < html.index('class="s-pomiar"') < html.index('class="s-case"')
+    ok = 0 < html.index('class="blok s-pomiar"') < html.index('class="blok s-case"')
     print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcje audytu stoją przed case study")
     bledy += not ok
 
@@ -1153,13 +1186,14 @@ def sprawdz_raport_geo() -> int:
     bledy += not ok
 
     # Tytuł wrócił ze scrapera w złym kodowaniu — w dokumencie ma być czysty.
-    ok = "â" not in html.split("s-zrodla")[1].split("</section>")[0]
+    ok = "â" not in html.split("blok s-zrodla")[1].split("</section>")[0]
     print(f"  {'OK  ' if ok else 'BŁĄD'} | tytuły ze scrapera odkodowane")
     bledy += not ok
 
     # Raport wysyła ICEA, nie audytowana firma.
-    ok = ("materiał przygotowany dla: Tebim" in html
-          and "rozmowę umówi i poprowadzi razem z nami Tebim" not in html)
+    # Bez partnera raport wysyła ICEA: w nagłówku samo ICEA, bez „klientów Tebim".
+    ok = ("Materiał ICEA dla Tebim" in html and "klientów Tebim" not in html
+          and 'class="znak-partnera"' not in html)
     print(f"  {'OK  ' if ok else 'BŁĄD'} | nadawcą jest ICEA, nie badana firma")
     bledy += not ok
 
@@ -1168,7 +1202,7 @@ def sprawdz_raport_geo() -> int:
     bledy += not ok
 
     # Audyt GEO nie mierzy Google — sekcja SEO nie może pojawić się z zerami.
-    ok = 'class="s-seo"' not in html
+    ok = 'class="blok s-seo"' not in html
     print(f"  {'OK  ' if ok else 'BŁĄD'} | audyt GEO bez danych Google nie ma sekcji SEO")
     bledy += not ok
 
@@ -1187,18 +1221,19 @@ def sprawdz_raport_geo() -> int:
     html_k = raport_geo.zbuduj(klient, {**tresc, "seo_tytul": "Jak radzi sobie w Google",
                                         "seo_wstep": "SW", "seo_wniosek": "SWN"},
                                badanie, "Tebim", od_partnera=True)
-    ok = ("otrzymujesz ten materiał od firmy, z którą pracujesz: Tebim" in html_k
-          and "materiał przygotowany dla" not in html_k
-          and "rozmowę umówi i poprowadzi razem z nami Tebim" in html_k)
+    ok = ("Materiał ICEA dla klientów Tebim" in html_k
+          and '<span class="znak-partnera">Tebim</span>' in html_k)
     print(f"  {'OK  ' if ok else 'BŁĄD'} | audyt klienta: nadawcą jest partner, jak w Materiałach")
     bledy += not ok
 
-    ok = ('class="s-seo"' in html_k and "tytoń, gilzy" in html_k
+    ok = ('class="blok s-seo"' in html_k and "tytoń, gilzy" in html_k
           and "9 900" in html_k and "1 250" in html_k)
     print(f"  {'OK  ' if ok else 'BŁĄD'} | mikroaudyt: sekcja Google z frazami i liczbami")
     bledy += not ok
 
-    ok = html_k.index('class="s-pomiar"') < html_k.index('class="s-seo"') < html_k.index('class="s-case"')
+    ok = (html_k.index('class="blok s-zmiana"') < html_k.index('class="blok s-pomiar"')
+          < html_k.index('class="blok s-seo"') < html_k.index('class="blok s-branza"')
+          < html_k.index('class="blok s-case"'))
     print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcja Google stoi między pomiarem AI a case study")
     bledy += not ok
     return bledy
@@ -1278,7 +1313,7 @@ def sprawdz_marke() -> int:
     print(f"  {'OK  ' if ok else 'BŁĄD'} | raport z audytu pokazuje case study Botland")
     bledy += not ok
 
-    ok = "192 588" in (case.get("tekst") or "") and "353,7%" in (case.get("tekst") or "")
+    ok = "192 588" in (case.get("tekst") or "") and "389,4%" in (case.get("tekst") or "")
     print(f"  {'OK  ' if ok else 'BŁĄD'} | liczby w case study zgodne z materiałem")
     bledy += not ok
     return bledy
