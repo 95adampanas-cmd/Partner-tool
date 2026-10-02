@@ -47,6 +47,7 @@ import mapy
 import krs as krs_api
 import dfs
 import dokument
+import nazwy
 import raport_geo
 import geo
 import profil
@@ -764,12 +765,13 @@ def filtruj_firmy(wyniki: list, wlasna_domena: str, limit: int = 10,
         if any(f in tytul.lower() for f in TYTULY_ODRZUCAJACE):
             continue
         opis = " ".join((r.get("content") or "").split())[:600]
-        # tytuł artykułu/zestawienia nie opisuje firmy — lepiej pokazać domenę
-        if (not tytul or any(f in tytul.lower() for f in FRAZY_NIE_FIRMA)
-                or LISTICLE.search(tytul) or TYTUL_ARTYKULU.search(tytul)):
-            tytul = dom
-        firmy.append({"nazwa": tytul[:60], "url": strona, "opis": opis,
-                      "ma_seo": ma_sygnal_seo(tytul, opis)})
+        # NAZWA TO NIE TYTUŁ STRONY. Wcześniej tytuł zostawał, chyba że wyglądał
+        # na artykuł według listy wzorców — i większość artykułów przez nią
+        # przechodziła: „Tworzenie dynamicznych reklam w Google Ads" lądowało
+        # w kolejce jako nazwa partnera. Teraz nazwą jest tylko ta część tytułu,
+        # która zgadza się z domeną, a w ostateczności sama domena (nazwy.py).
+        firmy.append({"nazwa": nazwy.nazwa_firmy(tytul, strona), "url": strona,
+                      "opis": opis, "ma_seo": ma_sygnal_seo(tytul, opis)})
     return firmy[:limit]
 
 

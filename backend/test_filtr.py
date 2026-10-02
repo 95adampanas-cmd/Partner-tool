@@ -1249,6 +1249,65 @@ def sprawdz_marke() -> int:
     return bledy
 
 
+def sprawdz_nazwy() -> int:
+    """Czy w kolejce i wynikach stoi nazwa FIRMY, a nie tytuł strony.
+
+    Przypadki wzięte z prawdziwej kolejki z 25.09.2026, gdzie nazwą partnera
+    bywał nagłówek artykułu („Tworzenie dynamicznych reklam w Google Ads"),
+    a firma z Map dostawała sam adres („mkgrow.pl").
+    """
+    import nazwy
+
+    PRZYPADKI = [
+        # (tytuł strony, adres, oczekiwana nazwa, dlaczego)
+        ("Dlaczego Adlife? Agencja marketingu online | offline", "https://adlife.pl",
+         "Adlife", "nazwa z tytułu zgodna z domeną"),
+        ("oferta - AdsOn - Agencja Digital Marketingu", "https://adson.net.pl",
+         "AdsOn", "myślnik w tytule nie dokleja się do nazwy"),
+        ("Future Mind — Digital Advisory", "https://futuremind.com",
+         "Future Mind", "dwa słowa sklejone w domenie"),
+        ("4 REAL - agencja", "https://4real.pl",
+         "4 REAL", "cyfra i wersaliki"),
+        ("Jak agencja marketingu internetowego buduje sprzedaż, a ...", "https://silesion.pl",
+         "Silesion", "tytuł artykułu → nazwa z domeny"),
+        ("Tworzenie dynamicznych reklam w Google Ads", "https://kingasroka.pl",
+         "Kingasroka", "tytuł artykułu → nazwa z domeny"),
+        ("mkgrow.pl", "https://mkgrow.pl",
+         "Mkgrow", "wynik z Map: adres podany jak nazwa"),
+        ("Oferta marketingu internetowego SEM", "https://agencjamedio.pl",
+         "Agencja Medio", "sklejona domena rozbita na znanym słowie"),
+        ("non.agency", "https://non.agency",
+         "non.agency", "krótki rdzeń zostaje pełną domeną"),
+    ]
+    bledy = 0
+    for tytul, url, oczekiwana, dlaczego in PRZYPADKI:
+        wynik = nazwy.nazwa_firmy(tytul, url)
+        ok = wynik == oczekiwana
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {oczekiwana:16} ← {dlaczego}"
+              + ("" if ok else f"   [dostałem: {wynik!r}]"))
+        bledy += not ok
+
+    # Idempotencja: kolejka przelicza nazwy przy odczycie, więc poprawna nazwa
+    # przepuszczona drugi raz musi wyjść bez zmian.
+    for tytul, url, oczekiwana, _ in PRZYPADKI:
+        if nazwy.nazwa_firmy(oczekiwana, url) != oczekiwana:
+            print(f"  BŁĄD | przeliczenie zmienia gotową nazwę: {oczekiwana!r}")
+            bledy += 1
+            break
+    else:
+        print("  OK   | przeliczenie gotowej nazwy niczego nie zmienia")
+
+    # Wyniki wyszukiwania dostają nazwę z tej samej funkcji.
+    firmy = app.filtruj_firmy([{"url": "https://kingasroka.pl",
+                                "title": "Tworzenie dynamicznych reklam w Google Ads",
+                                "content": "reklamy"}], "")
+    ok = bool(firmy) and firmy[0]["nazwa"] == "Kingasroka"
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | wyniki wyszukiwania nie niosą tytułu artykułu"
+          + ("" if ok else f"   [{firmy}]"))
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -1299,6 +1358,12 @@ def sprawdz_regresje() -> int:
     print("DOKUMENT DLA KLIENTA — trzy sekcje podmienione, reszta wzoru nietknięta")
     print("=" * 74)
     bledy += sprawdz_dokument()
+    print()
+
+    print("=" * 74)
+    print("NAZWY FIRM — nazwa partnera zamiast tytułu strony")
+    print("=" * 74)
+    bledy += sprawdz_nazwy()
     print()
 
     print("=" * 74)

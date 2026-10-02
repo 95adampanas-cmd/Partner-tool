@@ -786,39 +786,61 @@ function renderKolejke() {
   // wszystkie" przy włączonym filtrze zaznaczałoby też firmy spoza niego —
   // i „Zbadaj zaznaczone (40)" ruszyłoby research na czymś, czego nie widać.
   const zazn = widoczne.filter((k) => kolejkaZaznaczone.has(k.url)).length;
-  box.innerHTML = przelacznikTrybu(kolejka) + `<div class="card">
-    <div class="mono"><span class="sq"></span> Czeka na research (${moje.length})</div>
-    ${filtrKat}
+  // TA SAMA TABELA CO LISTA PARTNERÓW. Wcześniej każda firma była kartą, a karty
+  // różniły się kształtem zależnie od źródła: wynik z wyszukiwarki miał opis
+  // i trzy linie, wynik z Map — samą nazwę, więc treść zjeżdżała do środka
+  // wiersza. Teraz każdy wiersz ma te same kolumny i to samo miejsce na nazwę,
+  // niezależnie od tego, skąd firma przyszła.
+  const skrotFrazy = (f) => {
+    const pierwsza = (f || "").split("|")[0].trim();
+    return pierwsza.length > 34 ? pierwsza.slice(0, 34) + "…" : pierwsza;
+  };
+  box.innerHTML = przelacznikTrybu(kolejka) + filtrKat + (!widoczne.length ? "" : `
     <div class="masowy-pasek">
-      <label class="zazn-wszystkie">
-        <input type="checkbox" id="zazn-wszystkie" ${zazn === widoczne.length && widoczne.length ? "checked" : ""}>
-        <span>Zaznacz wszystkie</span>
-      </label>
       <button class="akcja glowna zbadaj-zaznaczone" type="button" ${zazn ? "" : "disabled"}>
         <svg class="ico sm"><use href="#i-layers"/></svg>Zbadaj zaznaczone${zazn ? ` (${zazn})` : ""}
       </button>
       <span class="hint">Po trzy naraz. Awaria jednej firmy nie zatrzymuje reszty.</span>
     </div>
     <div id="masowy-postep"></div>
-    <div class="similar-list">${widoczne.map((k) => `
-      <div class="sim-row" data-url="${escAttr(k.url)}">
-        <label class="zazn-firme">
-          <input type="checkbox" class="zazn-kolejka" ${kolejkaZaznaczone.has(k.url) ? "checked" : ""}>
-        </label>
-        <div class="sim-info">
-          <span class="sim-name">${esc(k.nazwa || hostname(k.url))}${
-            k.kategoria ? `<span class="tag-kat">${esc(k.kategoria)}</span>` : ""}${
-            k.ma_seo ? `<span class="tag-seo">SEO</span>` : ""}</span>
-          <a class="sim-url" href="${escAttr(k.url)}" target="_blank" rel="noopener">${esc(hostname(k.url))}<svg class="ico xs"><use href="#i-external"/></svg></a>
-          ${k.opis ? `<span class="sim-opis">${esc(k.opis.slice(0, 150))}${k.opis.length > 150 ? "…" : ""}</span>` : ""}
-          <span class="kolejka-meta">${esc(k.zrodlo || "—")}${
-            k.zapytanie ? ` · „${esc(k.zapytanie)}"` : ""} · ${esc((k.dodana || "").slice(0, 10))}</span>
-        </div>
-        <button class="researchuj" type="button">Researchuj<svg class="ico xs"><use href="#i-arrow"/></svg></button>
-        <button class="usun-z-kolejki" type="button" title="Usuń z kolejki">
-          <svg class="ico xs"><use href="#i-x"/></svg></button>
-      </div>`).join("")}</div>
-  </div>`;
+    <table class="tabela-firm tabela-kolejki">
+      <thead><tr>
+        <th class="kol-zazn"><input type="checkbox" id="zazn-wszystkie"
+          ${zazn === widoczne.length && widoczne.length ? "checked" : ""}
+          title="Zaznacz wszystkie widoczne"></th>
+        <th>Firma</th>
+        <th class="kol-kat">Kategoria</th>
+        <th class="kol-skad">Skąd</th>
+        <th class="kol-data">Dodana</th>
+        <th class="kol-akcje-k"></th>
+      </tr></thead>
+      <tbody>${widoczne.map((k) => `
+        <tr class="wiersz-kolejki" data-url="${escAttr(k.url)}">
+          <td class="kol-zazn">
+            <input type="checkbox" class="zazn-kolejka" ${kolejkaZaznaczone.has(k.url) ? "checked" : ""}>
+          </td>
+          <td>
+            <span class="firma-row-nazwa">${esc(k.nazwa || hostname(k.url))}${
+              k.ma_seo ? `<span class="znak-seo" title="W opisie pada SEO / SEM / pozycjonowanie">SEO</span>` : ""
+            }</span>
+            <a class="firma-row-meta link-domeny" href="${escAttr(k.url)}" target="_blank" rel="noopener">${
+              esc(hostname(k.url))}<svg class="ico xs"><use href="#i-external"/></svg></a>
+            ${k.opis ? `<span class="opis-wiersza" title="${escAttr(k.opis)}">${esc(k.opis)}</span>` : ""}
+          </td>
+          <td class="kol-kat">${k.kategoria
+            ? `<span class="tag-kat">${esc(k.kategoria)}</span>` : `<span class="nic">—</span>`}</td>
+          <td class="kol-skad">
+            <span class="zrodlo-nazwa">${esc(ZRODLA[k.zrodlo]?.nazwa || k.zrodlo || "—")}</span>
+            ${k.zapytanie ? `<span class="fraza-wiersza" title="${escAttr(k.zapytanie)}">„${esc(skrotFrazy(k.zapytanie))}”</span>` : ""}
+          </td>
+          <td class="kol-data">${esc(dataKrotka(k.dodana || ""))}</td>
+          <td class="kol-akcje-k">
+            <button class="researchuj" type="button">Researchuj<svg class="ico xs"><use href="#i-arrow"/></svg></button>
+            <button class="usun-z-kolejki" type="button" title="Usuń z kolejki">
+              <svg class="ico xs"><use href="#i-x"/></svg></button>
+          </td>
+        </tr>`).join("")}</tbody>
+    </table>`);
 }
 
 // Który zestaw presetów obowiązuje. Mapy mają własny, bo szukają po nazwach
@@ -1359,7 +1381,7 @@ document.addEventListener("click", (e) => {
   const doKolejki = e.target.closest(".do-kolejki-wszystkie");
   if (doKolejki) return dodajWszystkieDoKolejki(doKolejki);
   const usunK = e.target.closest(".usun-z-kolejki");
-  if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest(".sim-row").dataset.url); }
+  if (usunK) { e.stopPropagation(); return usunZKolejki(usunK.closest("[data-url]").dataset.url); }
   const czatB = e.target.closest(".czat-wyslij");
   if (czatB) return czatZapytaj(czatB);
   const zrPod = e.target.closest("[data-zrodlo-podobne]");
@@ -1377,7 +1399,7 @@ document.addEventListener("click", (e) => {
     return renderKolejke();
   }
   if (e.target.classList.contains("zazn-kolejka")) {
-    const u = e.target.closest(".sim-row").dataset.url;
+    const u = e.target.closest("[data-url]").dataset.url;
     kolejkaZaznaczone.has(u) ? kolejkaZaznaczone.delete(u) : kolejkaZaznaczone.add(u);
     return renderKolejke();
   }
@@ -1806,7 +1828,7 @@ function wierszHTML(f) {
 }
 
 async function researchujZListy(przycisk) {
-  const row = przycisk.closest(".sim-row");
+  const row = przycisk.closest("[data-url]");
   przycisk.disabled = true;
   przycisk.textContent = "Zbieram… (~30 s)";
   try {
@@ -1814,7 +1836,10 @@ async function researchujZListy(przycisk) {
     if (!data.ok) {
       przycisk.disabled = false;
       przycisk.textContent = "Spróbuj ponownie";
-      row.insertAdjacentHTML("beforeend", `<p class="sim-err">${esc(data.error)}</p>`);
+      // W tabeli błąd idzie do komórki z przyciskiem — <p> wstawiony wprost
+      // do <tr> przeglądarka wyrzuca poza tabelę.
+      (przycisk.closest("td") || row).insertAdjacentHTML("beforeend",
+        `<p class="sim-err">${esc(data.error)}</p>`);
     } else {
       otworzFirme(data.firma);
       przycisk.innerHTML = '<svg class="ico xs"><use href="#i-check"/></svg>Otwarto kartę';

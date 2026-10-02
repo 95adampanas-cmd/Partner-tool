@@ -292,13 +292,22 @@ def dodaj_do_kolejki(firmy: list[dict], tryb: str = "partner",
 
 
 def kolejka(tryb: str | None = None) -> list[dict]:
+    """Kolejka z nazwami FIRM, nie tytułami stron.
+
+    Nazwę liczymy przy odczycie, a nie tylko przy zapisie: w bazie leżą wpisy
+    sprzed poprawki, z tytułami artykułów zamiast nazw. Przeliczenie jest
+    idempotentne — nazwa już poprawna („Adlife" na adlife.pl) przechodzi
+    bez zmian — więc nie potrzeba osobnej migracji.
+    """
+    from nazwy import nazwa_firmy
     with _zamek:
         db = _polacz()
         if tryb:
             w = db.execute("SELECT * FROM kolejka WHERE tryb = ? ORDER BY dodana DESC", (tryb,))
         else:
             w = db.execute("SELECT * FROM kolejka ORDER BY dodana DESC")
-        return [{**dict(r), "ma_seo": bool(r["ma_seo"])} for r in w.fetchall()]
+        return [{**dict(r), "ma_seo": bool(r["ma_seo"]),
+                 "nazwa": nazwa_firmy(r["nazwa"] or "", r["url"])} for r in w.fetchall()]
 
 
 def usun_z_kolejki(url: str) -> None:

@@ -535,9 +535,22 @@ setTimeout(() => {
   // z dwóch różnych fraz. Filtr kategorii nie pokazywał się wcale (bo kategoria
   // jedna), a to właśnie fraza dzieliła tę listę na sensowne części.
   nav("kolejka");
-  const wKolejce = () => d.querySelectorAll("#kolejka-box .sim-row").length;
+  const wKolejce = () => d.querySelectorAll("#kolejka-box .wiersz-kolejki").length;
   sprawdz("Kolejka: pokazuje odłożone firmy", wKolejce() === 3, `${wKolejce()} wierszy`);
   sprawdz("Kolejka: jest pole szukania", !!d.getElementById("szukaj-kolejka"));
+
+  // Wiersze kolejki mają te same kolumny co lista partnerów i są prawdziwymi
+  // wierszami tabeli — wcześniej karty z Map i z wyszukiwarki miały różny kształt,
+  // a nazwa raz stała przy lewej krawędzi, raz na środku.
+  const wierszK = d.querySelector("#kolejka-box .wiersz-kolejki");
+  sprawdz("Kolejka: tabela z tymi samymi nagłówkami co lista partnerów",
+    !!d.querySelector("#kolejka-box table.tabela-firm thead")
+      && [...d.querySelectorAll("#kolejka-box thead th")].map((t) => t.textContent.trim())
+        .filter(Boolean).join("|") === "Firma|Kategoria|Skąd|Dodana",
+    [...d.querySelectorAll("#kolejka-box thead th")].map((t) => t.textContent.trim()).filter(Boolean).join("|"));
+  sprawdz("Kolejka: wiersz jest wierszem tabeli",
+    !!wierszK && window.getComputedStyle(wierszK).display === "table-row",
+    wierszK ? window.getComputedStyle(wierszK).display : "brak");
 
   const chipyZap = [...d.querySelectorAll("[data-zap-kolejka]")]
     .filter((x) => x.dataset.zapKolejka);

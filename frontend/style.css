@@ -1146,3 +1146,27 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
   margin-right: 4px; white-space: nowrap;
 }
 .filtr-kategorii { align-items: center; }
+
+
+/* ══ KOLEJKA — ta sama tabela co lista partnerów ══ */
+.tabela-kolejki tbody tr { cursor: default; }
+.tabela-kolejki thead th { cursor: default; }
+.tabela-kolejki thead th:hover { color: var(--faint); }
+.kol-skad { width: 190px; }
+.kol-akcje-k { width: 170px; text-align: right; white-space: nowrap; }
+.link-domeny { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
+.link-domeny:hover { color: var(--akcent); }
+/* Opis w jednej linii: wystarczy, żeby zdecydować, czy firmę badać, a nie rozpycha
+   wiersza do trzech linii przy wynikach z wyszukiwarki i jednej przy Mapach. */
+.opis-wiersza {
+  display: block; font-size: 12.5px; color: var(--faint); margin-top: 3px;
+  max-width: 62ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.zrodlo-nazwa { display: block; font-size: 13px; color: var(--text); }
+.fraza-wiersza { display: block; font-size: 12px; color: var(--muted); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.tabela-kolejki .researchuj { margin-right: 6px; }
+.usun-z-kolejki { opacity: 0; transition: opacity .12s; }
+.tabela-kolejki tr:hover .usun-z-kolejki, .usun-z-kolejki:focus { opacity: 1; }
+.tabela-kolejki .sim-err { margin: 6px 0 0; font-size: 12px; color: var(--zolty); white-space: normal; }
+@media (max-width: 900px) { .kol-skad { display: none; } }
