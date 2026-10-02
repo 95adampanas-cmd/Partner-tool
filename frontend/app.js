@@ -1246,7 +1246,11 @@ document.addEventListener("click", (e) => {
   }
 
   const zAudytu = e.target.closest(".otworz-firme-z-audytu");
-  if (zAudytu) { pokazSekcje("firmy"); return pokazDetal(zAudytu.dataset.id); }
+  if (zAudytu) {
+    kartaZakladka = "audyty";
+    pokazSekcje("firmy");
+    return pokazDetal(zAudytu.dataset.id);
+  }
 
   const zMaili = e.target.closest(".otworz-maile-firmy");
   if (zMaili) {
@@ -1363,8 +1367,10 @@ document.addEventListener("click", (e) => {
   if (e.target.classList.contains("szukaj-wg-tagow")) return szukajWgTagow(e.target);
   const zrobDok = e.target.closest(".zrob-dokument-audyt");
   if (zrobDok) return zrobDokumentZAudytu(zrobDok);
-  if (e.target.closest(".pobierz-dokument-audyt")) return plikDokumentuAudytu(true);
-  if (e.target.closest(".podglad-dokument-audyt")) return plikDokumentuAudytu(false);
+  const pobDA = e.target.closest(".pobierz-dokument-audyt");
+  if (pobDA) return plikDokumentuAudytu(true, pobDA.dataset.raport);
+  const podDA = e.target.closest(".podglad-dokument-audyt");
+  if (podDA) return plikDokumentuAudytu(false, podDA.dataset.raport);
   const wybDok = e.target.closest(".wybierz-dok");
   if (wybDok) { dokWybrana = wybDok.dataset.id; return renderDokument(); }
   if (e.target.classList.contains("zmien-dok")) {
@@ -1373,7 +1379,7 @@ document.addEventListener("click", (e) => {
     return renderDokument();
   }
   const katDok = e.target.closest("[data-dok-klient]");
-  if (katDok) { dokKlient = katDok.dataset.dokKlient; return renderDokument(); }
+  if (katDok) { dokKlient = katDok.dataset.dokKlient; return odswiezWyborKlienta(); }
   const genDok = e.target.closest(".generuj-dokument");
   if (genDok) return generujDokument(genDok);
   if (e.target.closest(".pobierz-dokument")) return plikDokumentu(true);
@@ -1462,6 +1468,11 @@ document.addEventListener("click", (e) => {
 // siedzi w "change", bo tam liczy się wybór, a nie każdy znak — przy liście
 // filtrowanej dopiero po blurze człowiek nie wie, czy pole w ogóle działa.
 document.addEventListener("input", (e) => {
+  // Pola klienta partnera — przy pisaniu, nie po wyjściu z pola. Na "change"
+  // przycisk audytu odblokowywał się dopiero po kliknięciu obok, a pierwsze
+  // kliknięcie w niego (jeszcze zablokowany) po prostu przepadało.
+  if (e.target.id === "dok-klient") { dokKlient = e.target.value; return odswiezKlienta(); }
+  if (e.target.id === "dok-klient-url") { dokKlientUrl = e.target.value; return odswiezKlienta(); }
   if (e.target.id === "szukaj-firm") { szukajFirm = e.target.value; renderListeFirm(); }
   if (e.target.id === "szukaj-kolejka") {
     szukajKolejki = e.target.value;
@@ -1482,13 +1493,6 @@ document.addEventListener("change", (e) => {
       ? [...geoSilniki, v] : geoSilniki.filter((x) => x !== v);
     return renderAudytGeo();
   }
-  if (e.target.id === "dok-klient") {
-    dokKlient = e.target.value;
-    const b = document.querySelector(".generuj-dokument");
-    if (b) b.disabled = !dokKlient.trim();
-    return;
-  }
-  if (e.target.id === "dok-klient-url") { dokKlientUrl = e.target.value; return; }
   if (e.target.id === "geo-ile") { geoIle = +e.target.value; return renderAudytGeo(); }
   if (e.target.id === "geo-powtorzenia") { geoPowtorzenia = +e.target.value; return renderAudytGeo(); }
   if (e.target.id === "geo-podpowiedzi") { geoPodpowiedzi = e.target.checked; return renderAudytGeo(); }
@@ -1969,39 +1973,14 @@ function kosztSilnikow() {
 
 function renderAudyt() {
   const wybor = document.getElementById("audyt-wybor");
-  const dostepne = firmyTrybu();
-  if (!dostepne.length) {
-    wybor.innerHTML = przelacznikTrybu() +
-      `<div class="pusto"><svg class="ico xl"><use href="#i-inbox"/></svg>
-      <p>Brak zbadanych firm w ścieżce <b>${TRYBY[tryb].nazwa}</b>.<br>
-      <span>${esc(TRYBY[tryb].opis)}</span></p></div>`;
-    return;
-  }
-  const wpis = dostepne.find((t) => t.id === audytWybrana);
-
-  if (!wpis) {
-    wybor.innerHTML = przelacznikTrybu() + `<div class="card">
-      <div class="mono"><i class="sq"></i>Wybierz firmę do audytu</div>
-      <div class="similar-list">${dostepne.map((t) => `
-        <div class="sim-row wybierz-audyt" data-id="${t.id}">
-          <div class="sim-info"><span class="sim-name">${esc(t.firma.nazwa)}</span>
-            <span class="firma-row-meta">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</span></div>
-          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
-        </div>`).join("")}</div></div>`;
-    return;
-  }
+  const wpis = kartaFirma();
+  if (!wybor || !wpis) return;
 
   const koszt = (audytIle * kosztSilnikow() + (audytAIO ? KOSZT_AIO : 0)
     + (audytSEO ? KOSZT_SEO : 0)
     + (audytAIO ? KOSZT_AIO * (audytPlatformy.length - 1) : 0)).toFixed(3);
   wybor.innerHTML = `<div class="card">
-    <div class="wzor-head">
-      <div><div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
-        <span class="firma-row-meta">${esc(hostname(wpis.firma.url))}</span></div>
-      <button class="btn-lekki zmien-audyt" type="button">Zmień firmę</button>
-    </div>
-  </div>
-  <div class="card">
+    <p class="hint audyt-dla"></p>
     <div class="mono"><i class="sq"></i>Które modele AI pytamy</div>
     <div class="akcje" style="margin-bottom:10px">
       ${Object.entries(SILNIKI).map(([k, m]) => `
@@ -2044,26 +2023,37 @@ function renderAudyt() {
     </div>
     <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>
       · pytania układa nasz model, odpowiedzi zbieramy z zaznaczonych silników.</p>
-    <button class="akcja glowna generuj-audyt" type="button" style="margin-top:16px">
+    <button class="akcja glowna generuj-audyt" type="button" style="margin-top:16px"
+      ${klientGotowy() ? "" : "disabled"}>
       <svg class="ico sm"><use href="#i-chart"/></svg>Wygeneruj audyt</button>
   </div>`;
+  odswiezKlienta();
 }
 
 async function generujAudyt(przycisk) {
-  const wpis = tabs.find((t) => t.id === audytWybrana);
+  const wpis = kartaFirma();
+  if (!wpis || !klientGotowy()) return;
   const box = document.getElementById("audyt-raport");
   przycisk.disabled = true;
   przycisk.textContent = "Zbieram dane… (~60-90 s)";
-  box.innerHTML = loadingHTML("Generuję pytania, pytam modele AI i sprawdzam widoczność…");
+  box.innerHTML = loadingHTML("Czytam stronę klienta, układam pytania i sprawdzam widoczność…");
   try {
     const res = await fetch("/api/audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki,
-                             ai_overview: audytAIO, seo: audytSEO, platformy: audytPlatformy }),
+      body: JSON.stringify({
+        firma: { nazwa: dokKlient.trim(), url: adresKlienta(), tryb: wpis.tryb },
+        partner: wpis.firma, ile_promptow: audytIle, silniki: audytSilniki,
+        ai_overview: audytAIO, seo: audytSEO, platformy: audytPlatformy,
+      }),
     });
     const data = await res.json();
-    box.innerHTML = data.ok ? raportHTML(data.raport) : errorHTML(data.error);
+    if (data.ok) {
+      dfsRaport = data.raport;
+      box.innerHTML = raportHTML(data.raport) + dokumentZAudytuHTML("dfs");
+    } else {
+      box.innerHTML = errorHTML(data.error);
+    }
   } catch (err) {
     box.innerHTML = errorHTML(err.message);
   } finally {
@@ -2966,33 +2956,8 @@ const GEO_SILNIKI = {
 function renderAudytGeo() {
   const box = document.getElementById("audytgeo-wybor");
   if (!box) return;
-  const firmy = firmyTrybu();
-
-  if (!firmy.length) {
-    box.innerHTML = `<div class="pusto">
-      <svg class="ico xl"><use href="#i-target"/></svg>
-      <p>Najpierw zbadaj jakąś firmę.<br><span>Audyt opiera się na danych
-        z researchu — bez nich nie ma z czego ułożyć pytań.</span></p></div>`;
-    return;
-  }
-
-  const wpis = firmy.find((t) => t.id === geoWybrana);
-
-  // ── Krok 1: wybór firmy ──
-  if (!wpis) {
-    box.innerHTML = `<div class="card">
-      <div class="mono"><span class="sq"></span> Kogo audytujemy</div>
-      <div class="similar-list">${firmy.map((t) => `
-        <div class="sim-row wybierz-geo" data-id="${t.id}">
-          <div class="sim-info">
-            <span class="sim-name">${esc(t.firma.nazwa)}</span>
-            <a class="sim-url">${esc(hostname(t.firma.url))} · ${esc(t.firma.branza)}</a>
-          </div>
-          <button class="researchuj" type="button">Wybierz<svg class="ico xs"><use href="#i-arrow"/></svg></button>
-        </div>`).join("")}</div>
-    </div>`;
-    return;
-  }
+  const wpis = kartaFirma();
+  if (!wpis) return;
 
   // ── Krok 2: konfiguracja ──
   // Koszt liczony z góry, bo płacimy za tokeny i rośnie iloczynem:
@@ -3004,16 +2969,7 @@ function renderAudytGeo() {
 
   box.innerHTML = `
     <div class="card">
-      <div class="wzor-head">
-        <div>
-          <div class="firma-row-nazwa">${esc(wpis.firma.nazwa)}</div>
-          <span class="firma-row-meta">${esc(hostname(wpis.firma.url))} · ${esc(wpis.firma.branza)}</span>
-        </div>
-        <button class="btn-lekki zmien-geo" type="button">Zmień firmę</button>
-      </div>
-    </div>
-
-    <div class="card">
+      <p class="hint audyt-dla"></p>
       <div class="mono"><i class="sq"></i>Które modele pytamy</div>
       <div class="akcje" style="margin-bottom:16px">
         ${Object.entries(GEO_SILNIKI).map(([k, s]) => `
@@ -3044,14 +3000,15 @@ function renderAudytGeo() {
         · ${wywolan} wywołań (${geoSilniki.length} modele × ${geoIle} pytań × ${geoPowtorzenia})
         · liczyć kilka minut.</p>
       <button class="akcja glowna generuj-geo" type="button" style="margin-top:8px"
-        ${geoSilniki.length ? "" : "disabled"}>
+        ${klientGotowy() && geoSilniki.length ? "" : "disabled"}>
         <svg class="ico sm"><use href="#i-target"/></svg>Zrób audyt GEO</button>
     </div>`;
+  odswiezKlienta();
 }
 
 async function generujAudytGeo(przycisk) {
-  const wpis = firmyTrybu().find((t) => t.id === geoWybrana);
-  if (!wpis) return;
+  const wpis = kartaFirma();
+  if (!wpis || !klientGotowy()) return;
   const box = document.getElementById("audytgeo-raport");
   const etykieta = przycisk.innerHTML;
   przycisk.disabled = true;
@@ -3062,7 +3019,8 @@ async function generujAudytGeo(przycisk) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        firma: wpis.firma, ile_promptow: geoIle, powtorzenia: geoPowtorzenia,
+        firma: { nazwa: dokKlient.trim(), url: adresKlienta(), tryb: wpis.tryb },
+        partner: wpis.firma, ile_promptow: geoIle, powtorzenia: geoPowtorzenia,
         silniki: geoSilniki, podpowiedzi: geoPodpowiedzi,
       }),
     });
@@ -3071,7 +3029,7 @@ async function generujAudytGeo(przycisk) {
     // Raport zostaje w pamięci: dokument składamy z TYCH SAMYCH danych, bez
     // powtarzania pomiaru. Drugi audyt tej samej firmy kosztowałby znowu.
     geoRaport = d.raport;
-    box.innerHTML = raportHTML(d.raport) + dokumentZAudytuHTML();
+    box.innerHTML = raportHTML(d.raport) + dokumentZAudytuHTML("geo");
     box.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     box.innerHTML = errorHTML(e.message);
@@ -3254,11 +3212,6 @@ function renderDokument() {
     return;
   }
 
-  // Klienci partnera pochodzą z `case_studies` — jedynego miejsca w researchu,
-  // gdzie zapisujemy, dla kogo partner pracował. Pusta lista to nie błąd: nie
-  // każdy partner pokazuje realizacje. Wtedy nazwę wpisuje człowiek.
-  const klienci = (wpis.firma.case_studies || []).filter((c) => c && c !== BRAK);
-
   box.innerHTML = `
     <div class="card">
       <div class="wzor-head">
@@ -3272,18 +3225,7 @@ function renderDokument() {
 
     <div class="card">
       <div class="mono"><i class="sq"></i>2. Do którego klienta partnera</div>
-      ${klienci.length ? `
-        <p class="hint">Z realizacji partnera. Kliknij, żeby wstawić nazwę.</p>
-        <div class="tagi wybieralne">${klienci.map((k) => `
-          <button class="tag${dokKlient === k ? " zaznaczony" : ""}" type="button"
-                  data-dok-klient="${escAttr(k)}">${esc(k)}</button>`).join("")}</div>`
-        : `<p class="hint">Research nie zapisał realizacji tego partnera — wpisz klienta ręcznie.</p>`}
-      <div class="akcje" style="margin:14px 0 10px">
-        <input type="text" id="dok-klient" placeholder="Nazwa klienta" value="${escAttr(dokKlient)}">
-        <input type="text" id="dok-klient-url" placeholder="https://strona-klienta.pl" value="${escAttr(dokKlientUrl)}">
-      </div>
-      <p class="hint">Adres strony jest potrzebny do mikroaudytu: sprawdzamy, czy roboty
-        AI mają na nią wstęp. Bez adresu dokument powstanie, ale bez tej części.</p>
+      ${wyborKlientaHTML(wpis.firma, false)}
 
       <button class="akcja glowna generuj-dokument" type="button" ${dokKlient.trim() ? "" : "disabled"}>
         <svg class="ico sm"><use href="#i-inbox"/></svg>Generuj dokument
@@ -3358,43 +3300,49 @@ function plikDokumentu(pobierz) {
 // Zakładka pokazuje raport w narzędziu. To robi z niego PLIK do wysłania:
 // ten sam wzór co materiał dla klienta partnera, wykresy z pomiaru, pełne
 // odpowiedzi modeli. Szczegóły składania: backend/raport_geo.py.
-let geoRaport = null;      // ostatni raport z audytu — źródło dokumentu
-let geoDokHtml = null;     // wygenerowany plik
-let geoDokPlik = "";
+let geoRaport = null;      // ostatni raport z audytu GEO
+let dfsRaport = null;      // ostatni raport z mikroaudytu
+// Dwa audyty w jednej zakładce, więc dwa niezależne pliki — inaczej „Pobierz"
+// pod mikroaudytem oddawałby raport z audytu GEO zrobiony chwilę wcześniej.
+const dokumentyAudytu = {};
 
-function dokumentZAudytuHTML() {
+function dokumentZAudytuHTML(zrodlo = "geo") {
+  const partner = kartaFirma()?.firma.nazwa || "partnera";
   return `<div class="card">
-    <div class="mono"><i class="sq"></i>Dokument do wysłania</div>
-    <p class="hint">Ten sam raport na wzorze ICEA: wykresy z pomiaru, konkurenci,
-      źródła, ustalenia techniczne i pełne odpowiedzi modeli. Case study i identyfikacja
-      zostają bez zmian. Pomiar jest już zrobiony — płacimy tylko za napisanie tekstu.</p>
+    <div class="mono"><i class="sq"></i>Raport dla klienta</div>
+    <p class="hint">Ten pomiar na wzorze ICEA, jak materiał z zakładki Materiały: klient
+      dostaje go od ${esc(partner)}. W środku wykresy z pomiaru, konkurenci, źródła,
+      ustalenia techniczne${zrodlo === "dfs" ? ", widoczność w Google" : ""} i pełne
+      odpowiedzi modeli; case Botland i podział ról zostają. Pomiar jest już zrobiony —
+      płacimy tylko za napisanie tekstu.</p>
     <div class="akcje">
-      <button class="akcja glowna zrob-dokument-audyt" type="button">
-        <svg class="ico sm"><use href="#i-inbox"/></svg>Zrób z tego dokument</button>
+      <button class="akcja glowna zrob-dokument-audyt" type="button" data-raport="${zrodlo}">
+        <svg class="ico sm"><use href="#i-inbox"/></svg>Zrób raport dla klienta</button>
     </div>
-    <div id="dokument-audyt-wynik"></div>
+    <div class="dokument-audyt-wynik"></div>
   </div>`;
 }
 
 async function zrobDokumentZAudytu(przycisk) {
-  if (!geoRaport) return;
-  const wynik = document.getElementById("dokument-audyt-wynik");
+  const zrodlo = przycisk.dataset.raport || "geo";
+  const raport = zrodlo === "dfs" ? dfsRaport : geoRaport;
+  if (!raport) return;
+  const wynik = przycisk.closest(".card").querySelector(".dokument-audyt-wynik");
   przycisk.disabled = true;
-  wynik.innerHTML = loadingHTML("Piszę dokument z tego audytu… ~40 s.");
+  wynik.innerHTML = loadingHTML("Piszę raport dla klienta… ~40 s.");
   try {
     const res = await fetch("/api/dokument-audyt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ raport: geoRaport }),
+      body: JSON.stringify({ raport, partner: kartaFirma()?.firma }),
     });
     const d = await res.json();
     if (!d.ok) { wynik.innerHTML = errorHTML(d.error); return; }
-    geoDokHtml = d.html;
-    geoDokPlik = d.plik;
+    dokumentyAudytu[zrodlo] = { html: d.html, plik: d.plik };
     wynik.innerHTML = `<div class="akcje" style="margin-top:12px">
-      <button class="akcja glowna pobierz-dokument-audyt" type="button">
+      <button class="akcja glowna pobierz-dokument-audyt" type="button" data-raport="${zrodlo}">
         <svg class="ico sm"><use href="#i-table"/></svg>Pobierz plik</button>
-      <button class="akcja podglad-dokument-audyt" type="button">
+      <button class="akcja podglad-dokument-audyt" type="button" data-raport="${zrodlo}">
         <svg class="ico sm"><use href="#i-external"/></svg>Otwórz podgląd</button>
     </div>`;
   } catch (e) {
@@ -3404,14 +3352,15 @@ async function zrobDokumentZAudytu(przycisk) {
   }
 }
 
-function plikDokumentuAudytu(pobierz) {
-  if (!geoDokHtml) return;
-  const blob = new Blob([geoDokHtml], { type: "text/html;charset=utf-8" });
+function plikDokumentuAudytu(pobierz, zrodlo = "geo") {
+  const dok = dokumentyAudytu[zrodlo];
+  if (!dok) return;
+  const blob = new Blob([dok.html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   if (pobierz) {
     const a = document.createElement("a");
     a.href = url;
-    a.download = geoDokPlik || "audyt.html";
+    a.download = dok.plik || "audyt.html";
     a.click();
   } else {
     window.open(url, "_blank");
@@ -3429,7 +3378,7 @@ function plikDokumentuAudytu(pobierz) {
 // i dostają ją w stanie, bez pytania.
 const ZAKLADKI_KARTY = [
   { id: "przeglad", nazwa: "Przegląd" },
-  { id: "widocznosc", nazwa: "Widoczność" },
+  { id: "audyty", nazwa: "Audyty SEO/GEO" },
   { id: "synergia", nazwa: "Synergia" },
   { id: "maile", nazwa: "Maile" },
   { id: "dokumenty", nazwa: "Materiały" },
@@ -3440,10 +3389,89 @@ function kartaFirma() {
   return tabs.find((t) => t.id === activeId) || null;
 }
 
+// ══ KLIENT PARTNERA — wspólny dla Materiałów i Audytów ═══════════════
+// Ten sam klient w obu zakładkach: wybierasz Trafikę raz i zarówno materiał, jak
+// i audyt dotyczą Trafiki. Przy wejściu w innego partnera klient się czyści —
+// inaczej klient Tebim zostawałby wpisany na karcie Brantt.
+let klientPartnera = null;   // id partnera, dla którego wpisano klienta
+
+function klientGotowy() {
+  return !!(dokKlient.trim() && dokKlientUrl.trim());
+}
+
+// „trafika.pl" bez protokołu to najczęstszy sposób wpisania adresu, a backend
+// wyciąga z niego domenę parserem URL, który bez „https://" zwraca pustkę.
+function adresKlienta() {
+  const u = dokKlientUrl.trim();
+  if (!u) return "";
+  return /^https?:\/\//i.test(u) ? u : "https://" + u;
+}
+
+function wyborKlientaHTML(firma, wymagaAdresu) {
+  // Klienci partnera pochodzą z `case_studies` — jedynego miejsca w researchu,
+  // gdzie zapisujemy, dla kogo partner pracował. Pusta lista to nie błąd: nie
+  // każdy partner pokazuje realizacje. Wtedy nazwę wpisuje człowiek.
+  const klienci = (firma.case_studies || []).filter((c) => c && c !== BRAK);
+  return `${klienci.length ? `
+      <p class="hint">Z realizacji partnera. Kliknij, żeby wstawić nazwę.</p>
+      <div class="tagi wybieralne">${klienci.map((k) => `
+        <button class="tag${dokKlient === k ? " zaznaczony" : ""}" type="button"
+                data-dok-klient="${escAttr(k)}">${esc(k)}</button>`).join("")}</div>`
+      : `<p class="hint">Research nie zapisał realizacji tego partnera — wpisz klienta ręcznie.</p>`}
+    <div class="akcje" style="margin:14px 0 10px">
+      <input type="text" id="dok-klient" placeholder="Nazwa klienta" value="${escAttr(dokKlient)}">
+      <input type="text" id="dok-klient-url" placeholder="https://strona-klienta.pl" value="${escAttr(dokKlientUrl)}">
+    </div>
+    <p class="hint">${wymagaAdresu
+      ? "Adres strony jest wymagany: audyt mierzy stronę klienta, jej kategorię i dostęp robotów AI."
+      : "Adres strony jest potrzebny do mikroaudytu: sprawdzamy, czy roboty AI mają na nią wstęp. Bez adresu dokument powstanie, ale bez tej części."}</p>`;
+}
+
+// Stan przycisków i podpisów bez przerysowania — inaczej każde wpisane w pole
+// słowo zabierałoby kursor.
+function odswiezKlienta() {
+  const dok = document.querySelector(".generuj-dokument");
+  if (dok) dok.disabled = !dokKlient.trim();
+  document.querySelectorAll(".generuj-geo").forEach((b) => {
+    b.disabled = !(klientGotowy() && geoSilniki.length);
+  });
+  document.querySelectorAll(".generuj-audyt").forEach((b) => { b.disabled = !klientGotowy(); });
+  const partner = kartaFirma()?.firma.nazwa || "partnera";
+  document.querySelectorAll(".audyt-dla").forEach((x) => {
+    x.innerHTML = klientGotowy()
+      ? `Badamy stronę <b>${esc(hostname(adresKlienta()))}</b> — klienta ${esc(partner)}.`
+      : "Najpierw podaj klienta i adres jego strony w kroku 01.";
+  });
+}
+
+function renderKlientAudytu() {
+  const box = document.getElementById("audyt-klient");
+  const wpis = kartaFirma();
+  if (!box || !wpis) return;
+  box.innerHTML = wyborKlientaHTML(wpis.firma, true);
+  odswiezKlienta();
+}
+
+// Wybór klienta z chipu przerysowuje tylko blok klienta tej zakładki, która jest
+// otwarta — przerysowanie całej zakładki skasowałoby gotowy raport z audytu.
+function odswiezWyborKlienta() {
+  if (document.getElementById("dokument-wybor")) renderDokument();
+  if (document.getElementById("audyt-klient")) {
+    renderKlientAudytu();
+    if (!dokKlientUrl.trim()) document.getElementById("dok-klient-url")?.focus();
+  }
+  odswiezKlienta();
+}
+
 function renderKarte() {
   const wpis = kartaFirma();
   const box = document.getElementById("firmy-detal");
   if (!wpis || !box) return;
+  if (klientPartnera !== wpis.id) {
+    klientPartnera = wpis.id;
+    dokKlient = "";
+    dokKlientUrl = "";
+  }
   const f = wpis.firma;
   const wKoszyku = koszyk.some((k) => k.url === f.url);
   const ileMaili = maileFirmy(f.url).length;
@@ -3513,18 +3541,30 @@ function rysujZakladke(pane) {
     return;
   }
 
-  if (kartaZakladka === "widocznosc") {
+  // AUDYT ZAWSZE DOTYCZY KLIENTA PARTNERA. Wcześniej zakładka mierzyła samego
+  // partnera (tebim.pro) i model dostawał pytania o agencję PrestaShop — wynik,
+  // którego nie da się nikomu wysłać. Teraz najpierw wybierasz klienta (Trafika),
+  // pomiar dotyczy jego strony i jego kategorii, a raport idzie do niego od
+  // partnera — tak jak materiał z zakładki Materiały, tylko z pełnym pomiarem.
+  if (kartaZakladka === "audyty") {
     geoWybrana = id;
     audytWybrana = id;
     pane.innerHTML = `
-      <div class="wiodacy" style="margin-bottom:18px">Dwa pomiary tej samej rzeczy z dwóch stron:
-        pierwszy pyta modele naszymi kluczami, drugi dokłada dane z wyszukiwarki.</div>
-      <div class="mono" style="margin-bottom:10px"><i class="sq"></i>Audyt GEO — widoczność w odpowiedziach AI</div>
-      <div id="audytgeo-wybor"></div>
+      <p class="wiodacy" style="margin:0 0 6px">Audyt mierzy stronę klienta partnera.
+        Raport idzie do klienta w identyfikacji ICEA, od ${esc(wpis.firma.nazwa)} — jak materiał
+        z zakładki Materiały, tylko z pełnym pomiarem.</p>
+      ${krokHTML("01", "Klient partnera",
+        "Z realizacji partnera albo wpisany ręcznie. Bez adresu strony nie ma czego mierzyć.",
+        '<div id="audyt-klient"></div>')}
+      ${krokHTML("02", "Pomiar",
+        "Dwa audyty do wyboru. GEO chodzi na naszych kluczach; mikroaudyt dokłada Google przez DataForSEO.",
+        `<div class="mono" style="margin-bottom:10px"><i class="sq"></i>Audyt GEO — odpowiedzi AI</div>
+         <div id="audytgeo-wybor"></div>
+         <div class="mono" style="margin:26px 0 10px"><i class="sq"></i>Mikroaudyt SEO/GEO — Google i AI</div>
+         <div id="audyt-wybor"></div>`)}
       <div id="audytgeo-raport"></div>
-      <div class="mono" style="margin:34px 0 10px"><i class="sq"></i>Mikroaudyt SEO/GEO — z danymi z wyszukiwarki</div>
-      <div id="audyt-wybor"></div>
       <div id="audyt-raport"></div>`;
+    renderKlientAudytu();
     renderAudytGeo();
     renderAudyt();
     return;
@@ -3704,14 +3744,18 @@ async function renderAudyty() {
     });
 
     box.innerHTML = [...wg.entries()].map(([url, lista]) => {
-      const wpis = tabs.find((t) => t.firma.url === url);
-      const nazwa = wpis ? wpis.firma.nazwa : hostname(url);
+      // Audyt klienta zapisuje się pod adresem KLIENTA (trafika.pl), którego nie
+      // ma na liście partnerów — karta, do której prowadzi, to karta partnera.
+      const z_partnerem = lista.find((a) => a.partner_url);
+      const wpis = tabs.find((t) => t.firma.url === (z_partnerem ? z_partnerem.partner_url : url));
+      const nazwa = lista.find((a) => a.nazwa)?.nazwa || hostname(url);
       return `<div class="card">
         <div class="wzor-head">
           <div>
             <div class="firma-row-nazwa">${esc(nazwa)}</div>
-            <span class="firma-row-meta">${esc(hostname(url))} · ${lista.length} ${
-              lista.length === 1 ? "pomiar" : "pomiary"}</span>
+            <span class="firma-row-meta">${esc(hostname(url))}${
+              z_partnerem ? ` · klient ${esc(z_partnerem.partner_nazwa || hostname(z_partnerem.partner_url))}` : ""
+            } · ${lista.length} ${lista.length === 1 ? "pomiar" : "pomiary"}</span>
           </div>
           ${wpis ? `<button class="btn-lekki otworz-firme-z-audytu" type="button"
             data-id="${wpis.id}">Otwórz kartę<svg class="ico xs"><use href="#i-arrow"/></svg></button>` : ""}

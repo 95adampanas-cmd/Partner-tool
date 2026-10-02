@@ -36,7 +36,7 @@ const html = fs.readFileSync(path.join(KAT, "index.html"), "utf8")
 // Dwie ścieżki, żeby dało się sprawdzić, czy się nie mieszają.
 const FIRMY = [
   { url: "https://tebim.pro", nazwa: "Tebim", branza: "agencja e-commerce", tryb: "partner",
-    kategoria: "Sklepy internetowe", ma_seo: true, uslugi: ["a"], case_studies: [], zrodlo_danych: [] },
+    kategoria: "Sklepy internetowe", ma_seo: true, uslugi: ["a"], case_studies: ["Trafika"], zrodlo_danych: [] },
   { url: "https://widoczni.com", nazwa: "widoczni", branza: "agencja digital", tryb: "partner",
     kategoria: "Performance", ma_seo: true, uslugi: ["b"], case_studies: [], zrodlo_danych: [] },
   { url: "https://ellaboutique.pl", nazwa: "Ella Boutique", branza: "butik", tryb: "klient",
@@ -267,17 +267,41 @@ setTimeout(() => {
     sprawdz("Przegląd: krótka lista nie potrzebuje zwijania", widoczneP() > 0);
   }
 
-  // ══ ZAKŁADKA WIDOCZNOŚĆ ══
-  // Formularz audytu niesie całą konfigurację: modele, platformy, zakres, koszt.
-  // Tu sprawdzamy dwie rzeczy naraz: że nadal działa i że NIE pyta o firmę.
-  kartaTab("widocznosc");
+  // ══ ZAKŁADKA AUDYTY SEO/GEO ══
+  // Audyt mierzy KLIENTA partnera, nie partnera. Wcześniej zakładka „Widoczność"
+  // audytowała tebim.pro i model dostawał pytania o agencję PrestaShop — raport,
+  // którego nie da się wysłać nikomu. Teraz krok pierwszy to klient (Trafika),
+  // a raport idzie do niego od partnera, jak materiał z zakładki Materiały.
+  // Karta Tebim wprost — wcześniejszy test przestawia sortowanie listy, więc
+  // „pierwszy wiersz" to tu przypadek, a portfolio ma właśnie Tebim.
+  klik(d.querySelector(".wroc-do-listy"));
+  klik([...d.querySelectorAll("#firmy-lista .firma-row")].find((r) => r.textContent.includes("Tebim")));
+  kartaTab("audyty");
+  sprawdz("Audyty: zakładka nazywa się Audyty SEO/GEO",
+    nazwy("[data-karta-tab]").includes("Audyty SEO/GEO"), nazwy("[data-karta-tab]").join(" | "));
+  sprawdz("Audyty: pierwszy krok to klient partnera",
+    !!d.querySelector("#audyt-klient #dok-klient") && !!d.querySelector("#audyt-klient #dok-klient-url"));
+  sprawdz("Audyty: klienta da się wybrać z portfolio partnera",
+    !!d.querySelector('#audyt-klient [data-dok-klient="Trafika"]'));
+  sprawdz("Audyty: bez klienta oba audyty są zablokowane",
+    d.querySelector(".generuj-geo").disabled && d.querySelector(".generuj-audyt").disabled);
+
+  klik(d.querySelector('#audyt-klient [data-dok-klient="Trafika"]'));
+  sprawdz("Audyty: sama nazwa nie wystarcza — bez adresu dalej zablokowane",
+    d.querySelector(".generuj-geo").disabled);
+  const poleUrl = d.getElementById("dok-klient-url");
+  poleUrl.value = "trafika.pl";
+  poleUrl.dispatchEvent(new window.Event("input", { bubbles: true }));
+  sprawdz("Audyty: nazwa i adres odblokowują oba audyty — bez wychodzenia z pola",
+    !d.querySelector(".generuj-geo").disabled && !d.querySelector(".generuj-audyt").disabled);
+  sprawdz("Audyty: podpis mówi, czyją stronę badamy",
+    [...d.querySelectorAll(".audyt-dla")].every((x) => x.textContent.includes("trafika.pl")),
+    (d.querySelector(".audyt-dla") || {}).textContent);
+
   const formularz = d.getElementById("audyt-wybor").innerHTML;
-  sprawdz("Widoczność: audyt dostaje firmę bez pytania o wybór",
-    formularz.includes("Które modele AI pytamy"));
-  sprawdz("Widoczność: nie ma już listy firm do wyboru",
-    d.querySelectorAll("#audyt-wybor .sim-row").length === 0,
-    `${d.querySelectorAll("#audyt-wybor .sim-row").length} wierszy wyboru`);
-  sprawdz("Widoczność: są oba pomiary, GEO i mikroaudyt",
+  sprawdz("Audyty: nie ma listy firm do wyboru — partner jest z karty",
+    d.querySelectorAll("#audyt-wybor .sim-row, #audytgeo-wybor .sim-row").length === 0);
+  sprawdz("Audyty: są oba pomiary, GEO i mikroaudyt",
     !!d.getElementById("audytgeo-wybor") && !!d.getElementById("audyt-wybor"));
   sprawdz("Audyt: jest wybór modeli", d.querySelectorAll('input[name="silnik"]').length > 0,
     `${d.querySelectorAll('input[name="silnik"]').length} modeli`);
@@ -289,10 +313,31 @@ setTimeout(() => {
   sprawdz("Audyt: brak pozostałości po SE Ranking",
     !/seranking|SE Ranking|kredyt/i.test(formularz));
 
+  // Sedno zmiany: co faktycznie leci do backendu. Strona KLIENTA jako badana
+  // firma, partner osobno — on jest nadawcą raportu, nie przedmiotem pomiaru.
+  klik(d.querySelector(".generuj-geo"));
+  const zadGeo = zadania.filter((z) => z.url.includes("/api/audyt-geo")).pop();
+  sprawdz("Audyty: audyt GEO mierzy stronę klienta, nie partnera",
+    !!zadGeo && zadGeo.body.firma.url === "https://trafika.pl" && zadGeo.body.firma.nazwa === "Trafika",
+    zadGeo ? JSON.stringify(zadGeo.body.firma) : "brak żądania");
+  sprawdz("Audyty: partner jedzie z audytem jako nadawca",
+    !!zadGeo && !!zadGeo.body.partner && zadGeo.body.partner.url === "https://tebim.pro");
+  klik(d.querySelector(".generuj-audyt"));
+  const zadDfs = zadania.filter((z) => z.url.endsWith("/api/audyt")).pop();
+  sprawdz("Audyty: mikroaudyt też mierzy klienta",
+    !!zadDfs && zadDfs.body.firma.url === "https://trafika.pl" && !!zadDfs.body.partner,
+    zadDfs ? JSON.stringify(zadDfs.body.firma) : "brak żądania");
+
+  // Klient jest wspólny z Materiałami: wybrany raz, obowiązuje w obu zakładkach.
+  kartaTab("dokumenty");
+  sprawdz("Audyty: klient przechodzi do zakładki Materiały",
+    (d.getElementById("dok-klient") || {}).value === "Trafika"
+      && (d.getElementById("dok-klient-url") || {}).value === "trafika.pl");
+
   // ══ POZOSTAŁE ZAKŁADKI ══
   kartaTab("synergia");
   sprawdz("Zakładki: każda z nich coś pokazuje",
-    ["widocznosc", "synergia", "maile", "dokumenty", "przeglad"].every((t) => {
+    ["audyty", "synergia", "maile", "dokumenty", "przeglad"].every((t) => {
       kartaTab(t);
       const pane = d.getElementById("karta-pane");
       return widac(pane) && pane.innerHTML.length > 200;
@@ -494,7 +539,7 @@ setTimeout(() => {
 
   // Audyt GEO — OSOBNY pomiar, nie wariant mikroaudytu. Oba są w jednej zakładce,
   // więc tym bardziej trzeba pilnować, żeby się nie zlały.
-  kartaTab("widocznosc");
+  kartaTab("audyty");
   const geoForm = d.getElementById("audytgeo-wybor").innerHTML;
   // Pole na wlasne prompty zostalo usuniete na zyczenie — pilnujemy, zeby nie
   // wrocilo przypadkiem razem ze stanem, ktory nikogo juz nie obsluguje.

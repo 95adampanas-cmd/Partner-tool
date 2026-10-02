@@ -140,7 +140,8 @@ def _sekcja_pomiar(raport: dict, t: dict) -> str:
     powtorzenia = raport.get("powtorzenia") or 1
 
     kafle = _kafle_wynikow([
-        (str(pytan), "pytań zadanych modelom",
+        (str(pytan), _odmiana(pytan, "pytanie zadane modelom", "pytania zadane modelom",
+                              "pytań zadanych modelom"),
          f'{odpowiedzi * powtorzenia} zapytań łącznie' if powtorzenia > 1 else ""),
         (f'{p.get("wspomniana", 0)}', "odpowiedzi z nazwą firmy",
          f'{p.get("udzial_wspomnien", 0)}% wszystkich'),
@@ -291,6 +292,80 @@ def _sekcja_techniczne(raport: dict, t: dict) -> str:
 </section>'''
 
 
+def _odmiana(n: int, jedna: str, kilka: str, wiele: str) -> str:
+    """1 pytanie, 4 pytania, 5 pytań, 22 pytania, 12 pytań — dokument idzie do
+    klienta, a „4 pytań" czyta się jak tekst, którego nikt nie przeczytał."""
+    if n == 1:
+        return jedna
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return kilka
+    return wiele
+
+
+def _liczba(n) -> str:
+    """12 211 zamiast 12211 — twarda spacja, żeby liczba nie łamała się w kaflu."""
+    return f"{int(n or 0):,}".replace(",", " ")
+
+
+def _sekcja_seo(raport: dict, t: dict) -> str:
+    """Widoczność w zwykłym Google — część „SEO" mikroaudytu.
+
+    Pojawia się tylko w dokumencie z mikroaudytu, bo tylko on ją mierzy (dane
+    DataForSEO). Audyt GEO na własnych kluczach Google nie dotyka, więc ta sekcja
+    po prostu znika, zamiast pokazywać zera, które wyglądałyby jak wynik.
+
+    TABELA FRAZ, NIE SUMA. „457 fraz w TOP 3" robi wrażenie, ale nic nie mówi
+    klientowi sklepu. „gps do samochodu — pozycja 3, 9 900 wyszukań" mówi od razu,
+    o jakie pieniądze chodzi.
+    """
+    seo = raport.get("seo") or {}
+    if not seo.get("dane_wiarygodne") and not seo.get("fraz_lacznie"):
+        return ""
+
+    aio = raport.get("ai_overview") or {}
+    kafle = _kafle_wynikow([
+        (_liczba(seo.get("top3")),
+         seo.get("etykieta_czolo") or "fraz w TOP 3", ""),
+        (_liczba(seo.get("top10")), "fraz w TOP 10", ""),
+        (_liczba(seo.get("fraz_lacznie")),
+         "fraz, na które strona się wyświetla", ""),
+        (_liczba(seo.get("ruch")),
+         "szacowanych wejść z Google miesięcznie", ""),
+    ] + ([(str(aio.get("liczba_wzmianek") or 0),
+           "zapytań, przy których cytuje ją AI Overviews", "")]
+         if aio else []))
+
+    frazy = (seo.get("frazy") or [])[:10]
+    tabela = ""
+    if frazy:
+        wiersze = "".join(
+            f'<tr><td>{escape(f.get("fraza") or "")}</td>'
+            f'<td class="szara">{f.get("pozycja") or "—"}</td>'
+            f'<td class="szara">{_liczba(f.get("wolumen"))}</td>'
+            f'<td class="szara">{_liczba(f.get("ruch"))}</td></tr>'
+            for f in frazy)
+        tabela = f'''<h3 style="margin:26px 0 10px">Frazy, na które strona już się wyświetla</h3>
+<table class="tabelka"><thead><tr><th>Fraza</th><th>Pozycja</th><th>Wyszukań / mies.</th><th>Wejść / mies.</th></tr></thead>
+<tbody>{wiersze}</tbody></table>'''
+
+    konk = (seo.get("konkurenci") or [])[:8]
+    slupki = ""
+    if konk:
+        slupki = ("<h3 style=\"margin:26px 0 10px\">Kto konkuruje o te same frazy w Google</h3>"
+                  + _slupki([(k["domena"], k.get("wspolne_frazy") or 0,
+                              f'{k.get("wspolne_frazy") or 0} wspólnych fraz') for k in konk]))
+
+    return f'''<section class="s-seo">
+<h2>{escape(t.get("seo_tytul") or "Jak strona radzi sobie w Google")}</h2>
+<p class="pod">{escape(t.get("seo_wstep") or "")}</p>
+{kafle}
+{tabela}
+{slupki}
+<p class="skala">{escape(t.get("seo_wniosek") or "")}</p>
+<p class="metoda">Źródło: {escape(seo.get("zrodlo") or "baza Google PL")}.</p>
+</section>'''
+
+
 # ══════════════════════════════════════════════════════════════════════
 #  Składanie
 # ══════════════════════════════════════════════════════════════════════
@@ -327,15 +402,24 @@ PODMIANY_NADAWCY = [
 ]
 
 
-def zbuduj(raport: dict, tresc: dict, badanie: dict, nadawca: str) -> str:
-    """Wzór ICEA z sekcjami audytu. Case study, nagroda i stopka zostają."""
+def zbuduj(raport: dict, tresc: dict, badanie: dict, nadawca: str,
+           od_partnera: bool = False) -> str:
+    """Wzór ICEA z sekcjami audytu. Case study, nagroda i stopka zostają.
+
+    `od_partnera` — audyt KLIENTA partnera. Wtedy materiał wysyła partner, tak
+    jak w zakładce Materiały: zdanie „otrzymujesz ten materiał od firmy, z którą
+    pracujesz: Tebim" i zaproszenie do rozmowy z partnerem zostają z wzoru, bo są
+    prawdziwe. Podmiany nadawcy dotyczą tylko audytu, który ICEA wysyła sama.
+    """
     html = dokument.zbuduj(tresc, badanie, nadawca)
-    for stare, nowe in PODMIANY_NADAWCY:
-        html = html.replace(stare.format(firma=nadawca),
-                            nowe.format(firma=nadawca, data=badanie.get("data", "")))
+    if not od_partnera:
+        for stare, nowe in PODMIANY_NADAWCY:
+            html = html.replace(stare.format(firma=nadawca),
+                                nowe.format(firma=nadawca, data=badanie.get("data", "")))
 
     sekcje = "\n\n".join(x for x in (
         _sekcja_pomiar(raport, tresc),
+        _sekcja_seo(raport, tresc),
         _sekcja_konkurenci(raport, tresc),
         _sekcja_zrodla(raport, tresc),
         _sekcja_techniczne(raport, tresc),

@@ -226,16 +226,25 @@ def zapisz_audyt(url: str, raport: dict, tryb: str = "partner",
         db.commit()
 
 
+# Nazwa badanej firmy i partner wyciągane z JSON-a raportu przez SQLite, nie
+# w Pythonie — lista ma zostać lekka. Audyt klienta partnera zapisuje się pod
+# adresem KLIENTA (trafika.pl), więc bez partnera w nagłówku widok „Audyty" nie
+# wiedziałby, do której karty partnera prowadzić.
+_NAGLOWKI_AUDYTU = ("SELECT id, url, tryb, dostawca, data, "
+                    "json_extract(raport, '$.firma.nazwa') AS nazwa, "
+                    "json_extract(raport, '$.partner.nazwa') AS partner_nazwa, "
+                    "json_extract(raport, '$.partner.url') AS partner_url FROM audyty ")
+
+
 def audyty(url: str | None = None, limit: int = 50) -> list[dict]:
     """Same nagłówki, bez treści raportów — lista nie potrzebuje megabajtów JSON-a."""
     with _zamek:
         db = _polacz()
         if url:
-            w = db.execute("SELECT id, url, tryb, dostawca, data FROM audyty "
-                           "WHERE url = ? ORDER BY data DESC LIMIT ?", (url, limit))
+            w = db.execute(_NAGLOWKI_AUDYTU + "WHERE url = ? ORDER BY data DESC LIMIT ?",
+                           (url, limit))
         else:
-            w = db.execute("SELECT id, url, tryb, dostawca, data FROM audyty "
-                           "ORDER BY data DESC LIMIT ?", (limit,))
+            w = db.execute(_NAGLOWKI_AUDYTU + "ORDER BY data DESC LIMIT ?", (limit,))
         return [dict(r) for r in w.fetchall()]
 
 

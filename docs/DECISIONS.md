@@ -705,3 +705,50 @@ branża, kategoria, miasto.
 (`POKAZUJ_KLIENTOW`), a listy nie dostały sortowania ani kolumn statusu — to
 wymaga najpierw decyzji, co jest statusem partnera, a tej jeszcze nie ma.
 
+
+## Audyty SEO/GEO mierzą klienta partnera, nie partnera
+
+**Data:** 02.10.2026
+
+Zakładka „Widoczność" w karcie partnera audytowała samego partnera (tebim.pro).
+Model dostawał pytania o agencję PrestaShop, a raport szedł z nagłówkiem
+„materiał przygotowany dla: Tebim" — wynik, którego nie wysyła się nikomu, bo
+partner nie jest naszym klientem, tylko drogą do jego klientów.
+
+**Co się zmieniło.** Zakładka nazywa się „Audyty SEO/GEO" i działa jak Materiały:
+krok 01 to klient partnera (z portfolio z researchu albo wpisany ręcznie, adres
+strony wymagany), krok 02 to pomiar — audyt GEO albo mikroaudyt. Oba mierzą stronę
+KLIENTA, a raport z każdego z nich idzie do klienta od partnera: „otrzymujesz ten
+materiał od firmy, z którą pracujesz: Tebim", wstęp o tym, co Tebim zbudował,
+pełny pomiar z wykresami, case Botland, podział ról, kontakt.
+
+**Decyzje Adama:** audyt samego partnera znika (tylko klienci); Materiały zostają
+obok jako szybki dokument na 3 pytaniach (~$0,05), audyt to pełny pomiar (~$0,75);
+mikroaudyt DataForSEO też jest per klient.
+
+**Jak klient dostaje to, co partner ma z researchu.** Klient nie przechodzi
+researchu — jest tylko nazwa i adres. `_przygotuj_klienta()` czyta jego stronę
+główną (jedno żądanie HTTP) i pyta Haiku o kategorię w słowach, którymi szuka go
+jego klient („sklep z tytoniem online"). Kategoria idzie do podpowiedzi Google —
+sama nazwa „Trafika" dawała podpowiedzi o godzinach otwarcia kiosków.
+
+**Pytania o kategorię klienta, nigdy o agencję** (`PYTANIA_KLIENTA`) — ta sama
+zasada, którą Materiały mają od początku. Zmierzone na żywo dla Trafiki: cztery
+pytania o tytoń, papierosy i kawę, ChatGPT wymienił zamiast niej Żabkę Jush,
+delio, Allegro i Lisek.
+
+**Dwa systemy, wspólne pola.** `RAPORT_GEO_SYSTEM` (nadawca ICEA) i
+`RAPORT_KLIENTA_SYSTEM` (nadawca partner) różnią się tylko blokiem o odbiorcy;
+lista pól raportu jest jedna. Wariant klienta nie może odziedziczyć „ZMIANA
+ODBIORCY" — model pisałby wtedy do Trafiki, że nie ma żadnego partnera. Test
+pilnuje obu.
+
+**Sekcja Google w raporcie z mikroaudytu.** Mikroaudyt mierzy też zwykłe Google
+(frazy, pozycje, ruch, konkurenci), a dokument tego nie pokazywał. Teraz ma
+sekcję z tabelą fraz — pojawia się tylko, gdy są dane; audyt GEO jej nie ma,
+zamiast pokazywać zera.
+
+**Klient wspólny dla Materiałów i Audytów** — wybierasz Trafikę raz. Przy wejściu
+w innego partnera klient się czyści. Audyt zapisuje się pod adresem klienta,
+a widok „Audyty" czyta partnera z raportu (json_extract) i prowadzi do jego karty.
+

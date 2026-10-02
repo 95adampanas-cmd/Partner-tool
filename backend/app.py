@@ -1170,6 +1170,60 @@ zadanie_prompty = claude.Zadanie(
 )
 
 
+class KategoriaKlienta(BaseModel):
+    fraza: str
+
+
+# Kategoria klienta w słowach, którymi szuka go jego klient. Potrzebna z dwóch
+# powodów: podpowiedzi Google dostają ją jako frazę wyjściową (nazwa „Trafika"
+# dawała podpowiedzi o godzinach otwarcia kiosków), a dokument opisuje branżę
+# klienta zamiast pustego pola. Klient partnera nie przechodzi researchu, więc
+# nie ma w bazie ani branży, ani usług — jest tylko jego strona.
+zadanie_kategoria = claude.Zadanie(
+    nazwa="kategoria-klienta",
+    model=TANI,                  # 2-5 słów z tekstu strony — klasyfikacja
+    schemat=KategoriaKlienta,
+    max_tokenow=100,
+    instrukcje="""Dostajesz tekst ze strony głównej firmy. Podaj 2-5 słów po polsku,
+którymi KLIENT tej firmy szuka w Google tego, co ona sprzedaje — tak, jak by to
+wpisał, np. „sklep z tytoniem online", „kawiarnia specialty Kraków",
+„serwis klimatyzacji samochodowej". Bez nazwy firmy. Bez słów „agencja", „firma".""",
+)
+
+# Dopisywane do zlecenia pytań, gdy audyt dotyczy klienta partnera. Bez tego model
+# układał pytania pod branżę PARTNERA: dla sklepu z tytoniem obsługiwanego przez
+# agencję PrestaShop pytał „jaka agencja wdroży sklep". Mierzylibyśmy agencję,
+# a dokument idzie do klienta. Ta sama zasada, którą zakładka Materiały ma od
+# początku — tutaj w audycie, który zadaje pytań więcej.
+PYTANIA_KLIENTA = ("Pytania zadaje KLIENT KOŃCOWY tej firmy, szukając tego, co ona "
+                   "sprzedaje. Pytaj o JEJ kategorię i produkt — nigdy o nazwę firmy "
+                   "i nigdy o agencję, wykonawcę ani wdrożenie strony.")
+
+
+async def _przygotuj_klienta(firma: dict, partner: dict | None) -> dict:
+    """Uzupełnia klienta partnera o to, co research daje partnerom za darmo.
+
+    Partner w bazie ma branżę, usługi i opis. Klient ma tylko nazwę i adres, więc
+    bez tego kroku generator pytań dostawał pustkę i zgadywał z samej nazwy. Koszt:
+    jedno żądanie HTTP i jedno wywołanie Haiku.
+    """
+    if not partner:
+        return firma
+    firma = dict(firma)
+    if firma.get("url") and not firma.get("opis"):
+        html = await asyncio.to_thread(pobierz, firma["url"])
+        if html:
+            firma["opis"] = tekst_ze_strony(html)[:2500]
+    if not firma.get("branza") and firma.get("opis"):
+        try:
+            k = await claude.uruchom(zadanie_kategoria,
+                                     f"Firma: {firma.get('nazwa', '')}\n\n{firma['opis']}")
+            firma["branza"] = (k.final_output.fraza or "").strip()
+        except Exception:
+            pass                 # bez kategorii pytania i tak powstaną z opisu
+    return firma
+
+
 MAIL_SYSTEM = """Jesteś partnership managerem w ICEA — agencji SEO/GEO/SEM.
 Piszesz krótkiego, spersonalizowanego maila z propozycją współpracy partnerskiej.
 
@@ -2011,10 +2065,14 @@ async def api_audyt_geo(request):
     try:
         body = await request.json()
         firma = body.get("firma") or {}
+        # Audyt KLIENTA partnera: firma to klient (np. Trafika), partner to ten, kto
+        # materiał wyśle (np. Tebim). Bez partnera — stary tryb, audyt samej firmy.
+        partner = body.get("partner") or None
         nazwa = firma.get("nazwa") or ""
         domena = domena_z_url(firma.get("url") or "").lower()
         if not domena:
-            return JSONResponse({"ok": False, "error": "Brak adresu firmy."})
+            return JSONResponse({"ok": False, "error": "Brak adresu strony klienta."})
+        firma = await _przygotuj_klienta(firma, partner)
 
         powtorzenia = max(1, min(3, int(body.get("powtorzenia") or 2)))
         ile = max(1, min(30, int(body.get("ile_promptow") or 8)))
@@ -2045,11 +2103,19 @@ async def api_audyt_geo(request):
 
         if len(prompty) < ile:
             import json as _json
-            opis = _json.dumps({k: firma.get(k) for k in
-                               ("nazwa", "branza", "uslugi", "miasto")}, ensure_ascii=False)
-            r = await claude.uruchom(zadanie_prompty,
-                                     f"Wygeneruj {ile - len(prompty)} pytań.\n\n{opis}")
+            dane = {k: firma.get(k) for k in ("nazwa", "branza", "uslugi", "miasto")}
+            if partner:
+                dane["ze_strony"] = firma.get("opis") or ""
+            opis = _json.dumps(dane, ensure_ascii=False)
+            zlecenie = f"Wygeneruj {ile - len(prompty)} pytań."
+            if partner:
+                zlecenie += " " + PYTANIA_KLIENTA
+            r = await claude.uruchom(zadanie_prompty, f"{zlecenie}\n\n{opis}")
             for p in (r.final_output.pytania or []):
+                # Pytania klienta idą do dokumentu słowo w słowo — odsiewamy te
+                # z obcym alfabetem, jak w Materiałach.
+                if partner and not _po_polsku(p):
+                    continue
                 if len(prompty) < ile and p.lower() not in {x.lower() for x in prompty}:
                     prompty.append(p)
 
@@ -2103,6 +2169,9 @@ async def api_audyt_geo(request):
         raport["obecnosc_w_zrodlach"] = obecnosc
         raport["powtorzenia"] = powtorzenia
         raport["zrodlo_promptow"] = zrodlo_promptow
+        if partner:
+            raport["partner"] = {"nazwa": partner.get("nazwa") or "",
+                                 "url": partner.get("url") or ""}
 
         try:
             baza.zapisz_audyt(firma.get("url", ""), raport,
@@ -2123,6 +2192,10 @@ async def api_audyt(request):
                                  "Brak danych DataForSEO w .env (DATAFORSEO_LOGIN / _PASSWORD)."})
         body = await request.json()
         firma = body.get("firma") or {}
+        partner = body.get("partner") or None
+        if partner and not (firma.get("url") or "").strip():
+            return JSONResponse({"ok": False, "error": "Brak adresu strony klienta."})
+        firma = await _przygotuj_klienta(firma, partner)
         ile = int(body.get("ile_promptow") or 5)
         z_aio = bool(body.get("ai_overview", True))
         # Jedyny dostawca danych SEO. Pole zostaje w raporcie i w bazie, bo stare
@@ -2144,8 +2217,10 @@ async def api_audyt(request):
         opis = (f"Firma: {nazwa}\nBranża: {firma.get('branza','')}\n"
                 f"Usługi: {', '.join(firma.get('uslugi', [])[:10])}\n"
                 f"Miasto: {firma.get('miasto','')}\nOpis: {firma.get('opis','')}")
-        r = await claude.uruchom(zadanie_prompty, f"Wygeneruj {ile} pytań.\n\n{opis}")
-        pytania = (r.final_output.pytania or [])[:ile]
+        zlecenie = f"Wygeneruj {ile} pytań." + (" " + PYTANIA_KLIENTA if partner else "")
+        r = await claude.uruchom(zadanie_prompty, f"{zlecenie}\n\n{opis}")
+        pytania = [p for p in (r.final_output.pytania or [])
+                   if not partner or _po_polsku(p)][:ile]
 
         # 2) Każde pytanie do KAŻDEGO wybranego modelu. Przy kilku modelach widać,
         # czy brak wzmianki to cecha jednego silnika, czy prawidłowość — a to zupełnie
@@ -2267,6 +2342,9 @@ async def api_audyt(request):
         raport["silniki"] = [{"nazwa": s["nazwa"], "udzial": s["udzial"]} for s in silniki]
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne
+        if partner:
+            raport["partner"] = {"nazwa": partner.get("nazwa") or "",
+                                 "url": partner.get("url") or ""}
 
         # Gotowy raport zapisujemy na dysk. Odpowiedzi DataForSEO trafiają do fixtures/
         # automatycznie, ale wynik NASZEGO modelu (marki konkurencyjne) i cała złożona
@@ -2520,15 +2598,34 @@ class TrescRaportuGeo(TrescDokumentu):
     zrodla_wniosek: str
     techniczne_tytul: str
     techniczne_wstep: str
+    # Tylko przy mikroaudycie, który mierzy też Google. Przy audycie GEO zostają
+    # puste i sekcja SEO w dokumencie się nie pojawia.
+    seo_tytul: str = ""
+    seo_wstep: str = ""
+    seo_wniosek: str = ""
 
 
-RAPORT_GEO_SYSTEM = DOKUMENT_SYSTEM + """
+# Dwa warianty odbiorcy, wspólna lista pól. Audyt samej firmy wysyła ICEA;
+# audyt klienta partnera wysyła partner — dokładnie tak, jak materiał z zakładki
+# Materiały, tylko z pełnym pomiarem zamiast trzech pytań.
+_ODBIORCA_ICEA = """
 
 ZMIANA ODBIORCY WZGLĘDEM POWYŻSZEGO: ten materiał dostaje FIRMA, którą właśnie
 zmierzyliśmy, i wysyła go ICEA, nie żaden partner. Mówisz do niej „Ty", „Twoja
 firma". Nie ma tu drugiej firmy, której pracę trzeba docenić — jest pomiar i to,
 co z niego wynika. Sekcja o podziale ról mówi więc, co zostaje po stronie firmy
-(jej produkt, jej klienci, jej zespół), a co bierzemy na siebie my.
+(jej produkt, jej klienci, jej zespół), a co bierzemy na siebie my."""
+
+_ODBIORCA_KLIENT = """
+
+ODBIORCA I NADAWCA: ten materiał dostaje KLIENT partnera — firma, której stronę
+zmierzyliśmy. Wysyła go partner, z którym klient już pracuje; dostaniesz dane
+obu. Mówisz do klienta „Ty", „Twoja firma". O partnerze piszesz w trzeciej osobie
+i z uznaniem, dokładnie jak w zasadach powyżej: on zbudował fundament, my
+dokładamy warstwę, której sam nie robi. Pytania w pomiarze dotyczą tego, co
+klient sprzedaje — nie partnera i nie agencji."""
+
+_POLA_RAPORTU = """
 
 LICZBY SĄ ZMIERZONE, NIE SZACOWANE. Dostajesz wynik prawdziwego badania. Nie
 zaokrąglaj w górę, nie dopisuj liczb, których nie ma, i nie nazywaj wyniku
@@ -2555,7 +2652,15 @@ DODATKOWE POLA:
   ich — wprowadź je jednym akapitem.
 - audyt_wstep, audyt_wniosek: krótszy blok nad ramką z prawdziwymi odpowiedziami
   modeli. Wstęp zapowiada, że niżej są prawdziwe odpowiedzi, wniosek mówi, czego
-  w nich szukać."""
+  w nich szukać.
+- seo_tytul, seo_wstep, seo_wniosek: TYLKO gdy dostaniesz dane z Google (frazy,
+  pozycje, ruch). Wstęp mówi, co zmierzyliśmy w zwykłej wyszukiwarce; wniosek
+  zestawia to z wynikiem w AI — strona bywa widoczna w Google i nieobecna
+  w odpowiedziach modeli, i to jest najciekawsza rzecz do powiedzenia. Bez danych
+  z Google zostaw wszystkie trzy pola puste."""
+
+RAPORT_GEO_SYSTEM = DOKUMENT_SYSTEM + _ODBIORCA_ICEA + _POLA_RAPORTU
+RAPORT_KLIENTA_SYSTEM = DOKUMENT_SYSTEM + _ODBIORCA_KLIENT + _POLA_RAPORTU
 
 zadanie_raport_geo = claude.Zadanie(
     nazwa="raport-geo-dokument",
@@ -2564,6 +2669,15 @@ zadanie_raport_geo = claude.Zadanie(
     staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU
           + _NOWA_LINIA * 2 + profil.synergie(),
     instrukcje=RAPORT_GEO_SYSTEM,
+)
+
+zadanie_raport_klienta = claude.Zadanie(
+    nazwa="raport-klienta-dokument",
+    model=MOCNY,                 # dokument idzie do klienta partnera
+    schemat=TrescRaportuGeo,
+    staly=profil.pelny() + _NOWA_LINIA * 2 + KOTWICA_PROFILU
+          + _NOWA_LINIA * 2 + profil.synergie(),
+    instrukcje=RAPORT_KLIENTA_SYSTEM,
 )
 
 
@@ -2590,9 +2704,27 @@ async def api_dokument_audyt(request):
         p = raport.get("podsumowanie") or {}
         z = raport.get("zrodla") or {}
         tech = raport.get("techniczne") or {}
+        seo = raport.get("seo") or {}
 
-        wejscie = _NOWA_LINIA.join([
+        # Audyt klienta partnera: front przysyła pełne dane partnera (z researchu),
+        # bo dokument ma docenić jego konkretną pracę, a raport niesie tylko nazwę.
+        partner = None
+        if raport.get("partner"):
+            partner = body.get("partner") or raport["partner"]
+
+        naglowek = ([
+            "PARTNER (kto wysyła ten materiał): " + _json.dumps(
+                {k: partner.get(k) for k in ("nazwa", "branza", "opis", "uslugi",
+                                             "case_studies", "kategoria")},
+                ensure_ascii=False),
+            "",
+            "KLIENT (odbiorca, jego stronę zmierzyliśmy): " + _json.dumps(
+                firma, ensure_ascii=False),
+        ] if partner else [
             "FIRMA (odbiorca raportu): " + _json.dumps(firma, ensure_ascii=False),
+        ])
+
+        wejscie = _NOWA_LINIA.join(naglowek + [
             "",
             "POMIAR: " + _json.dumps({
                 "pytan": p.get("promptow"),
@@ -2623,13 +2755,24 @@ async def api_dokument_audyt(request):
             "USTALENIA TECHNICZNE: " + _json.dumps(
                 [{"waga": u.get("waga"), "tytul": u.get("tytul")}
                  for u in (tech.get("ustalenia") or [])], ensure_ascii=False),
+            "",
+            "GOOGLE (zwykła wyszukiwarka): " + (_json.dumps({
+                "fraz_w_top3": seo.get("top3"), "fraz_w_top10": seo.get("top10"),
+                "fraz_lacznie": seo.get("fraz_lacznie"), "ruch_miesiecznie": seo.get("ruch"),
+                "najwazniejsze_frazy": [{k: f.get(k) for k in ("fraza", "pozycja", "wolumen")}
+                                        for f in (seo.get("frazy") or [])[:8]],
+                "konkurenci_w_google": [k.get("domena") for k in (seo.get("konkurenci") or [])[:6]],
+            }, ensure_ascii=False) if seo.get("fraz_lacznie") else "nie mierzono"),
         ])
 
-        w = await claude.uruchom(zadanie_raport_geo, wejscie)
+        zadanie = zadanie_raport_klienta if partner else zadanie_raport_geo
+        w = await claude.uruchom(zadanie, wejscie)
         tresc = w.final_output.model_dump()
         badanie = raport_geo.badanie_z_raportu(raport)
         badanie["data"] = f"{_dt.now():%d.%m.%Y}"
-        html = raport_geo.zbuduj(raport, tresc, badanie, nazwa)
+        html = raport_geo.zbuduj(raport, tresc, badanie,
+                                 (partner or {}).get("nazwa") or nazwa,
+                                 od_partnera=bool(partner))
 
         return JSONResponse({"ok": True, "html": html,
                              "plik": raport_geo.nazwa_pliku(nazwa)})

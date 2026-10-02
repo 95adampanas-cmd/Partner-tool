@@ -1166,6 +1166,41 @@ def sprawdz_raport_geo() -> int:
     ok = raport_geo.nazwa_pliku("Tebim").startswith("audyt-ai-tebim-")
     print(f"  {'OK  ' if ok else 'BŁĄD'} | nazwa pliku: {raport_geo.nazwa_pliku('Tebim')}")
     bledy += not ok
+
+    # Audyt GEO nie mierzy Google — sekcja SEO nie może pojawić się z zerami.
+    ok = 'class="s-seo"' not in html
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | audyt GEO bez danych Google nie ma sekcji SEO")
+    bledy += not ok
+
+    # ── AUDYT KLIENTA PARTNERA ──────────────────────────────────────
+    # Raport dla Trafiki wysyła Tebim, jak materiał z zakładki Materiały: zdanie
+    # „otrzymujesz ten materiał od firmy, z którą pracujesz" zostaje z wzoru, bo
+    # jest prawdziwe. Podmiana na „przygotowany dla" przedstawiałaby klienta
+    # jako adresata własnego audytu od ICEA, a partnera wymazywała z obrazka.
+    klient = {**raport,
+              "firma": {"nazwa": "Trafika", "domena": "trafika.pl", "url": "https://trafika.pl"},
+              "partner": {"nazwa": "Tebim", "url": "https://tebim.pro"},
+              "seo": {"dane_wiarygodne": True, "etykieta_czolo": "fraz w TOP 3",
+                      "top3": 12, "top10": 40, "fraz_lacznie": 1250, "ruch": 3604,
+                      "frazy": [{"fraza": "tytoń, gilzy", "pozycja": 3, "wolumen": 9900, "ruch": 320}],
+                      "konkurenci": [{"domena": "dopalenia.pl", "wspolne_frazy": 881}]}}
+    html_k = raport_geo.zbuduj(klient, {**tresc, "seo_tytul": "Jak radzi sobie w Google",
+                                        "seo_wstep": "SW", "seo_wniosek": "SWN"},
+                               badanie, "Tebim", od_partnera=True)
+    ok = ("otrzymujesz ten materiał od firmy, z którą pracujesz: Tebim" in html_k
+          and "materiał przygotowany dla" not in html_k
+          and "rozmowę umówi i poprowadzi razem z nami Tebim" in html_k)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | audyt klienta: nadawcą jest partner, jak w Materiałach")
+    bledy += not ok
+
+    ok = ('class="s-seo"' in html_k and "tytoń, gilzy" in html_k
+          and "9 900" in html_k and "1 250" in html_k)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | mikroaudyt: sekcja Google z frazami i liczbami")
+    bledy += not ok
+
+    ok = html_k.index('class="s-pomiar"') < html_k.index('class="s-seo"') < html_k.index('class="s-case"')
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | sekcja Google stoi między pomiarem AI a case study")
+    bledy += not ok
     return bledy
 
 
@@ -1296,6 +1331,20 @@ def sprawdz_nazwy() -> int:
             break
     else:
         print("  OK   | przeliczenie gotowej nazwy niczego nie zmienia")
+
+    # Audyt klienta: dwa systemy, wspólne pola. Klient dostaje materiał od partnera,
+    # audyt samej firmy — od ICEA. Gdyby wariant klienta odziedziczył „ZMIANA
+    # ODBIORCY", model pisałby do Trafiki, że nie ma żadnego partnera.
+    ok = ("ODBIORCA I NADAWCA" in app.RAPORT_KLIENTA_SYSTEM
+          and "ZMIANA ODBIORCY" not in app.RAPORT_KLIENTA_SYSTEM
+          and "ZMIANA ODBIORCY" in app.RAPORT_GEO_SYSTEM
+          and "seo_tytul" in app.RAPORT_KLIENTA_SYSTEM)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | raport klienta pisany od partnera, raport firmy od ICEA")
+    bledy += not ok
+
+    ok = "agencję" in app.PYTANIA_KLIENTA and "KLIENT KOŃCOWY" in app.PYTANIA_KLIENTA
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pytania audytu klienta nie dotyczą agencji")
+    bledy += not ok
 
     # Wyniki wyszukiwania dostają nazwę z tej samej funkcji.
     firmy = app.filtruj_firmy([{"url": "https://kingasroka.pl",
