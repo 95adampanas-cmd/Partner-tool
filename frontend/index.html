@@ -65,9 +65,9 @@
     </button>
 
     <div class="nav-grupa mono">Przegląd</div>
-    <button class="nav-item" data-sekcja="maile">
-      <svg class="ico"><use href="#i-mail"/></svg><span>Maile</span>
-      <em class="badge" id="badge-maile" hidden>0</em>
+    <button class="nav-item" data-sekcja="lejek">
+      <svg class="ico"><use href="#i-layers"/></svg><span>Lejek</span>
+      <em class="badge" id="badge-lejek" hidden>0</em>
     </button>
     <button class="nav-item" data-sekcja="audyty">
       <svg class="ico"><use href="#i-chart"/></svg><span>Audyty</span>
@@ -182,13 +182,15 @@
     </div>
   </section>
 
-  <section class="sekcja" data-sekcja="maile">
+  <!-- LEJEK: gdzie jest każdy partner i kim zająć się teraz. Etap zaznacza
+       człowiek — narzędzie nie widzi maili ani rozmów. -->
+  <section class="sekcja" data-sekcja="lejek">
     <header class="sekcja-head">
-      <h1>Maile</h1>
-      <p>Wszystkie szkice z wszystkich firm. Pracę nad jednym mailem prowadzisz
-        w karcie partnera — tutaj widzisz całość i decydujesz, co wysłać.</p>
+      <h1>Lejek</h1>
+      <p>Gdzie jest każdy partner i kim zająć się teraz. Etap zmieniasz tutaj albo
+        w karcie partnera — narzędzie nie widzi maili ani rozmów, więc wie tyle, ile zaznaczysz.</p>
     </header>
-    <div id="maile-box"></div>
+    <div id="lejek-box"></div>
   </section>
 
   <!-- AUDYTY: widok przekrojowy. Pojedynczy audyt robi się w karcie firmy,
@@ -196,8 +198,8 @@
   <section class="sekcja" data-sekcja="audyty">
     <header class="sekcja-head">
       <h1>Audyty</h1>
-      <p>Historia pomiarów: kto, kiedy i czym był badany. Ten sam adres zbadany dwa razy
-        to dwa pomiary — dopiero ich zestawienie pokazuje, czy coś drgnęło.</p>
+      <p>Każdy pomiar i każdy wygenerowany dokument, pogrupowane po firmie. Plik, który
+        poszedł do klienta, pobierasz stąd ponownie bez płacenia za nowy pomiar.</p>
     </header>
     <div id="audyty-box"></div>
   </section>

@@ -1138,8 +1138,218 @@ async def zapytaj_chatgpt_wprost(pytanie: str) -> dict:
     return {"tekst": str(wynik.final_output or ""), "zrodla": zrodla}
 
 
+# Ile zapytań do modeli leci naraz. Osiem pytań po dwa razy to szesnaście
+# wywołań z wyszukiwaniem w sieci — jedno po drugim trwały kilka minut. Przy
+# sześciu naraz wpadaliśmy w limit 200 tys. tokenów na minutę (wyszukiwanie
+# dokłada do każdego zapytania ~9 tys.), stąd cztery i ponawianie niżej.
+_NARAZ = asyncio.Semaphore(4)
+
+
+class BrakSrodkow(RuntimeError):
+    pass
+
+
+# Ile pytań musi przejść, żeby pomiar w ogóle szedł do dokumentu. Ella Boutique
+# (05.10.2026): dwa materiały w 25 sekund, drugi trafił w wyczerpany limit
+# minutowy i z 8 pytań przeszło jedno — dokument wyszedł z „Zadaliśmy 1 pytanie".
+MIN_UDZIAL_ZMIERZONYCH = 0.75
+_ZA_MALO_ODPOWIEDZI = ("OpenAI odrzucił część zapytań (limit na minutę). Zmierzono {z} z {w} "
+                       "pytań — to za mało na rzetelny dokument. Spróbuj ponownie za minutę.")
+
+
+def pomiar_kompletny(zmierzone: int, zadane: int) -> bool:
+    return zadane > 0 and zmierzone >= zadane * MIN_UDZIAL_ZMIERZONYCH
+
+
+def _czekaj_po_limicie(tekst: str, proba: int) -> float:
+    """Ile czekać po odmowie z limitu. OpenAI podaje to w komunikacie („try again
+    in 1.2s"); bez tej wskazówki — wykładniczo, do 20 s."""
+    m = re.search(r"try again in ([\d.]+)\s*(ms|s)", tekst)
+    if m:
+        sek = float(m.group(1)) / (1000 if m.group(2) == "ms" else 1)
+        return min(sek + 1 + proba, 30)
+    return min(2 ** (proba + 1), 20)
+
+
+async def _zmierz(pytaj, pytania: list[str], powtorzenia: int,
+                  nazwa: str, domena: str) -> list[dict]:
+    """Każde pytanie `powtorzenia` razy, równolegle. Wiersze w kolejności pytań.
+
+    Nieudane wywołanie nie wywraca pomiaru: pytanie liczy się z prób, które
+    przeszły, a gdy żadna nie przeszła — wypada z pomiaru zamiast liczyć się
+    jako „marki nie było".
+    """
+    async def raz(pytanie):
+        # Do ośmiu prób: przy limicie minutowym łącznie ok. minuty czekania,
+        # czyli tyle, ile trwa jego odnowienie.
+        for proba in range(8):
+            try:
+                async with _NARAZ:
+                    surowy = await pytaj(pytanie)
+                return audyt.z_wlasnego_zapytania(surowy["tekst"], surowy["zrodla"],
+                                                  nazwa, domena, pytanie)
+            except Exception as e:
+                tekst = str(e)
+                # Pusty portfel to nie chwilowy błąd: pomiar bez odpowiedzi nie
+                # może udawać pomiaru, więc przerywamy z jasnym komunikatem.
+                if "insufficient_quota" in tekst or "credit_balance" in tekst:
+                    raise BrakSrodkow("Skończyły się środki na koncie API (OpenAI/Anthropic). "
+                                      "Doładuj konto i spróbuj ponownie.") from e
+                # Limit na minutę mija po sekundach — czekamy i ponawiamy.
+                if "rate_limit" in tekst and proba < 7:
+                    await asyncio.sleep(_czekaj_po_limicie(tekst, proba))
+                    continue
+                print(f"  (pytanie nie przeszło: {pytanie[:60]} — {tekst[:120]})")
+                return None
+
+    async def jedno(pytanie):
+        proby = [x for x in await asyncio.gather(*(raz(pytanie) for _ in range(powtorzenia)))
+                 if x]
+        return audyt.scal_powtorzenia(proby) if proby else None
+
+    return [w for w in await asyncio.gather(*(jedno(p) for p in pytania)) if w]
+
+
+def bez_polecen(wiersze: list[dict]) -> int:
+    """Odpowiedzi, w których AI nie poleciło NIKOGO — ani badanej firmy, ani innej.
+
+    Liczone osobno, bo to nie jest przegrana z konkurencją. Na Trafice trzy z
+    czterech pytań o tytoń skończyły się odmową z powodu prawa i odsyłaczem do
+    gov.pl; w zbiorczym „0 z 4" wyglądały jak miejsce zajęte przez kogoś innego.
+    """
+    return sum(1 for w in wiersze if not w.get("wspomniana") and not w.get("marki"))
+
+
+# Pytanie o samą markę. Pomiar kategorii mówi, czy AI markę POLECA; to pytanie
+# mówi, czy ją w ogóle ZNA i czy opisuje zgodnie ze stroną. Nie wchodzi do
+# liczenia wzmianek — zawiera nazwę, więc „wspomniana" byłaby zawsze.
+# „Czym się zajmuje" kieruje odpowiedź na ofertę — samo „co wiesz o" kończyło się
+# listą NIP-u, telefonu i adresu (Ella Boutique, 05.10.2026), z której nic nie wynika.
+PYTANIE_O_MARKE = "Co wiesz o {domena}? Czym zajmuje się ta firma?"
+
+
+# BEZ KATEGORII „BŁĘDNE" (05.10.2026). Kod sprawdzi, czy coś STOI na stronie albo
+# w odpowiedzi, ale nie sprawdzi, czy jedno drugiemu PRZECZY. Na Ella Boutique
+# ocena uznała za błąd salony stacjonarne, które sklep ma — są na podstronie
+# Kontakt, nie na głównej. Fałszywy zarzut w dokumencie dla klienta kosztuje
+# więcej niż przemilczany prawdziwy.
+class OcenaMarki(BaseModel):
+    zna_marke: bool
+    zgodne: list[str]
+    pominiete: list[str]
+
+
+zadanie_ocena_marki = claude.Zadanie(
+    nazwa="ocena-marki",
+    model=MOCNY,                 # wynik trafia do klienta jako ocena jego marki
+    schemat=OcenaMarki,
+    max_tokenow=1000,
+    instrukcje="""Dostajesz odpowiedź ChatGPT na pytanie o firmę i tekst ze strony tej
+firmy. Porównaj je. Nie korzystaj z własnej wiedzy o firmie.
+
+PORÓWNUJESZ TYLKO TO, CZYM FIRMA JEST: co sprzedaje lub robi, główne kategorie
+oferty, czym się wyróżnia, gdzie działa. POMIJASZ w całości: dane kontaktowe
+i rejestrowe (telefon, e-mail, adres, NIP, REGON, KRS), rozmiary, ceny, koszty
+i warunki dostawy, zwroty, płatności, godziny otwarcia, forma prawna i właściciel.
+Nie wpisuj ich do żadnej listy.
+
+- zna_marke: czy odpowiedź opisuje TĘ firmę (a nie inną, i nie „nic nie wiem").
+- zgodne: krótkie fakty z odpowiedzi, które potwierdza tekst strony (po kilka słów).
+- pominiete: GŁÓWNE kategorie oferty widoczne na stronie, których w odpowiedzi NIE MA
+  ani dosłownie, ani w innej formie gramatycznej. Każda pozycja 1-3 słowa, sama nazwa
+  kategorii (np. „herbata"). Zanim wpiszesz pozycję, przeczytaj odpowiedź jeszcze raz
+  i upewnij się, że tego słowa w niej nie ma.""",
+)
+
+
+# Druga linia obrony, gdy model mimo instrukcji wpisze szczegół administracyjny.
+_POZA_OCENA = re.compile(r"telefon|\btel\b|e-?mail|\bnip\b|regon|\bkrs\b|adres|\bul\.|"
+                         r"właściciel|spółk|sp\. ?z ?o|działa jako|"
+                         r"rozmiar|\bcen[ayi]?\b|dostaw|zwrot|płatno|godzin|\+48|\d{3}[ -]\d{3}",
+                         re.IGNORECASE)
+
+
+def _istotne(tekst: str) -> bool:
+    return not _POZA_OCENA.search(tekst or "")
+
+
+# Linie odpowiedzi z danymi rejestrowymi i kontaktowymi. Wycinamy je z tego, co
+# pokazujemy w dokumencie — NIP i telefon nic klientowi nie mówią, a zasłaniają
+# to, co AI wie o jego ofercie. Dokument mówi wprost, że je pominęliśmy.
+_LINIA_KONTAKTOWA = re.compile(r"\bnip\b|regon|\bkrs\b|telefon|\btel\.?\s|e-?mail|@|\+48|"
+                               r"\bul\.\s|\d{2}-\d{3}\s|dane (firmy|rejestrowe|kontaktowe)",
+                               re.IGNORECASE)
+
+
+def bez_danych_kontaktowych(tekst: str) -> str:
+    wynik = []
+    for linia in (tekst or "").split("\n"):
+        if _LINIA_KONTAKTOWA.search(linia):
+            continue
+        wynik.append(linia)
+    # Nagłówek listy („Dane firmy z kontaktu:"), pod którym nic nie zostało.
+    czyste = []
+    for n, linia in enumerate(wynik):
+        nast = next((x for x in wynik[n + 1:] if x.strip()), "")
+        if linia.rstrip().endswith(":") and not nast.lstrip().startswith(("-", "*", "•")):
+            continue
+        czyste.append(linia)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(czyste)).strip()
+
+
+def _jest_w_tekscie(fraza: str, tekst: str) -> bool:
+    """Czy fraza (w dowolnej odmianie) pada w tekście — po rdzeniach słów.
+
+    Model oceniający napisał „pominął kawę" o odpowiedzi, w której stało
+    „kawa". Odmiana zmienia końcówkę, więc porównujemy początki słów.
+    """
+    t = (tekst or "").lower()
+    slowa = [w for w in re.findall(r"\w+", (fraza or "").lower()) if len(w) >= 3]
+    return bool(slowa) and all(w[:max(3, min(5, len(w) - 1))] in t for w in slowa)
+
+
+async def pytanie_o_marke(domena: str, ze_strony: str = "") -> dict | None:
+    if not domena:
+        return None
+    pytanie = PYTANIE_O_MARKE.format(domena=domena)
+    try:
+        surowy = await zapytaj_chatgpt_wprost(pytanie)
+    except Exception:
+        return None
+    # CAŁA strona główna, nie skrót z researchu. Na skrócie do 2000 znaków ocena
+    # uznała „produkty CBD" za błąd ChatGPT — a CBD stoi na stronie Trafiki, tylko
+    # dalej niż dwa tysiące znaków.
+    html = await asyncio.to_thread(pobierz, f"https://{domena}")
+    strona = (tekst_ze_strony(html) if html else "")[:16000] or (ze_strony or "")
+    odp = surowy["tekst"]
+    marka = {"pytanie": pytanie, "odpowiedz": odp, "zrodla": surowy["zrodla"],
+             "odpowiedz_pokaz": bez_danych_kontaktowych(odp)}
+    # Ocena ODDZIELNIE od pisania dokumentu i sprawdzona kodem. Model piszący
+    # dokument dostaje gotową, zweryfikowaną listę i z niej pisze wniosek.
+    if strona and odp.strip():
+        try:
+            o = (await claude.uruchom(
+                zadanie_ocena_marki,
+                f"ODPOWIEDŹ CHATGPT:\n{odp[:3000]}\n\nTEKST ZE STRONY:\n{strona}")).final_output
+            marka["ocena"] = {
+                "zna_marke": o.zna_marke,
+                "zgodne": [x for x in o.zgodne if _istotne(x)][:5],
+                # Pominięte: musi być na stronie i nie może być w odpowiedzi.
+                "pominiete": [x for x in o.pominiete if _istotne(x)
+                              and _jest_w_tekscie(x, strona) and not _jest_w_tekscie(x, odp)][:4],
+            }
+        except Exception:
+            pass          # bez oceny strona pokaże samą odpowiedź
+    return marka
+
+
+class MarkiJednejOdpowiedzi(BaseModel):
+    firmy: list[str]
+    produkty: list[str]
+
+
 class MarkiWOdpowiedziach(BaseModel):
-    marki_per_odpowiedz: list[list[str]]
+    odpowiedzi: list[MarkiJednejOdpowiedzi]
 
 
 # Wyciąganie marek po **pogrubieniu** nie działa: model pogrubia też zwykłe frazy
@@ -1149,24 +1359,67 @@ zadanie_marki = claude.Zadanie(
     nazwa="marki",
     model=TANI,                  # rozpoznawanie nazw własnych — klasyfikacja, nie generowanie
     schemat=MarkiWOdpowiedziach,
-    instrukcje="""Dostajesz ponumerowane odpowiedzi AI. Dla KAŻDEJ wypisz nazwy FIRM,
-które w niej wystąpiły jako polecani/wymieniani dostawcy usług.
+    # Dwie listy, nie jedna (05.10.2026). Na Trafice „zamiast Trafiki" stały Nescafé,
+    # Jacobs i Illy — kawy, które Trafika sama sprzedaje. Konkurentem jest ten, u kogo
+    # można kupić; marka produktu to coś, co klient może mieć na półce.
+    instrukcje="""Dostajesz ponumerowane odpowiedzi AI. Dla KAŻDEJ rozdziel nazwy własne
+na dwie listy:
+
+- firmy: polecane jako MIEJSCE ZAKUPU albo WYKONAWCA — sklepy, platformy sprzedażowe,
+  porównywarki, palarnie i producenci sprzedający u siebie, agencje, usługodawcy
+  (np. „Coffeedesk", „Allegro", „Ceneo", „Waynet", „Convertis").
+- produkty: marki PRODUKTÓW polecane do wyboru, nie jako miejsce zakupu
+  (np. „Nescafé", „Jacobs", „Lavazza", „Zippo", „IQOS"). Sama marka, bez nazwy
+  wariantu: „Jacobs", nie „Jacobs Kronung"; „illy" raz, nie „illy Classico" i „illy
+  Dark Roast" osobno.
+
+Ta sama nazwa bywa jednym i drugim (Tchibo ma sklepy i kawę). Decyduje rola w zdaniu:
+„kup w X", „zamów u X", „X ma w ofercie" — firma; „wybierz X", „X smakuje" — produkt.
 
 ZASADY:
-- TYLKO nazwy własne firm (np. „Waynet", „Convertis", „Astrabit").
+- TYLKO nazwy własne.
 - NIE wypisuj: nazw usług, certyfikatów, platform (PrestaShop, Shopify, WordPress),
   miast, ogólnych fraz („Doświadczenie", „Certyfikacja", „Expert").
-- Jeśli w odpowiedzi nie ma żadnej firmy — pusta lista dla tej pozycji.
-- Zachowaj kolejność: lista wyników musi mieć tyle pozycji, ile dostałeś odpowiedzi.""",
+- Gdy w odpowiedzi nie ma nazw danego rodzaju — pusta lista.
+- Zachowaj kolejność: wyników ma być tyle, ile dostałeś odpowiedzi.""",
 )
+
+
+async def marki_modelem(wiersze: list[dict], nazwa: str, domena: str) -> None:
+    """Marki konkurencji w każdej odpowiedzi — przez model, nie regex. Na miejscu."""
+    if not wiersze:
+        return
+    try:
+        zlepek = _NOWA_LINIA.join(
+            f"{i}. {w['odpowiedz'][:2500]}" for i, w in enumerate(wiersze, 1))
+        rm = await claude.uruchom(zadanie_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
+        war = audyt.warianty_marki(nazwa, domena)
+        obca = lambda m: not any(x in m.lower() for x in war)
+        for w, o in zip(wiersze, rm.final_output.odpowiedzi):
+            w["marki"] = [m for m in o.firmy if obca(m)]
+            w["marki_produktow"] = [m for m in o.produkty if obca(m)]
+    except Exception:
+        pass          # zostaje wersja z parsera — lepsze to niż brak
 
 
 zadanie_prompty = claude.Zadanie(
     nazwa="prompty-audyt",
     model=TANI,
     schemat=Prompty,
-    max_tokenow=800,
-    instrukcje=audyt.PROMPT_GENERATORA.format(ile="{ile}").replace("{ile}", "5"),
+    max_tokenow=1500,
+    # Liczba pytań przychodzi w zleceniu. Wpisane tu na sztywno „5" wygrywało ze
+    # zleceniem „Wygeneruj 7 pytań" i audyt z minimum ośmiu pytań dostawał sześć.
+    instrukcje=audyt.PROMPT_GENERATORA.format(ile="tyle (ile podano w zleceniu)"),
+)
+# Pytania klienta partnera idą do dokumentu SŁOWO W SŁOWO — tańszy model
+# przepisywał opisy produktów („kombinezon z piórami w brązowym kolorze") i pytał
+# o porady zamiast o sklep. Sonnet trzyma się reguł; koszt to ułamek centa.
+zadanie_prompty_klienta = claude.Zadanie(
+    nazwa="prompty-klienta",
+    model=MOCNY,
+    schemat=Prompty,
+    max_tokenow=1500,
+    instrukcje=audyt.PROMPT_GENERATORA.format(ile="tyle (ile podano w zleceniu)"),
 )
 
 
@@ -1197,7 +1450,98 @@ wpisał, np. „sklep z tytoniem online", „kawiarnia specialty Kraków",
 # początku — tutaj w audycie, który zadaje pytań więcej.
 PYTANIA_KLIENTA = ("Pytania zadaje KLIENT KOŃCOWY tej firmy, szukając tego, co ona "
                    "sprzedaje. Pytaj o JEJ kategorię i produkt — nigdy o nazwę firmy "
-                   "i nigdy o agencję, wykonawcę ani wdrożenie strony.")
+                   "i nigdy o agencję, wykonawcę ani wdrożenie strony. Pytaj o te "
+                   "produkty z oferty, przy których asystent AI poleca sklepy. Przy "
+                   "wyrobach, których sprzedaż lub reklamę ogranicza prawo (papierosy, "
+                   "tytoń, nikotyna, alkohol, leki na receptę, hazard, broń), asystent "
+                   "odmawia polecania — pomiń je i pytaj o resztę oferty (np. kawę, "
+                   "akcesoria).\n\n"
+                   # Zmierzone na Ella Boutique (05.10.2026): „Szukam eleganckiej sukienki
+                   # na wesele, coś z brokatem i rozcięciem" — trzy cechy naraz. Tak nikt
+                   # nie pyta, a odpowiedź zawsze wskazuje gigantów z filtrami (Zalando,
+                   # Answear), bo tylko oni mają tak wąskie dopasowanie.
+                   "JAK UŁOŻYĆ PYTANIA:\n"
+                   "- KAŻDE pytanie prosi o wskazanie, GDZIE kupić albo zamówić („gdzie "
+                   "kupić…”, „jaki sklep poleca…”, „polecisz sklep z…”). Pytanie o poradę "
+                   "(„jaka sukienka na co dzień”) nie mierzy, czy AI poleca sklep.\n"
+                   "- Opieraj je na tym, co firma naprawdę sprzedaje: kategorie z "
+                   "[MENU GŁÓWNE SERWISU] i lista `topowe_produkty` (bestsellery sklepu). "
+                   "Z produktu bierz sam RODZAJ, bez szczegółów z jego opisu (kolor, "
+                   "pióra, wiązanie, dekolt) — „Kombinezon Mary brązowy z piórami” to "
+                   "„kombinezon damski na wesele”.\n"
+                   "- Rozłóż pytania na różne kategorie i produkty, nie pięć wariantów jednego.\n"
+                   "- Jedna cecha w pytaniu: okazja ALBO styl ALBO cena. Nie łącz kilku "
+                   "cech naraz (brokat + rozcięcie + kolor).\n"
+                   "- Krótko, jak człowiek: 5-12 słów.\n"
+                   "- Gdy strona podaje wyróżnik (np. szyte w Polsce, duże rozmiary) — jedno "
+                   "pytanie o niego. Gdy firma ma sklepy stacjonarne w konkretnych miastach "
+                   "— jedno pytanie lokalne o jedno z tych miast.")
+
+
+# Produkty, przy których asystent AI odmawia polecania sprzedawców (prawo, zdrowie).
+# Pytanie o nie mierzy zasady modelu, nie widoczność firmy: „sklep z tytoniem online"
+# przyszło z podpowiedzi Google, ominęło instrukcję generatora i skończyło się
+# odmową z odsyłaczem do gov.pl. Filtr działa na KAŻDE źródło pytań.
+_REGULOWANE = re.compile(
+    r"\b(e-?)?papieros\w*|\btyto[nń]\w*|\bnikotyn\w*|\bsnus\w*|\bvape\w*|\bwap(e|ow)\w*"
+    r"|\balkohol\w*|\bw[oó]dk\w*|\bna recept\w*|\bhazard\w*|\bkasyn\w*|\bbukmacher\w*"
+    r"|\bbro[nń]\b|\bbroni\b|\bamunicj\w*", re.IGNORECASE)
+
+
+def regulowane(pytanie: str) -> bool:
+    return bool(_REGULOWANE.search(pytanie or ""))
+
+
+def bez_regulowanych(pytania: list[str]) -> list[str]:
+    """Pytania bez produktów regulowanych. Gdy cała oferta jest regulowana i nic
+    nie zostaje, oddajemy oryginał — wtedy uczciwy wynik to właśnie odmowy AI,
+    a licznik „nikt nie wygrał" pokaże je osobno."""
+    zostaja = [p for p in pytania if not regulowane(p)]
+    return zostaja or pytania
+
+
+# Dział bestsellerów: link z takim tekstem albo adresem. „top" tylko jako osobne
+# słowo w tekście — w adresach siedzi w „stopka" i „laptop".
+_TOP_TEKST = re.compile(r"bestseller|najpopularniejsz|najchętniej|\bhity\b|\btop\b|polecane",
+                        re.IGNORECASE)
+_TOP_ADRES = re.compile(r"bestseller|najpopularniejsz|najchetniej", re.IGNORECASE)
+_TYTUL_PRODUKTU = "[class*=product-title], [class*=product-name], [class*=product_name]"
+
+
+def topowe_produkty(url: str, html: str | None = None, ile: int = 12) -> list[str]:
+    """Nazwy produktów z działu bestsellerów sklepu, a bez niego — ze strony głównej.
+
+    Pytania o produkty, które sklep NAPRAWDĘ sprzedaje najlepiej, mierzą to, na
+    czym mu zależy. Na Ella Boutique dział „Bestsellery" dał 24 nazwy z opisami
+    („elegancki kombinezon damski z piórami"), z których model układa naturalne
+    pytania o rodzaj produktu. Klasy `product-title`/`product-name` to standard
+    PrestaShop, WooCommerce i Shopera — strona bez nich zwraca pustą listę.
+    """
+    try:
+        html = html or pobierz(url)
+        if not html:
+            return []
+        glowna = BeautifulSoup(html, "html.parser")
+        link = next((urljoin(url, a["href"]) for a in glowna.find_all("a", href=True)
+                     if _TOP_TEKST.search(a.get_text(" ", strip=True)) or _TOP_ADRES.search(a["href"])),
+                    None)
+        strony = []
+        if link:
+            h = pobierz(link)
+            if h:
+                strony.append(BeautifulSoup(h, "html.parser"))
+        strony.append(glowna)
+        for zupa in strony:
+            nazwy = []
+            for x in zupa.select(_TYTUL_PRODUKTU):
+                t = " ".join(x.get_text(" ", strip=True).split()).rstrip(".… ")
+                if len(t) > 3 and t.lower() not in {n.lower() for n in nazwy}:
+                    nazwy.append(t[:120])
+            if nazwy:
+                return nazwy[:ile]
+    except Exception:
+        pass
+    return []
 
 
 async def _przygotuj_klienta(firma: dict, partner: dict | None) -> dict:
@@ -1214,6 +1558,8 @@ async def _przygotuj_klienta(firma: dict, partner: dict | None) -> dict:
         html = await asyncio.to_thread(pobierz, firma["url"])
         if html:
             firma["opis"] = tekst_ze_strony(html)[:2500]
+            firma["topowe_produkty"] = await asyncio.to_thread(
+                topowe_produkty, firma["url"], html)
     if not firma.get("branza") and firma.get("opis"):
         try:
             k = await claude.uruchom(zadanie_kategoria,
@@ -1529,8 +1875,6 @@ class TrescDokumentu(BaseModel):
     wstep_tresc: str
     audyt_wstep: str
     audyt_wniosek: str
-    dostep_tytul: str
-    dostep_tresc: str
     role_tytul: str
     role_wstep: str
     braki: list[Kafel]
@@ -1544,6 +1888,9 @@ class TrescDokumentu(BaseModel):
     przeplyw: list[Kafel] = []
     partner_opis: str = ""
     wspolny_cel: str = ""
+    # Strona „Co AI wie o Twojej marce" — tylko gdy zadaliśmy pytanie o markę.
+    marka_tytul: str = ""
+    marka_wniosek: str = ""
 
 
 # STYL JEST TU WAŻNIEJSZY NIŻ TREŚĆ i dlatego zajmuje większość promptu. Dokument
@@ -1568,7 +1915,21 @@ JAK PISAĆ (zasady ze wzoru, trzymaj się ich dosłownie):
 - Zdania typu „To jest fundament i on jest zrobiony" — doceniające, nie kurtuazyjne.
 - Konkret z researchu zamiast ogólnika: nazwij platformę, usługę albo realizację partnera.
 - Nie zmyślaj. Czego nie ma w danych, o tym nie piszesz.
+- Firmom, które wymieniło AI, nie przypisujesz branży, wielkości ani pozycji na rynku.
+  Nie masz tych danych. Podajesz nazwy i to, co o nich powiedziała odpowiedź AI.
+- Marek PRODUKTÓW (dostaniesz je osobno) nie nazywasz konkurencją ani firmami, które
+  „zajęły miejsce" klienta — klient może je sprzedawać.
 - Nie nazywaj modelu współpracy (white label, referral) i nie pisz o pieniądzach.
+
+PARTNERA OPISUJESZ JEGO GŁÓWNĄ KATEGORIĄ I NICZYM WIĘCEJ. Dostajesz pola
+`kategoria` i `branza` (np. „Sklepy internetowe", „agencja PrestaShop"). Z nich
+wynika, co partner robi — np. Tebim buduje sklepy internetowe na PrestaShop. Nie
+dopisujesz mu innych usług (pozycjonowania, kampanii, integracji, utrzymania), nawet
+jeśli brzmią prawdopodobnie. O jego pracy DLA TEGO KLIENTA mówi pole
+`klient_w_portfolio_partnera`: gdy true — partner zbudował klientowi to, co jest jego
+kategorią (np. sklep); gdy false — nie twierdzisz, że cokolwiek dla klienta zrobił,
+tylko piszesz, czym partner się zajmuje. Liczby i szczegóły oferty klienta („tysiące
+pozycji") bierzesz tylko z tekstu jego strony.
 
 CO MA BYĆ W POLACH:
 - wstep_tytul: cytat na okładce, dwa krótkie zdania o tym, co klient JUŻ ma od
@@ -1577,24 +1938,41 @@ CO MA BYĆ W POLACH:
 - wstep_tresc: jeden akapit, 3-4 zdania. Najpierw uznanie dla tego, co partner zrobił
   (konkretnie), potem jedno zdanie o tym, co dzieje się z tym dalej w odpowiedziach AI.
 - audyt_wstep: jedno zdanie pod nagłówkiem „Sprawdź to sam, zanim nam uwierzysz.",
-  wprowadzające pytania, które zadaliśmy ChatGPT. Wzór: „Zapytaj AI tak, jak zapytałby
-  Twój klient:" — kończ dwukropkiem, bo pod spodem stoją pytania.
+  wprowadzające pytania, które zadaliśmy ChatGPT. Nie powtarzaj samego nagłówka. Wzór:
+  „Zapytaj AI tak, jak zapytałby Twój klient:" — kończ dwukropkiem, bo pod spodem
+  stoją pytania.
 - audyt_wniosek: co z tego wynika dla klienta. Gdy marka nie padła — bez dramatyzowania,
   ze wzoru: „to nie znaczy, że wypadłeś z wyników; to znaczy, że nie było Cię w rozmowie,
   w której klient podejmował decyzję". Gdy padła — powiedz to wprost i bez przesady.
-- dostep_tytul i dostep_tresc: jedno zdanie o tym, czy roboty AI mają wstęp na stronę
-  klienta (dostaniesz wynik sprawdzenia). Gdy wszystko jest w porządku, napisz to
-  spokojnie — brak problemu też jest informacją. Zostaw oba pola puste tylko wtedy,
-  gdy nie udało się tego sprawdzić.
+  Dostaniesz też liczbę odpowiedzi, w których AI nie wskazało NIKOGO, u kogo kupić
+  (mogło wymienić same marki produktów). Tam nikt nie wygrał — nie pisz, że konkurencja
+  zajęła miejsce klienta; powiedz uczciwie, że przy tych pytaniach AI nikogo nie poleca.
+- marka_tytul, marka_wniosek: TYLKO gdy dostaniesz blok MARKA — odpowiedź ChatGPT na
+  pytanie o adres strony klienta i SPRAWDZONE PORÓWNANIE ze stroną (zgodne,
+  pominięte). marka_tytul: krótki nagłówek z kropką na końcu, który mówi, co wyszło
+  (np. „AI zna sklep, ale nie wie, co w nim kupisz."). Nagłówek i wniosek mówią
+  o tym, czym firma jest i co sprzedaje — nigdy o telefonie, adresie, NIP-ie,
+  rozmiarach, cenach czy dostawie. marka_wniosek: 2-3 zdania
+  WYŁĄCZNIE z porównania: co się zgadza i czego brakuje. Nie piszesz, że AI się myli —
+  tego nie sprawdzaliśmy. Nie dopisujesz pominięć spoza listy — lista jest
+  sprawdzona, Twoje wrażenie nie. Pusta
+  lista pominiętych znaczy, że AI wymieniło całą główną ofertę; wtedy tak napisz.
+  Ta sama zasada obowiązuje w kaflach `braki`: o tym, czego AI nie wie o ofercie,
+  piszesz tylko z tej listy. Bez bloku MARKA zostaw oba pola puste.
 - role_tytul: nagłówek sekcji o podziale ról, w rytmie wzoru („Opinie są dowodem.
   Pytanie, czy maszyna ma go do czego dopasować").
 - role_wstep: akapit — co partner robi dobrze i czego ta praca sama z siebie nie obejmuje.
   Wprost: to nie jest niczyje niedopatrzenie, to po prostu inna robota.
 - braki: dokładnie trzy kafle. Każdy to jedna rzecz, której praca partnera nie obejmuje,
-  opisana od strony klienta, nie od strony agencji.
+  opisana od strony klienta, nie od strony agencji. Tytuł kafla nie mówi więcej niż
+  pomiar: gdy marka padła choć raz, nie piszesz „AI nie wie, że istniejesz".
 - rola_partner_tytul: „Zostaje w [nazwa partnera]." — z kropką, jak we wzorze.
-- rola_partner: 4-6 punktów — to, co partner robi i co zostaje u niego. Z researchu.
-- rola_my: 4-6 punktów — co bierzemy na siebie. Z profilu ICEA i ujęć synergii.
+- rola_partner: 3-4 punkty — to, co zostaje u partnera. Wszystkie z jego głównej
+  kategorii (dla sklepów: sam sklep, platforma, kategorie i karty produktów, wygoda
+  zakupów). Tylko to, co partner buduje — nie działania handlowe klienta (promocje,
+  klub lojalnościowy, dobór oferty). Żadnych usług spoza kategorii.
+- rola_my: 4 punkty — co bierzemy na siebie: widoczność w odpowiedziach AI. Z profilu
+  ICEA i ujęć synergii, bez niczego, co należy do kategorii partnera.
 - przeplyw: dokładnie trzy kroki mechanizmu, od pracy partnera do odpowiedzi AI.
   Wzór dla firmy od opinii: „Opinia — klient zostawia ją po zakupie" → „Pytanie do AI —
   kolejny klient pyta, komu zaufać" → „Odpowiedź — Twoja nazwa i opinie jako powód".
@@ -2093,8 +2471,11 @@ async def api_audyt_geo(request):
             return JSONResponse({"ok": False, "error": "Brak adresu strony klienta."})
         firma = await _przygotuj_klienta(firma, partner)
 
-        powtorzenia = max(1, min(3, int(body.get("powtorzenia") or 2)))
-        ile = max(1, min(30, int(body.get("ile_promptow") or 8)))
+        # Minimum 2 powtórzenia i 8 pytań (02.10.2026). Przy jednym strzale „nie
+        # wymienili nas" znaczy tyle co rzut monetą, a cztery pytania nie dźwigają
+        # zdania „to nie kwestia jednego nieudanego pytania".
+        powtorzenia = max(2, min(3, int(body.get("powtorzenia") or 2)))
+        ile = max(8, min(30, int(body.get("ile_promptow") or 8)))
 
         # Tylko silniki na NASZYCH kluczach — to definicja tego audytu.
         wybrane = body.get("silniki") or ["chatgpt_wprost", "claude_wprost"]
@@ -2115,6 +2496,7 @@ async def api_audyt_geo(request):
             z_google = await asyncio.to_thread(
                 audyt_geo.podpowiedzi_google, bez_lokalizacji(baza_frazy), 10)
 
+        z_google = [x for x in z_google if not regulowane(x)]
         prompty = []
         for p in z_google:
             if len(prompty) < ile and p.lower() not in {x.lower() for x in prompty}:
@@ -2125,12 +2507,19 @@ async def api_audyt_geo(request):
             dane = {k: firma.get(k) for k in ("nazwa", "branza", "uslugi", "miasto")}
             if partner:
                 dane["ze_strony"] = firma.get("opis") or ""
+                dane["topowe_produkty"] = firma.get("topowe_produkty") or []
             opis = _json.dumps(dane, ensure_ascii=False)
             zlecenie = f"Wygeneruj {ile - len(prompty)} pytań."
             if partner:
                 zlecenie += " " + PYTANIA_KLIENTA
-            r = await claude.uruchom(zadanie_prompty, f"{zlecenie}\n\n{opis}")
-            for p in (r.final_output.pytania or []):
+            r = await claude.uruchom(zadanie_prompty_klienta if partner else zadanie_prompty,
+                                     f"{zlecenie}\n\n{opis}")
+            wygenerowane = (r.final_output.pytania or [])
+            if prompty:
+                wygenerowane = [x for x in wygenerowane if not regulowane(x)]
+            else:
+                wygenerowane = bez_regulowanych(wygenerowane)
+            for p in wygenerowane:
                 # Pytania klienta idą do dokumentu słowo w słowo — odsiewamy te
                 # z obcym alfabetem, jak w Materiałach.
                 if partner and not _po_polsku(p):
@@ -2142,34 +2531,31 @@ async def api_audyt_geo(request):
         zrodlo_promptow = {"google": z_google_ile,
                            "model": max(0, len(prompty) - z_google_ile)}
 
-        # ── Pytamy modele, każdy prompt N razy ───────────────────────────
+        # ── Pytamy modele, każdy prompt N razy, równolegle ───────────────
         wiersze, koszt = [], 0.0
         for opis_silnika in silniki:
             pytaj = (zapytaj_claude_wprost if opis_silnika["silnik"][0] == "anthropic"
                      else zapytaj_chatgpt_wprost)
-            for pytanie in prompty:
-                proby = []
-                for _ in range(powtorzenia):
-                    surowy = await pytaj(pytanie)
-                    proby.append(audyt.z_wlasnego_zapytania(
-                        surowy["tekst"], surowy["zrodla"], nazwa, domena, pytanie))
-                    koszt += opis_silnika["koszt"]
-                w = audyt.scal_powtorzenia(proby)
+            zmierzone = await _zmierz(pytaj, prompty, powtorzenia, nazwa, domena)
+            if not pomiar_kompletny(len(zmierzone), len(prompty)):
+                return JSONResponse({"ok": False, "error": _ZA_MALO_ODPOWIEDZI.format(
+                    z=len(zmierzone), w=len(prompty))})
+            for w in zmierzone:
+                koszt += opis_silnika["koszt"] * w.get("prob", powtorzenia)
                 w["silnik_nazwa"] = opis_silnika["nazwa"]
                 w["silnik_udzial"] = opis_silnika["udzial"]
                 wiersze.append(w)
 
-        # ── Marki konkurencji przez model, nie regex ─────────────────────
-        try:
-            zlepek = _NOWA_LINIA.join(
-                f"{i}. {w['odpowiedz'][:2500]}" for i, w in enumerate(wiersze, 1))
-            rm = await claude.uruchom(zadanie_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
-            war = audyt.warianty_marki(nazwa, domena)
-            for w, marki in zip(wiersze, rm.final_output.marki_per_odpowiedz):
-                w["marki"] = [m for m in marki
-                              if not any(x in m.lower() for x in war)]
-        except Exception:
-            pass          # zostaje wersja z parsera — lepsze to niż brak
+        await marki_modelem(wiersze, nazwa, domena)
+        marka = await pytanie_o_marke(domena, firma.get("opis") or "")
+
+        # Źródło pytań liczone z tego, co FAKTYCZNIE zmierzyliśmy. Pytanie, które
+        # nie przeszło, wypada z pomiaru — a w metodzie stało „Google (1) i model
+        # (7)" przy siedmiu pytaniach łącznie.
+        zmierzone = {w["prompt"] for w in wiersze}
+        z_google_ile = sum(1 for x in z_google if x in zmierzone)
+        zrodlo_promptow = {"google": z_google_ile,
+                           "model": max(0, len(zmierzone) - z_google_ile)}
 
         # ── Sekcje bez żadnego kosztu ────────────────────────────────────
         zrodla = audyt.analiza_zrodel(wiersze, domena)
@@ -2188,13 +2574,15 @@ async def api_audyt_geo(request):
         raport["obecnosc_w_zrodlach"] = obecnosc
         raport["powtorzenia"] = powtorzenia
         raport["zrodlo_promptow"] = zrodlo_promptow
+        raport["podsumowanie"]["bez_polecen"] = bez_polecen(wiersze)
+        raport["marka"] = marka
         if partner:
             raport["partner"] = {"nazwa": partner.get("nazwa") or "",
                                  "url": partner.get("url") or ""}
 
         try:
-            baza.zapisz_audyt(firma.get("url", ""), raport,
-                              (firma.get("tryb") or "partner"), "geo")
+            raport["audyt_id"] = baza.zapisz_audyt(firma.get("url", ""), raport,
+                                                   (firma.get("tryb") or "partner"), "geo")
         except Exception as e:
             print(f"  (nie udalo sie zapisac audytu GEO: {e})")
 
@@ -2215,7 +2603,7 @@ async def api_audyt(request):
         if partner and not (firma.get("url") or "").strip():
             return JSONResponse({"ok": False, "error": "Brak adresu strony klienta."})
         firma = await _przygotuj_klienta(firma, partner)
-        ile = int(body.get("ile_promptow") or 5)
+        ile = max(8, int(body.get("ile_promptow") or 8))
         z_aio = bool(body.get("ai_overview", True))
         # Jedyny dostawca danych SEO. Pole zostaje w raporcie i w bazie, bo stare
         # audyty maja zapisane "seranking" i musza dalej dac sie odczytac.
@@ -2237,9 +2625,10 @@ async def api_audyt(request):
                 f"Usługi: {', '.join(firma.get('uslugi', [])[:10])}\n"
                 f"Miasto: {firma.get('miasto','')}\nOpis: {firma.get('opis','')}")
         zlecenie = f"Wygeneruj {ile} pytań." + (" " + PYTANIA_KLIENTA if partner else "")
-        r = await claude.uruchom(zadanie_prompty, f"{zlecenie}\n\n{opis}")
-        pytania = [p for p in (r.final_output.pytania or [])
-                   if not partner or _po_polsku(p)][:ile]
+        r = await claude.uruchom(zadanie_prompty_klienta if partner else zadanie_prompty,
+                                 f"{zlecenie}\n\n{opis}")
+        pytania = bez_regulowanych([p for p in (r.final_output.pytania or [])
+                                    if not partner or _po_polsku(p)])[:ile]
 
         # 2) Każde pytanie do KAŻDEGO wybranego modelu. Przy kilku modelach widać,
         # czy brak wzmianki to cecha jednego silnika, czy prawidłowość — a to zupełnie
@@ -2254,7 +2643,7 @@ async def api_audyt(request):
         # Ile razy zadajemy KAŻDE pytanie. Modele są niedeterministyczne, więc jedna
         # próba nie odróżnia nieobecności od przypadku. Sufit 3 — wyżej koszt rośnie
         # liniowo, a rozróżnienie „stabilnie / przypadkiem / wcale" już mamy.
-        powtorzenia = max(1, min(3, int(body.get("powtorzenia") or 1)))
+        powtorzenia = max(2, min(3, int(body.get("powtorzenia") or 2)))
         for opis in silniki:
             for i, pytanie in enumerate(pytania, 1):
                 if opis.get("wlasny_klucz"):
@@ -2283,21 +2672,8 @@ async def api_audyt(request):
                 w["silnik_udzial"] = opis["udzial"]
                 wiersze.append(w)
 
-        # 2b) Marki konkurencyjne — jedno wywołanie na wszystkie odpowiedzi naraz (tanio)
-        if wiersze:
-            zlepek = "\n\n".join(
-                f"[ODPOWIEDŹ {i}]\n{w['odpowiedz'][:1500]}" for i, w in enumerate(wiersze, 1)
-            )
-            try:
-                rm = await claude.uruchom(zadanie_marki, f"Firma badana: {nazwa}\n\n{zlepek}")
-                war = audyt.warianty_marki(nazwa, domena)
-                for w, marki in zip(wiersze, rm.final_output.marki_per_odpowiedz):
-                    # ten sam filtr co w analizuj_odpowiedz — badana firma nie moze
-                    # trafic na wlasna liste konkurentow (nazwa bywa zapisana z domena)
-                    w["marki"] = [m for m in marki
-                                  if not any(x in m.lower() for x in war)]
-            except Exception:
-                pass  # zostaje wersja z parsera — lepsze to niż brak
+        # 2b) Konkurenci i marki produktów — jedno wywołanie na wszystkie odpowiedzi
+        await marki_modelem(wiersze, nazwa, domena)
 
         # 2c) Skąd model czerpie wiedzę — z zapisanych źródeł, bez dodatkowego kosztu
         zrodla = audyt.analiza_zrodel(wiersze, domena)
@@ -2361,6 +2737,11 @@ async def api_audyt(request):
         raport["silniki"] = [{"nazwa": s["nazwa"], "udzial": s["udzial"]} for s in silniki]
         raport["zrodla"] = zrodla
         raport["techniczne"] = techniczne
+        # Powtarzamy tylko na własnych kluczach — przez DataForSEO każde pytanie idzie raz.
+        raport["powtorzenia"] = (powtorzenia if silniki and all(
+            s.get("wlasny_klucz") for s in silniki) else 1)
+        raport["podsumowanie"]["bez_polecen"] = bez_polecen(wiersze)
+        raport["marka"] = await pytanie_o_marke(domena, firma.get("opis") or "")
         if partner:
             raport["partner"] = {"nazwa": partner.get("nazwa") or "",
                                  "url": partner.get("url") or ""}
@@ -2376,8 +2757,8 @@ async def api_audyt(request):
             plik = (Path(__file__).resolve().parent / "fixtures" /
                     f"raport_{domena}_{_dt.now():%Y%m%d_%H%M}.json")
             plik.write_text(_json.dumps(raport, ensure_ascii=False, indent=1), encoding="utf-8")
-            baza.zapisz_audyt(firma.get("url", ""), raport,
-                              (firma.get("tryb") or "partner"), dostawca)
+            raport["audyt_id"] = baza.zapisz_audyt(firma.get("url", ""), raport,
+                                                   (firma.get("tryb") or "partner"), dostawca)
             print(f"  raport zapisany: {plik.name}")
         except Exception as e:
             print(f"  (nie udalo sie zapisac raportu: {e})")
@@ -2408,6 +2789,18 @@ async def api_firma_usun(request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+async def api_etap(request):
+    """Etap lejka albo notatka przy partnerze — zaznaczane ręcznie, bo narzędzie
+    nie widzi maili ani rozmów."""
+    try:
+        body = await request.json()
+        stan = baza.ustaw_etap((body.get("url") or "").strip(),
+                               body.get("etap"), body.get("notatka"))
+        return JSONResponse({"ok": True, **stan})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
 async def api_koszyk(request):
     try:
         body = await request.json()
@@ -2426,6 +2819,23 @@ async def api_audyty(request):
         r = baza.audyt(int(id_))
         return JSONResponse({"ok": bool(r), "raport": r})
     return JSONResponse({"ok": True, "audyty": baza.audyty(url)})
+
+
+async def api_dokumenty(request):
+    """Zapisane dokumenty. Z `id` — sam plik: do pobrania albo, z `podglad=1`, do
+    otwarcia w przeglądarce. Bez `id` — lista nagłówków."""
+    id_ = request.query_params.get("id")
+    if not id_:
+        return JSONResponse({"ok": True, "dokumenty": baza.dokumenty()})
+    d = baza.dokument(int(id_))
+    if not d:
+        return JSONResponse({"ok": False, "error": "Nie ma takiego dokumentu."}, status_code=404)
+    naglowki = {}
+    if not request.query_params.get("podglad"):
+        from urllib.parse import quote
+        naglowki["Content-Disposition"] = (
+            f"attachment; filename*=UTF-8''{quote(d.get('plik') or 'dokument.html')}")
+    return Response(d["html"], media_type="text/html; charset=utf-8", headers=naglowki)
 
 
 async def api_czat(request):
@@ -2655,20 +3065,27 @@ DODATKOWE POLA:
 - pomiar_tytul, pomiar_wstep: nagłówek i akapit sekcji z wynikami pomiaru.
   Wstęp mówi, co dokładnie zmierzyliśmy, bez powtarzania samych liczb — one są
   obok, na kaflach i wykresie.
-- pomiar_wniosek: 2-3 zdania o tym, co wynik oznacza. Gdy modele różnią się
-  między sobą, powiedz to wprost — to najciekawsza rzecz w całym pomiarze.
+- pomiar_wniosek: 2-3 zdania o tym, co wynik oznacza. Procent liczymy od PYTAŃ
+  (procent_pytan_z_nazwa), nie od zapytań — nie zestawiaj go z liczbą zapytań. Gdy modele różnią się
+  między sobą, powiedz to wprost — to najciekawsza rzecz w całym pomiarze. Gdy
+  w części odpowiedzi AI nie wskazało nikogo, u kogo kupić, oddziel je: tam nikt nie wygrał.
 - konkurenci_tytul, konkurenci_wstep: sekcja o firmach wymienianych zamiast tej
   marki. Bez oceniania konkurencji; sam fakt wystarczy.
-- konkurenci_wniosek: co z tej listy wynika. Jeśli wśród wymienianych są duże
-  portale i sklepy, a nie firmy z tej samej półki, to jest osobna informacja.
+- konkurenci_wniosek: co z tej listy wynika. Nie przypisuj tym firmom branży,
+  wielkości ani pozycji na rynku — nie masz tych danych; nazwy i liczba wystąpień
+  wystarczą. Gdy część odpowiedzi nie wymieniła żadnej firmy, powiedz to.
 - zrodla_tytul, zrodla_wstep: sekcja o tym, skąd model bierze odpowiedzi.
   Wyjaśnij po ludzku, że model składa odpowiedź z cudzych stron.
-- zrodla_wniosek: najważniejsze zdanie w dokumencie, gdy marki nie ma na
-  stronach, które model cytuje. Powiedz to wprost i bez dramatyzowania: na tę
-  listę da się wejść, to jest robota do zrobienia.
-- techniczne_tytul, techniczne_wstep: sekcja o dostępie robotów i o tym, co
-  strona mówi maszynie. Ustalenia są wypisane pod spodem, więc nie streszczaj
-  ich — wprowadź je jednym akapitem.
+- zrodla_wniosek: co wynika z tego, skąd model bierze odpowiedzi. W tabeli
+  obecności są tylko strony, na które firma realnie może trafić — urzędy, akty
+  prawne, WHO, encyklopedie i sklepy z aplikacjami odsialiśmy. Zdanie „na tę listę
+  da się wejść" piszesz TYLKO o stronach typu ranking albo porównywarka / marketplace.
+  Gdy takich nie ma, niczego
+  nie obiecuj — powiedz spokojnie, skąd model brał odpowiedzi.
+- techniczne_tytul, techniczne_wstep: sekcja o tym, co strona mówi maszynie
+  (dane strukturalne, opis firmy, tytuły). O dostępie robotów nie piszesz — z
+  zewnątrz nie da się tego rzetelnie sprawdzić. Ustalenia są wypisane pod spodem,
+  więc nie streszczaj ich — wprowadź je jednym akapitem.
 - audyt_wstep, audyt_wniosek: krótszy blok nad ramką z prawdziwymi odpowiedziami
   modeli. Wstęp zapowiada, że niżej są prawdziwe odpowiedzi, wniosek mówi, czego
   w nich szukać.
@@ -2734,10 +3151,7 @@ async def api_dokument_audyt(request):
             partner = body.get("partner") or raport["partner"]
 
         naglowek = ([
-            "PARTNER (kto wysyła ten materiał): " + _json.dumps(
-                {k: partner.get(k) for k in ("nazwa", "branza", "opis", "uslugi",
-                                             "case_studies", "kategoria")},
-                ensure_ascii=False),
+            "PARTNER (kto wysyła ten materiał): " + _partner_dla_modelu(partner, nazwa),
             "",
             "KLIENT (odbiorca, jego stronę zmierzyliśmy): " + _json.dumps(
                 firma, ensure_ascii=False),
@@ -2748,17 +3162,27 @@ async def api_dokument_audyt(request):
         wejscie = _NOWA_LINIA.join(naglowek + [
             "",
             "POMIAR: " + _json.dumps({
-                "pytan": p.get("promptow"),
-                "z_nazwa_firmy": p.get("wspomniana"),
-                "z_linkiem_do_strony": p.get("cytowana"),
-                "procent_wzmianek": p.get("udzial_wspomnien"),
+                # Wiersz = jedno pytanie do jednego modelu, scalone z powtórzeń.
+                # Model mylił te liczby: „na 14 odpowiedzi marka padła raz — 14%",
+                # a 14% to 1 z 7 pytań. Stąd nazwy, które mówią, co liczą.
+                "pytan_razy_modele": p.get("promptow"),
+                "pytan_z_nazwa_firmy_choc_raz": p.get("wspomniana"),
+                "pytan_z_linkiem_do_strony": p.get("cytowana"),
+                "procent_pytan_z_nazwa": p.get("udzial_wspomnien"),
+                "zapytan_lacznie": sum(w.get("prob") or raport.get("powtorzenia") or 1
+                                       for w in (raport.get("prompty") or [])),
+                "zapytan_z_nazwa_firmy": sum(w.get("trafien") or 0
+                                             for w in (raport.get("prompty") or [])),
                 "powtorzenia_kazdego_pytania": raport.get("powtorzenia"),
+                "pytan_bez_zadnej_polecanej_firmy": p.get("bez_polecen") or None,
                 "per_silnik": p.get("per_silnik"),
                 "pytania": [w.get("prompt") for w in (raport.get("prompty") or [])][:10],
             }, ensure_ascii=False),
             "",
-            "KONKURENCI WYMIENIANI ZAMIAST NIEJ: " + _json.dumps(
-                p.get("konkurenci") or [], ensure_ascii=False),
+            "KONKURENCI WYMIENIANI ZAMIAST NIEJ (firmy, u których można kupić): "
+            + _json.dumps(p.get("konkurenci") or [], ensure_ascii=False),
+            "MARKI PRODUKTÓW W ODPOWIEDZIACH (to NIE konkurenci — klient może je "
+            "mieć w ofercie): " + _json.dumps(p.get("marki_produktow") or [], ensure_ascii=False),
             "",
             "ŹRÓDŁA, Z KTÓRYCH MODEL SKŁADA ODPOWIEDZI: " + _json.dumps({
                 "linkow_lacznie": z.get("zrodel_lacznie"),
@@ -2770,12 +3194,14 @@ async def api_dokument_audyt(request):
             "",
             "CZY MARKA JEST NA TYCH STRONACH: " + _json.dumps(
                 [{k: x.get(k) for k in ("domena", "typ", "stan")}
-                 for x in (raport.get("obecnosc_w_zrodlach") or [])],
+                 for x in raport_geo.obecnosc_do_dokumentu(raport)],
                 ensure_ascii=False),
             "",
             "USTALENIA TECHNICZNE: " + _json.dumps(
                 [{"waga": u.get("waga"), "tytul": u.get("tytul")}
-                 for u in (tech.get("ustalenia") or [])], ensure_ascii=False),
+                 for u in raport_geo.ustalenia_do_dokumentu(tech)], ensure_ascii=False),
+            "",
+            _blok_marki(raport.get("marka")),
             "",
             "GOOGLE (zwykła wyszukiwarka): " + (_json.dumps({
                 "fraz_w_top3": seo.get("top3"), "fraz_w_top10": seo.get("top10"),
@@ -2794,11 +3220,57 @@ async def api_dokument_audyt(request):
         html = raport_geo.zbuduj(raport, tresc, badanie,
                                  (partner or {}).get("nazwa") or nazwa,
                                  od_partnera=bool(partner))
+        plik = raport_geo.nazwa_pliku(nazwa)
+        dok_id = None
+        try:
+            dok_id = baza.zapisz_dokument(
+                firma.get("url") or "", nazwa, "raport", html, plik,
+                {"nazwa": (partner or {}).get("nazwa"), "url": (partner or {}).get("url")},
+                body.get("audyt_id") or raport.get("audyt_id"))
+        except Exception as e:
+            print(f"  (nie udalo sie zapisac dokumentu: {e})")
 
-        return JSONResponse({"ok": True, "html": html,
-                             "plik": raport_geo.nazwa_pliku(nazwa)})
+        return JSONResponse({"ok": True, "html": html, "plik": plik, "dokument_id": dok_id})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
+
+
+def _partner_dla_modelu(partner: dict, klient: str) -> str:
+    """Partner widziany przez model: TYLKO główna kategoria (02.10.2026).
+
+    Wcześniej szła pełna lista usług i model rozpisywał je w dokumencie jako
+    pracę dla klienta — „Tebim utrzymuje sklep Trafiki i zrobił integracje ERP",
+    choć wiemy tylko, że go zbudował. Pozycjonowanie z tej listy stawało też
+    obok naszej oferty. Kategoria i branża mówią, czym partner się zajmuje;
+    portfolio mówi, czy zrobił to dla tego klienta.
+    """
+    k = (klient or "").lower().strip()
+    portfolio = [c.lower().strip() for c in (partner.get("case_studies") or []) if c]
+    return _json.dumps({
+        "nazwa": partner.get("nazwa") or "",
+        "kategoria": partner.get("kategoria") or "",
+        "branza": partner.get("branza") or "",
+        "klient_w_portfolio_partnera": bool(k) and any(k in c or c in k for c in portfolio),
+    }, ensure_ascii=False)
+
+
+def _blok_marki(marka: dict | None) -> str:
+    if not marka or not (marka.get("odpowiedz") or "").strip():
+        return "MARKA: nie pytano"
+    o = marka.get("ocena")
+    if not o:
+        return _NOWA_LINIA.join([
+            f"MARKA — zapytaliśmy ChatGPT: „{marka.get('pytanie', '')}”",
+            "Odpowiedź ChatGPT: " + marka["odpowiedz"][:3000],
+            "SPRAWDZONE PORÓWNANIE: brak — nie oceniaj odpowiedzi, marka_wniosek "
+            "zostaw pusty, marka_tytul napisz neutralnie.",
+        ])
+    return _NOWA_LINIA.join([
+        f"MARKA — zapytaliśmy ChatGPT: „{marka.get('pytanie', '')}”",
+        "Odpowiedź ChatGPT: " + marka["odpowiedz"][:3000],
+        "SPRAWDZONE PORÓWNANIE ZE STRONĄ (pisz WYŁĄCZNIE z tego): " + _json.dumps(
+            o, ensure_ascii=False),
+    ])
 
 
 async def api_dokument_klienci(request):
@@ -2807,13 +3279,16 @@ async def api_dokument_klienci(request):
     return JSONResponse({"ok": True, "klienci": dokument.klienci(body.get("firma") or {})})
 
 
+PYTAN_MATERIALU = 8
+POWTORZEN_MATERIALU = 2
+
+
 async def api_dokument(request):
     """Materiał dla KLIENTA partnera: wzór ICEA z trzema sekcjami pod tę parę.
 
-    CO TU KOSZTUJE. Trzy pytania do ChatGPT (pomiar widoczności klienta) i jedno
-    wywołanie Sonneta na tekst. Sprawdzenie robotów to zwykłe żądania HTTP, zero
-    kosztu. Celowo trzy pytania, nie osiem jak w audycie: to nie jest raport z audytu,
-    tylko jeden akapit dowodu w dokumencie sprzedażowym.
+    CO TU KOSZTUJE. Osiem pytań do ChatGPT, każde dwa razy, plus jedno pytanie
+    o markę — razem 17 wywołań z wyszukiwaniem — i jedno wywołanie Sonneta na tekst.
+    Robotów już nie sprawdzamy: za Cloudflare test z zewnątrz nie mówi prawdy.
 
     POMIAR IDZIE PRZEZ CHATGPT i to jest ta sama decyzja co w audycie GEO: klienci
     partnera pytają ChatGPT, więc mierzymy ChatGPT. Podmiana na Claude zmieniłaby
@@ -2838,107 +3313,111 @@ async def api_dokument(request):
         # do wdrożenia sklepu". Mierzylibyśmy wtedy widoczność agencji, nie klienta,
         # a dokument idzie do klienta. Strona główna kosztuje jedno żądanie HTTP.
         opis_klienta = ""
+        topowe = []
         if url_klienta:
             html_klienta = await asyncio.to_thread(pobierz, url_klienta)
             if html_klienta:
                 opis_klienta = tekst_ze_strony(html_klienta)[:2500]
+                topowe = await asyncio.to_thread(topowe_produkty, url_klienta, html_klienta)
 
-        # ── Trzy pytania o KATEGORIĘ klienta, nie o jego nazwę ───────────
-        # Pytanie „co wiesz o firmie X" zawsze coś zwróci i niczego nie mierzy.
-        # Mierzymy to, co robi klient końcowy: pyta o kategorię i dostaje kilka nazw.
+        # ── Osiem pytań o KATEGORIĘ klienta, każde dwa razy ──────────────
+        # Pytanie „co wiesz o firmie X" nie mierzy, czy AI markę POLECA — to
+        # robi pytanie o kategorię. Pytanie o markę zadajemy osobno, niżej, i nie
+        # liczymy go do wzmianek. Osiem razy dwa (02.10.2026): trzy pytania po
+        # jednym razie nie odróżniały nieobecności od przypadku.
         opis = _json.dumps({"nazwa": nazwa_klienta, "url": url_klienta,
                             "branza": klient.get("branza") or "",
-                            "ze_strony_klienta": opis_klienta},
+                            "ze_strony_klienta": opis_klienta,
+                            "topowe_produkty": topowe},
                            ensure_ascii=False)
-        r = await claude.uruchom(zadanie_prompty,
-                                 "Wygeneruj 3 pytania, które KLIENT KOŃCOWY tej firmy "
-                                 "zadałby asystentowi AI, szukając tego, co ta firma "
-                                 "sprzedaje. Pytaj o JEJ kategorię i produkt, nigdy "
-                                 "o nazwę firmy i nigdy o agencję ani wykonawcę."
+        r = await claude.uruchom(zadanie_prompty_klienta,
+                                 f"Wygeneruj {PYTAN_MATERIALU} pytań. " + PYTANIA_KLIENTA
                                  + _NOWA_LINIA * 2 + opis)
         # Pytania idą do dokumentu SŁOWO W SŁOWO, więc odsiewamy te z obcym alfabetem.
         # Zmierzone: model zwrócił „Gdzie kupić eleganckую sukienkę na wesele" — jedno
         # słowo cyrylicą w zdaniu po polsku. W raporcie to literówka, w materiale dla
         # klienta partnera — kompromitacja.
-        pytania = [p for p in (r.final_output.pytania or []) if p and _po_polsku(p)][:3]
+        pytania = bez_regulowanych([p for p in (r.final_output.pytania or [])
+                                    if p and _po_polsku(p)])[:PYTAN_MATERIALU]
         if not pytania:
             return JSONResponse({"ok": False, "error": "Nie udało się ułożyć pytań."})
 
-        wiersze = []
-        for pytanie in pytania:
-            surowy = await zapytaj_chatgpt_wprost(pytanie)
-            wiersze.append(audyt.z_wlasnego_zapytania(
-                surowy["tekst"], surowy["zrodla"], nazwa_klienta, domena_klienta, pytanie))
+        wiersze = await _zmierz(zapytaj_chatgpt_wprost, pytania, POWTORZEN_MATERIALU,
+                                nazwa_klienta, domena_klienta)
+        if not pomiar_kompletny(len(wiersze), len(pytania)):
+            return JSONResponse({"ok": False, "error": _ZA_MALO_ODPOWIEDZI.format(
+                z=len(wiersze), w=len(pytania))})
+        await marki_modelem(wiersze, nazwa_klienta, domena_klienta)
+        marka = await pytanie_o_marke(domena_klienta, opis_klienta)
 
         wspomniana = [w for w in wiersze if w["wspomniana"]]
-        # WSZYSTKIE TRZY ODPOWIEDZI IDĄ DO DOKUMENTU, w kolejności zadawania.
-        # Wcześniej wybieraliśmy jedną do ramki, a pozostałe ginęły — klient
-        # widział trzy pytania i dowód na jedno z nich. Ramka przewija się jak
-        # slajdy, więc nie ma potrzeby niczego wybierać za czytającego.
+        nikt = bez_polecen(wiersze)
+        # Do ramki idzie sześć odpowiedzi — więcej to nie dowód, tylko log, i lista
+        # pytań przestaje mieścić się na stronie. Liczby niżej są z całego pomiaru.
         odpowiedzi = [{"pytanie": w["prompt"], "odpowiedz": w["odpowiedz"],
-                       "wspomniana": w["wspomniana"]} for w in wiersze]
-
-        techniczne = None
-        if url_klienta:
-            try:
-                techniczne = await asyncio.to_thread(geo.audyt_geo, url_klienta, klient)
-            except Exception:
-                techniczne = None
+                       "wspomniana": w["wspomniana"]} for w in wiersze][:6]
 
         badanie = {
-            "pytania": pytania,
+            "pytania": [o["pytanie"] for o in odpowiedzi],
+            "liczba_pytan": len(wiersze),
+            "liczba_odpowiedzi": len(wiersze),
+            "powtorzenia": POWTORZEN_MATERIALU,
             "wspomniana": len(wspomniana),
+            "bez_polecen": nikt,
             "prob": len(wiersze),
             "konkurenci": sorted({m for w in wiersze for m in (w["marki"] or [])})[:8],
+            "marki_produktow": sorted({m for w in wiersze
+                                       for m in (w.get("marki_produktow") or [])})[:8],
             "odpowiedzi": odpowiedzi,
+            "marka": marka,
             "data": f"{_dt.now():%d.%m.%Y}",
         }
 
         wejscie = _NOWA_LINIA.join([
-            "PARTNER (kto wysyła ten materiał): " + _json.dumps(
-                {k: partner.get(k) for k in ("nazwa", "branza", "opis", "uslugi",
-                                             "case_studies", "kategoria")},
-                ensure_ascii=False),
+            "PARTNER (kto wysyła ten materiał): " + _partner_dla_modelu(partner, nazwa_klienta),
             "",
             "KLIENT (odbiorca materiału): " + _json.dumps(
                 {"nazwa": nazwa_klienta, "url": url_klienta,
                  "branza": klient.get("branza") or "",
                  "ze_strony_klienta": opis_klienta}, ensure_ascii=False),
             "",
-            f"POMIAR: zadaliśmy ChatGPT {len(wiersze)} pytania o kategorię klienta. "
-            f"Marka padła w {len(wspomniana)} z {len(wiersze)}.",
-            "Pytania: " + "; ".join(pytania),
-            "Firmy wymienione zamiast niej: " + (", ".join(badanie["konkurenci"]) or "brak"),
+            f"POMIAR: zadaliśmy ChatGPT {len(wiersze)} pytań o kategorię klienta, każde "
+            f"{POWTORZEN_MATERIALU} razy. Marka padła w {len(wspomniana)} z {len(wiersze)}."
+            + (f" W {nikt} z {len(wiersze)} AI nie wskazało nikogo, u kogo kupić."
+               if nikt else " W każdej odpowiedzi AI wskazało, u kogo kupić."),
+            "Pytania: " + "; ".join(w["prompt"] for w in wiersze),
+            "Firmy, u których AI kazało kupić zamiast niej: "
+            + (", ".join(badanie["konkurenci"]) or "brak"),
+            "Marki produktów w odpowiedziach (to NIE konkurenci — klient może je mieć "
+            "w ofercie): " + (", ".join(badanie["marki_produktow"]) or "brak"),
             "",
-            "DOSTĘP ROBOTÓW AI: " + _opis_dostepu(techniczne),
+            _blok_marki(marka),
         ])
 
         w = await claude.uruchom(zadanie_dokument, wejscie)
         tresc = w.final_output.model_dump()
         html = dokument.zbuduj(tresc, badanie, partner.get("nazwa") or "")
+        plik = dokument.nazwa_pliku(nazwa_klienta)
 
-        return JSONResponse({"ok": True, "html": html,
-                             "plik": dokument.nazwa_pliku(nazwa_klienta),
-                             "badanie": badanie})
+        # Pomiar z materiału też jest pomiarem — 16 zapytań do ChatGPT. Wcześniej
+        # przepadał razem z kartą przeglądarki; teraz trafia do historii audytów.
+        dok_id = None
+        try:
+            partner_krotko = {"nazwa": partner.get("nazwa") or "", "url": partner.get("url") or ""}
+            audyt_id = baza.zapisz_audyt(
+                url_klienta or nazwa_klienta,
+                {"firma": {"nazwa": nazwa_klienta, "url": url_klienta, "domena": domena_klienta},
+                 "partner": partner_krotko, "badanie": badanie, "dostawca": "material"},
+                partner.get("tryb") or "partner", "material")
+            dok_id = baza.zapisz_dokument(url_klienta or nazwa_klienta, nazwa_klienta,
+                                          "material", html, plik, partner_krotko, audyt_id)
+        except Exception as e:
+            print(f"  (nie udalo sie zapisac materialu: {e})")
+
+        return JSONResponse({"ok": True, "html": html, "plik": plik,
+                             "badanie": badanie, "dokument_id": dok_id})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
-
-
-def _opis_dostepu(techniczne: dict | None) -> str:
-    """Wynik sprawdzenia robotów w jednym zdaniu dla modelu.
-
-    Świadomie NIE podajemy tu listy botów. Model dostaje wniosek, bo dokument ma
-    zawierać jedno zdanie po ludzku, a nie tabelę z nazwami crawlerów — te są
-    w audycie, który jest osobnym produktem.
-    """
-    if not techniczne:
-        return "nie sprawdzono (brak adresu strony klienta albo strona nie odpowiedziała)"
-    blokady = [u for u in (techniczne.get("ustalenia") or [])
-               if u.get("waga") == "blokada"]
-    if blokady:
-        return "SĄ BLOKADY. " + "; ".join(u["tytul"] for u in blokady)
-    return ("roboty, które odpowiadają klientom, mają wstęp na stronę — "
-            "od tej strony wszystko jest w porządku")
 
 
 async def api_export(request):
@@ -3003,7 +3482,9 @@ app = Starlette(routes=[
     Route("/api/firmy", api_firmy, methods=["GET"]),
     Route("/api/firmy/usun", api_firma_usun, methods=["POST"]),
     Route("/api/koszyk", api_koszyk, methods=["POST"]),
+    Route("/api/etap", api_etap, methods=["POST"]),
     Route("/api/audyty", api_audyty, methods=["GET"]),
+    Route("/api/dokumenty", api_dokumenty, methods=["GET"]),
     Route("/api/audyt", api_audyt, methods=["POST"]),
     Route("/api/audyt-geo", api_audyt_geo, methods=["POST"]),
     Route("/api/dokument", api_dokument, methods=["POST"]),

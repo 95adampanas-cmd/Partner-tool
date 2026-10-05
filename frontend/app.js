@@ -115,14 +115,14 @@ function pokazSekcje(nazwa) {
   if (nazwa === "pozyskiwanie") renderPozyskiwanie();
   if (nazwa === "eksport") renderEksport();
   if (nazwa === "kolejka") renderKolejke();
-  if (nazwa === "maile") renderMaile();
   if (nazwa === "audyty") renderAudyty();
+  if (nazwa === "lejek") renderLejek();
   if (nazwa === "firmy") pokazListe();  // wejście z menu zawsze pokazuje listę
 
   // Liczniki w menu też są per-ścieżka — bez tego pokazują stan poprzedniej.
   odswiezBadge("badge-firmy", firmyTrybu().length);
   odswiezBadge("badge-kolejka", kolejkaTrybu().length);
-  odswiezBadge("badge-maile", maileTrybu().length);
+  odswiezBadge("badge-lejek", doZrobienia().length);
   odswiezBadge("badge-eksport",
     koszyk.filter((f) => (f.tryb || "partner") === tryb).length);
   // Sekcje pozyskiwania są wspólne dla obu ścieżek, więc muszą powiedzieć,
@@ -1245,6 +1245,22 @@ document.addEventListener("click", (e) => {
     return renderPozyskiwanie();
   }
 
+  const etapDalej = e.target.closest(".etap-dalej");
+  if (etapDalej) return ustawEtap(etapDalej.dataset.url, { etap: etapDalej.dataset.etap });
+  const etapKrok = e.target.closest("[data-ustaw-etap]");
+  if (etapKrok) return ustawEtap(kartaFirma()?.firma.url, { etap: etapKrok.dataset.ustawEtap });
+  const lejekWiecej = e.target.closest(".lejek-wiecej");
+  if (lejekWiecej) { lejekPokazWszystko.add(lejekWiecej.dataset.etap); return renderLejek(); }
+  const zLejkaKarta = e.target.closest(".otworz-z-lejka");
+  if (zLejkaKarta) {
+    kartaZakladka = "przeglad";
+    pokazSekcje("firmy");
+    return pokazDetal(zLejkaKarta.dataset.id);
+  }
+
+  const zPomiaru = e.target.closest(".dokument-z-pomiaru");
+  if (zPomiaru) return dokumentZPomiaru(zPomiaru);
+
   const zAudytu = e.target.closest(".otworz-firme-z-audytu");
   if (zAudytu) {
     kartaZakladka = "audyty";
@@ -1484,6 +1500,12 @@ document.addEventListener("input", (e) => {
 });
 
 document.addEventListener("change", (e) => {
+  if (e.target.classList.contains("etap-wybor")) {
+    return ustawEtap(e.target.dataset.url, { etap: e.target.value });
+  }
+  if (e.target.classList.contains("etap-notatka")) {
+    return ustawEtap(kartaFirma()?.firma.url, { notatka: e.target.value });
+  }
   if (e.target.id === "audyt-aio") { audytAIO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-seo") { audytSEO = e.target.checked; return renderAudyt(); }
   if (e.target.id === "audyt-ile") { audytIle = +e.target.value; return renderAudyt(); }
@@ -1902,7 +1924,7 @@ function kopiuj(przycisk) {
 // ══ SEKCJA: Mikroaudyt SEO/GEO ══
 // Jedyna PŁATNA funkcja (DataForSEO) — pokazujemy koszt zanim user kliknie.
 let audytWybrana = null;
-let audytIle = 5;
+let audytIle = 8;
 let audytSilniki = ["chatgpt_wprost"];
 // Silnik bazy SE Ranking dla sekcji wzmianek — ich dane pokrywaja 5 platform.
 // Platformy, na ktorych DataForSEO sprawdza wzmianki o marce.
@@ -2018,7 +2040,7 @@ function renderAudyt() {
       <label class="akcja check"><input type="checkbox" id="audyt-aio" ${audytAIO ? "checked" : ""}>
         Widoczność w AI Overviews <span class="cena">+$${KOSZT_AIO}</span></label>
       <label class="akcja check" style="gap:12px">Liczba pytań
-        <input type="range" id="audyt-ile" min="3" max="10" value="${audytIle}" style="width:110px">
+        <input type="range" id="audyt-ile" min="8" max="10" value="${audytIle}" style="width:110px">
         <b>${audytIle}</b></label>
     </div>
     <p class="hint">Szacowany koszt: <b class="cena-suma">$${koszt}</b>
@@ -2583,6 +2605,7 @@ async function pobierzCSV() {
 // ══ Pomocnicze ══
 function odswiezBadge(id, ile) {
   const b = document.getElementById(id);
+  if (!b) return;
   b.textContent = ile;
   b.hidden = ile === 0;
 }
@@ -2984,10 +3007,10 @@ function renderAudytGeo() {
       <div class="mono"><i class="sq"></i>Zakres</div>
       <div class="akcje" style="margin-bottom:14px">
         <label class="akcja check">
-          <input type="range" id="geo-ile" min="4" max="30" value="${geoIle}" style="width:110px">
+          <input type="range" id="geo-ile" min="8" max="30" value="${geoIle}" style="width:110px">
           <b>${geoIle}</b> pytań</label>
         <label class="akcja check" title="Modele są niedeterministyczne — ta sama fraza pytana ponownie daje inną odpowiedź">
-          <input type="range" id="geo-powtorzenia" min="1" max="3" value="${geoPowtorzenia}" style="width:70px">
+          <input type="range" id="geo-powtorzenia" min="2" max="3" value="${geoPowtorzenia}" style="width:70px">
           pytaj <b>${geoPowtorzenia}×</b></label>
         <label class="akcja check"><input type="checkbox" id="geo-podpowiedzi"
           ${geoPodpowiedzi ? "checked" : ""}> Dołóż podpowiedzi Google</label>
@@ -3230,7 +3253,7 @@ function renderDokument() {
       <button class="akcja glowna generuj-dokument" type="button" ${dokKlient.trim() ? "" : "disabled"}>
         <svg class="ico sm"><use href="#i-inbox"/></svg>Generuj dokument
       </button>
-      <p class="hint">Koszt: 3 pytania do ChatGPT + jedno napisanie tekstu. Około $0,05.
+      <p class="hint">Koszt: 8 pytań do ChatGPT, każde 2 razy, pytanie o markę i jedno napisanie tekstu. Około $0,25.
         Case study, nagroda i identyfikacja ICEA zostają w dokumencie bez zmian.</p>
     </div>`;
 
@@ -3491,6 +3514,7 @@ function renderKarte() {
           <h1 class="karta-tytul">${esc(f.nazwa)}</h1>
           <a class="karta-url" href="${escAttr(f.url)}" target="_blank" rel="noopener">
             ${esc(hostname(f.url))}<svg class="ico xs"><use href="#i-external"/></svg></a>
+          ${etapyKartyHTML(f)}
         </div>
         <div class="karta-akcje">
           <button class="akcja podobne-do-tej" type="button">
@@ -3719,58 +3743,298 @@ function renderPozyskiwanie() {
 // Pojedynczy audyt robi się w karcie firmy. Tutaj widać, kto i kiedy był badany,
 // bo tego z karty nie da się zobaczyć: żeby porównać dwa pomiary, trzeba wyjść
 // ponad jedną firmę.
+// ══════════════════════════════════════════════════════════════════════
+//  LEJEK PARTNERÓW
+// ══════════════════════════════════════════════════════════════════════
+// Etap zaznacza człowiek: narzędzie nie widzi maili ani rozmów. Dokłada za to
+// to, co samo wie — że materiał dla klienta tego partnera już jest gotowy —
+// i z tego oraz z liczby dni na etapie układa listę „kim się zająć".
+const ETAPY = [
+  { id: "zbadany", nazwa: "Zbadany", dalej: "Materiał wysłany" },
+  { id: "material", nazwa: "Materiał wysłany", dalej: "Rozmowa" },
+  { id: "rozmowa", nazwa: "Rozmowa", dalej: "Współpraca" },
+  { id: "wspolpraca", nazwa: "Współpraca" },
+];
+const NIE_TERAZ = { id: "nie_teraz", nazwa: "Nie teraz" };
+const etapNazwa = (id) => (ETAPY.find((e) => e.id === id) || NIE_TERAZ).nazwa;
+const etapNastepny = (id) => {
+  const i = ETAPY.findIndex((e) => e.id === id);
+  return i >= 0 && i < ETAPY.length - 1 ? ETAPY[i + 1].id : null;
+};
+// Ile dni bez ruchu, zanim partner trafia na listę „kim się zająć". Materiał
+// czeka tydzień na odpowiedź, rozmowa dwa tygodnie na decyzję.
+const CZEKA_DNI = { material: 7, rozmowa: 14 };
+let lejekMaterialy = new Map();   // url partnera -> data ostatniego materiału
+let lejekPokazWszystko = new Set();
+
+function dniOd(data) {
+  if (!data) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(data).getTime()) / 86400000));
+}
+function dniTekst(n) {
+  return n === 0 ? "dziś" : n === 1 ? "1 dzień" : `${n} dni`;
+}
+
+// Kim się zająć: materiał gotowy, a nie wysłany; materiał bez odpowiedzi od
+// tygodnia; rozmowa bez decyzji od dwóch tygodni. Najdłużej czekający na górze.
+function doZrobienia() {
+  return firmyTrybu().map((t) => {
+    const f = t.firma;
+    const etap = f.etap || "zbadany";
+    const dni = dniOd(f.etap_data || f.zbadana);
+    const material = lejekMaterialy.get(f.url);
+    let powod = "";
+    if (etap === "zbadany" && material) powod = "Materiał dla klienta jest gotowy — wyślij go";
+    else if (etap === "material" && dni >= CZEKA_DNI.material) powod = `${dniTekst(dni)} od materiału — przypomnij się`;
+    else if (etap === "rozmowa" && dni >= CZEKA_DNI.rozmowa) powod = `${dniTekst(dni)} od rozmowy — domknij decyzję`;
+    return powod ? { wpis: t, powod, dni } : null;
+  }).filter(Boolean).sort((a, b) => b.dni - a.dni);
+}
+
+function etapWyborHTML(f, klasa = "etap-wybor") {
+  const etap = f.etap || "zbadany";
+  return `<select class="${klasa}" data-url="${escAttr(f.url)}" aria-label="Etap">
+    ${[...ETAPY, NIE_TERAZ].map((e) =>
+      `<option value="${e.id}" ${e.id === etap ? "selected" : ""}>${esc(e.nazwa)}</option>`).join("")}
+  </select>`;
+}
+
+function kartaLejkaHTML(t, powod = "") {
+  const f = t.firma;
+  const etap = f.etap || "zbadany";
+  const dni = dniOd(f.etap_data || f.zbadana);
+  const dalej = etapNastepny(etap);
+  const kat = f.kategoria && f.kategoria !== BRAK ? f.kategoria : "";
+  return `<div class="lejek-karta${powod ? " pilne" : ""}">
+    <button class="lejek-nazwa otworz-z-lejka" type="button" data-id="${t.id}">${esc(f.nazwa || hostname(f.url))}</button>
+    <div class="lejek-meta">${kat ? `${esc(kat)} · ` : ""}${dniTekst(dni)} na etapie</div>
+    ${powod ? `<div class="lejek-powod">${esc(powod)}</div>` : ""}
+    ${f.notatka ? `<div class="lejek-notatka">${esc(f.notatka)}</div>` : ""}
+    <div class="lejek-akcje">
+      ${dalej ? `<button class="btn-lekki etap-dalej" type="button" data-url="${escAttr(f.url)}"
+        data-etap="${dalej}" title="Przesuń do: ${escAttr(etapNazwa(dalej))}">Dalej →</button>` : ""}
+      ${etapWyborHTML(f)}
+    </div>
+  </div>`;
+}
+
+async function renderLejek() {
+  const box = document.getElementById("lejek-box");
+  if (!box) return;
+  try {
+    const d = await (await fetch("/api/dokumenty")).json();
+    lejekMaterialy = new Map();
+    for (const x of d.dokumenty || []) {
+      if (x.rodzaj === "material" && x.partner_url && !lejekMaterialy.has(x.partner_url)) {
+        lejekMaterialy.set(x.partner_url, x.data);
+      }
+    }
+  } catch (e) {
+    // Bez listy dokumentów lejek działa dalej, tylko bez podpowiedzi o materiale.
+    console.warn("Nie udało się wczytać dokumentów:", e);
+  }
+
+  const firmy = firmyTrybu();
+  odswiezBadge("badge-lejek", doZrobienia().length);
+  if (!firmy.length) {
+    box.innerHTML = `<div class="pusto"><svg class="ico xl"><use href="#i-layers"/></svg>
+      <p>Lejek jest pusty.<br><span>Partner pojawia się tu po researchu, na etapie „Zbadany".</span></p></div>`;
+    return;
+  }
+
+  const wEtapie = (id) => firmy.filter((t) => (t.firma.etap || "zbadany") === id)
+    // Najdłużej czekający na górze — to oni potrzebują ruchu.
+    .sort((a, b) => dniOd(b.firma.etap_data || b.firma.zbadana) - dniOd(a.firma.etap_data || a.firma.zbadana));
+
+  const pilne = doZrobienia();
+  const pilneHTML = pilne.length ? `<div class="card lejek-pilne">
+      <div class="mono"><i class="sq"></i>Kim się zająć teraz · ${pilne.length}</div>
+      <div class="lejek-pilne-lista">${pilne.slice(0, 8).map((x) => kartaLejkaHTML(x.wpis, x.powod)).join("")}</div>
+    </div>` : `<div class="card lejek-pilne"><div class="mono"><i class="sq"></i>Kim się zająć teraz</div>
+      <p class="hint">Nikt nie czeka: materiały wysłane, rozmowy świeże.</p></div>`;
+
+  // Kolumna „Zbadany" bywa długa (import z Sortlist to 180 firm) — pokazujemy
+  // pierwszych kilkanaście, resztę na żądanie.
+  const LIMIT = 12;
+  const kolumny = ETAPY.map((e) => {
+    const lista = wEtapie(e.id);
+    const wszystko = lejekPokazWszystko.has(e.id);
+    const widoczne = wszystko ? lista : lista.slice(0, LIMIT);
+    return `<div class="lejek-kolumna" data-etap-kolumna="${e.id}">
+      <div class="lejek-kolumna-head"><span>${esc(e.nazwa)}</span><em>${lista.length}</em></div>
+      ${widoczne.map((t) => kartaLejkaHTML(t)).join("") || `<p class="hint lejek-pusta">Nikogo</p>`}
+      ${lista.length > LIMIT && !wszystko ? `<button class="btn-lekki lejek-wiecej" type="button"
+        data-etap="${e.id}">Pokaż wszystkich (${lista.length})</button>` : ""}
+    </div>`;
+  }).join("");
+
+  const nieTeraz = wEtapie("nie_teraz");
+  box.innerHTML = `${pilneHTML}
+    <div class="lejek-kolumny">${kolumny}</div>
+    ${nieTeraz.length ? `<details class="card lejek-nie-teraz"><summary>Nie teraz · ${nieTeraz.length}</summary>
+      <div class="lejek-pilne-lista">${nieTeraz.map((t) => kartaLejkaHTML(t)).join("")}</div></details>` : ""}`;
+}
+
+async function ustawEtap(url, zmiana) {
+  const wpis = tabs.find((t) => t.firma.url === url);
+  if (!wpis) return;
+  try {
+    const d = await (await fetch("/api/etap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, ...zmiana }),
+    })).json();
+    if (!d.ok) { alert(d.error || "Nie udało się zapisać etapu."); return; }
+    Object.assign(wpis.firma, { etap: d.etap, etap_data: d.etap_data, notatka: d.notatka });
+  } catch (e) {
+    alert(e.message);
+    return;
+  }
+  odswiezBadge("badge-lejek", doZrobienia().length);
+  if (document.querySelector('.sekcja.aktywna[data-sekcja="lejek"]')) renderLejek();
+  if (kartaFirma()?.firma.url === url && "etap" in zmiana) renderKarte();
+}
+
+// Pasek etapów w karcie partnera: tu się pracuje z partnerem, więc tu też
+// najczęściej przestawia się etap.
+function etapyKartyHTML(f) {
+  const etap = f.etap || "zbadany";
+  const i = ETAPY.findIndex((e) => e.id === etap);
+  return `<div class="etapy-karty">
+    <div class="etapy-pasek" role="group" aria-label="Etap współpracy">
+      ${ETAPY.map((e, n) => `<button type="button" class="etap-krok${n < i ? " zrobiony" : ""}${
+        e.id === etap ? " biezacy" : ""}" data-ustaw-etap="${e.id}">${esc(e.nazwa)}</button>`).join("")}
+      <button type="button" class="etap-krok nie-teraz${etap === "nie_teraz" ? " biezacy" : ""}"
+        data-ustaw-etap="nie_teraz">Nie teraz</button>
+    </div>
+    <span class="etapy-dni">${dniTekst(dniOd(f.etap_data || f.zbadana))} na etapie</span>
+    <input class="etap-notatka" type="text" maxlength="300" value="${escAttr(f.notatka || "")}"
+      placeholder="Notatka, np. „rozmowa 12.10 z Janem, chcą wycenę”">
+  </div>`;
+}
+
+// Pomiar i dokument żyją w jednym miejscu, pogrupowane po stronie KLIENTA.
+// Dokumenty do 05.10.2026 ginęły z kartą przeglądarki, a ponowne pobranie
+// znaczyło nowy pomiar i nowe pisanie — czyli nowy rachunek.
+const CZYM_AUDYT = {
+  geo: "Audyt GEO",
+  dataforseo: "Mikroaudyt SEO/GEO",
+  material: "Pomiar do materiału",
+};
+const CO_DOKUMENT = { material: "Materiał dla klienta", raport: "Raport z audytu" };
+
 async function renderAudyty() {
   const box = document.getElementById("audyty-box");
   if (!box) return;
-  box.innerHTML = loadingHTML("Wczytuję historię pomiarów…");
+  box.innerHTML = loadingHTML("Wczytuję pomiary i dokumenty…");
   try {
-    const d = await (await fetch("/api/audyty")).json();
-    const wszystkie = d.audyty || [];
-    if (!wszystkie.length) {
+    const [a, d] = await Promise.all([
+      fetch("/api/audyty").then((r) => r.json()),
+      fetch("/api/dokumenty").then((r) => r.json()),
+    ]);
+    const audyty = a.audyty || [];
+    const dokumenty = d.dokumenty || [];
+    if (!audyty.length && !dokumenty.length) {
       box.innerHTML = `<div class="pusto">
         <svg class="ico xl"><use href="#i-chart"/></svg>
-        <p>Żaden audyt nie został jeszcze zapisany.<br><span>Audyt robi się w karcie
-          partnera, w zakładce Widoczność.</span></p></div>`;
+        <p>Nie ma jeszcze żadnego pomiaru ani dokumentu.<br><span>Audyt robi się w karcie
+          partnera, w zakładce Audyty SEO/GEO, a materiał w zakładce Materiały.</span></p></div>`;
       return;
     }
 
     // Grupujemy po firmie, bo drugi pomiar tej samej firmy jest wart czegoś tylko
-    // w zestawieniu z pierwszym.
+    // w zestawieniu z pierwszym — i dokument stoi przy pomiarze, z którego powstał.
     const wg = new Map();
-    wszystkie.forEach((a) => {
-      const k = a.url || "—";
-      if (!wg.has(k)) wg.set(k, []);
-      wg.get(k).push(a);
-    });
+    const grupa = (url) => {
+      const k = url || "—";
+      if (!wg.has(k)) wg.set(k, { audyty: [], dokumenty: [] });
+      return wg.get(k);
+    };
+    audyty.forEach((x) => grupa(x.url).audyty.push(x));
+    dokumenty.forEach((x) => grupa(x.url).dokumenty.push(x));
 
-    box.innerHTML = [...wg.entries()].map(([url, lista]) => {
-      // Audyt klienta zapisuje się pod adresem KLIENTA (trafika.pl), którego nie
-      // ma na liście partnerów — karta, do której prowadzi, to karta partnera.
-      const z_partnerem = lista.find((a) => a.partner_url);
-      const wpis = tabs.find((t) => t.firma.url === (z_partnerem ? z_partnerem.partner_url : url));
-      const nazwa = lista.find((a) => a.nazwa)?.nazwa || hostname(url);
-      return `<div class="card">
-        <div class="wzor-head">
-          <div>
-            <div class="firma-row-nazwa">${esc(nazwa)}</div>
-            <span class="firma-row-meta">${esc(hostname(url))}${
-              z_partnerem ? ` · klient ${esc(z_partnerem.partner_nazwa || hostname(z_partnerem.partner_url))}` : ""
-            } · ${lista.length} ${lista.length === 1 ? "pomiar" : "pomiary"}</span>
+    const ostatnio = (g) => [...g.audyty, ...g.dokumenty].map((x) => x.data || "").sort().pop() || "";
+    const kiedy = (x) => esc((x.data || "").slice(0, 16).replace("T", ", "));
+
+    box.innerHTML = [...wg.entries()]
+      .sort((x, y) => ostatnio(y[1]).localeCompare(ostatnio(x[1])))
+      .map(([url, g]) => {
+        // Audyt klienta zapisuje się pod adresem KLIENTA (trafika.pl), którego nie
+        // ma na liście partnerów — karta, do której prowadzi, to karta partnera.
+        const zPartnerem = [...g.audyty, ...g.dokumenty].find((x) => x.partner_url);
+        const wpis = tabs.find((t) => t.firma.url === (zPartnerem ? zPartnerem.partner_url : url));
+        const nazwa = [...g.dokumenty, ...g.audyty].find((x) => x.nazwa)?.nazwa || hostname(url);
+        const zDokumentem = new Set(g.dokumenty.map((x) => x.audyt_id).filter(Boolean));
+
+        const pomiary = g.audyty.map((x) => `<tr>
+          <td>${kiedy(x)}</td>
+          <td>${esc(CZYM_AUDYT[x.dostawca] || x.dostawca || "Pomiar")}</td>
+          <td class="akcje-wiersza">${
+            // Raport da się złożyć tylko z pełnego audytu; pomiar do materiału ma
+            // swój dokument od razu.
+            x.dostawca !== "material" ? `<button class="btn-lekki dokument-z-pomiaru" type="button"
+              data-audyt="${x.id}">${zDokumentem.has(x.id) ? "Zrób raport ponownie" : "Zrób raport"}</button>` : ""
+          }</td>
+        </tr>`).join("");
+
+        const pliki = g.dokumenty.map((x) => `<tr>
+          <td>${kiedy(x)}</td>
+          <td>${esc(CO_DOKUMENT[x.rodzaj] || "Dokument")}${
+            x.partner_nazwa ? ` <span class="firma-row-meta">od ${esc(x.partner_nazwa)}</span>` : ""}</td>
+          <td class="akcje-wiersza">
+            <a class="btn-lekki" href="/api/dokumenty?id=${x.id}&podglad=1" target="_blank" rel="noopener">Podgląd</a>
+            <a class="btn-lekki" href="/api/dokumenty?id=${x.id}" download="${esc(x.plik || "dokument.html")}">Pobierz</a>
+          </td>
+        </tr>`).join("");
+
+        return `<div class="card">
+          <div class="wzor-head">
+            <div>
+              <div class="firma-row-nazwa">${esc(nazwa)}</div>
+              <span class="firma-row-meta">${esc(hostname(url))}${
+                zPartnerem ? ` · klient ${esc(zPartnerem.partner_nazwa || hostname(zPartnerem.partner_url))}` : ""
+              } · ${g.audyty.length} ${g.audyty.length === 1 ? "pomiar" : "pomiary"} · ${g.dokumenty.length} ${
+                g.dokumenty.length === 1 ? "dokument" : "dokumenty"}</span>
+            </div>
+            ${wpis ? `<button class="btn-lekki otworz-firme-z-audytu" type="button"
+              data-id="${wpis.id}">Otwórz kartę<svg class="ico xs"><use href="#i-arrow"/></svg></button>` : ""}
           </div>
-          ${wpis ? `<button class="btn-lekki otworz-firme-z-audytu" type="button"
-            data-id="${wpis.id}">Otwórz kartę<svg class="ico xs"><use href="#i-arrow"/></svg></button>` : ""}
-        </div>
-        <table class="tabela"><thead><tr>
-          <th>Kiedy</th><th>Czym</th><th>Ścieżka</th></tr></thead>
-        <tbody>${lista.map((a) => `<tr>
-          <td>${esc((a.data || "").slice(0, 16).replace("T", ", "))}</td>
-          <td>${esc(a.dostawca === "geo" ? "Audyt GEO (nasze klucze)" : "Mikroaudyt SEO/GEO")}</td>
-          <td>${esc(TRYBY[a.tryb]?.nazwa || a.tryb || "—")}</td>
-        </tr>`).join("")}</tbody></table>
-      </div>`;
-    }).join("");
+          ${pliki ? `<table class="tabela"><thead><tr><th>Kiedy</th><th>Dokument</th><th></th></tr></thead>
+            <tbody>${pliki}</tbody></table>` : ""}
+          ${pomiary ? `<table class="tabela"><thead><tr><th>Kiedy</th><th>Pomiar</th><th></th></tr></thead>
+            <tbody>${pomiary}</tbody></table>` : ""}
+          <div class="dokument-z-pomiaru-wynik"></div>
+        </div>`;
+      }).join("");
   } catch (e) {
     box.innerHTML = errorHTML(e.message);
+  }
+}
+
+// Raport z zapisanego pomiaru: bez ponownego pytania modeli, płacimy tylko za tekst.
+async function dokumentZPomiaru(przycisk) {
+  const wynik = przycisk.closest(".card").querySelector(".dokument-z-pomiaru-wynik");
+  przycisk.disabled = true;
+  wynik.innerHTML = loadingHTML("Piszę raport z zapisanego pomiaru… ~40 s.");
+  try {
+    const a = await (await fetch(`/api/audyty?id=${przycisk.dataset.audyt}`)).json();
+    if (!a.ok || !a.raport) { wynik.innerHTML = errorHTML("Nie ma takiego pomiaru."); return; }
+    const raport = a.raport;
+    // Pełne dane partnera z karty, jeśli go mamy — dokument docenia jego pracę.
+    const p = raport.partner;
+    const partner = p ? (tabs.find((t) => t.firma.url === p.url)?.firma || p) : null;
+    const res = await fetch("/api/dokument-audyt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ raport, partner, audyt_id: +przycisk.dataset.audyt }),
+    });
+    const d = await res.json();
+    if (!d.ok) { wynik.innerHTML = errorHTML(d.error); return; }
+    renderAudyty();
+  } catch (e) {
+    wynik.innerHTML = errorHTML(e.message);
+  } finally {
+    przycisk.disabled = false;
   }
 }
 

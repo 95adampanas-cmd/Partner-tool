@@ -413,6 +413,14 @@ def zbuduj_ustalenia(dostep: dict, robots: dict, strona: dict, firma: dict) -> l
                   "fakt": "Ani robots.txt, ani serwer nie blokują robotów modeli AI — "
                           "sprawdzone testem dostępu.", "dowod": "", "co_zrobic": ""})
 
+    # Wszystko powyżej to dostęp robotów. Oznaczamy, bo dokumenty dla klienta
+    # tej części nie pokazują: strona za Cloudflare wpuszcza nasze żądanie
+    # podszyte pod GPTBota, a curl z tą samą nazwą dostaje 403 — z zewnątrz nie
+    # da się rzetelnie stwierdzić, czy prawdziwy robot przechodzi. W zakładce
+    # audytu ustalenia zostają, w dokumencie byłyby twierdzeniem bez pokrycia.
+    for x in u:
+        x["temat"] = "dostep"
+
     if not strona:
         return u
 
@@ -442,7 +450,7 @@ def zbuduj_ustalenia(dostep: dict, robots: dict, strona: dict, firma: dict) -> l
         u.append({"waga": "brak", "tytul": "Dane strukturalne bez opisu samej firmy",
                   "fakt": f"Znaleziono: {', '.join(schema[:8])}. Brakuje typu Organization "
                           "lub LocalBusiness, czyli tego, który mówi, KIM jest firma.",
-                  "dowod": "", "co_zrobic": "Dodać Organization z nazwą, adresem, NIP-em i kontaktem."})
+                  "dowod": "", "co_zrobic": "Dodać Organization: nazwa, czym firma się zajmuje, logo i adres strony."})
     else:
         rozp = [f"{s} ({SCHEMA_OPIS[s]})" for s in schema if s in SCHEMA_OPIS]
         u.append({"waga": "ok", "tytul": "Dane strukturalne obecne",
@@ -506,17 +514,6 @@ def zbuduj_ustalenia(dostep: dict, robots: dict, strona: dict, firma: dict) -> l
                                "nie zobaczyć. Kluczowe informacje powinny być w kodzie "
                                "serwowanym od razu."})
 
-    # ── 7. Tożsamość podmiotu
-    brakujace = [n for n, k in (("nazwa prawna", "nazwa_prawna"), ("NIP", "nip"),
-                                ("adres", "adres"), ("telefon", "telefon"), ("e-mail", "email"))
-                 if (firma.get(k) or BRAK) == BRAK]
-    if brakujace and firma:
-        u.append({"waga": "brak", "tytul": "Niepełne dane identyfikujące firmę",
-                  "fakt": "Na przeszukanych podstronach nie znaleźliśmy: "
-                          + ", ".join(brakujace) + ".",
-                  "dowod": "",
-                  "co_zrobic": "Komplet danych rejestrowych pozwala powiązać stronę "
-                               "z konkretnym podmiotem."})
     return u
 
 

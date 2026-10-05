@@ -105,14 +105,33 @@ def _sekcja_pomiar(raport: dict, t: dict) -> str:
     odpowiedzi = p.get("promptow") or 0
     powtorzenia = raport.get("powtorzenia") or 1
 
+    wsp, nikt = p.get("wspomniana", 0) or 0, p.get("bez_polecen")
+    konk = len(p.get("konkurenci") or [])
+    # Wiersz to pytanie zadane jednemu modelowi, scalone z powtórzeń. Przy jednym
+    # modelu to po prostu pytanie — i tak trzeba to nazwać, bo „1 odpowiedź z nazwą"
+    # przy 14 zapytaniach czyta się jak 1 z 14, a to było 1 z 7 pytań.
+    jeden = len(silniki) <= 1
+    # Zapytania FAKTYCZNIE wykonane, nie pytania × powtórzenia: gdy jedna próba
+    # nie przejdzie, było ich 13, a kafel pisał 14.
+    # Stare audyty nie mają `prob` — wtedy każde pytanie poszło `powtorzenia` razy.
+    lacznie = sum(w.get("prob") or powtorzenia for w in (raport.get("prompty") or [])) \
+        or odpowiedzi * powtorzenia
+    co = ("pytanie", "pytania", "pytań") if jeden else ("odpowiedź", "odpowiedzi", "odpowiedzi")
+    trafien = sum(w.get("trafien") or 0 for w in (raport.get("prompty") or []))
     kafle = _kafle_wynikow([
         (str(pytan), _odmiana(pytan, "pytanie zadane modelom", "pytania zadane modelom",
                               "pytań zadanych modelom"),
-         f'{odpowiedzi * powtorzenia} zapytań łącznie' if powtorzenia > 1 else ""),
-        (f'{p.get("wspomniana", 0)}', "odpowiedzi z nazwą firmy",
-         f'{p.get("udzial_wspomnien", 0)}% wszystkich'),
-        (f'{p.get("cytowana", 0)}', "odpowiedzi z linkiem do strony", ""),
-        (str(len(p.get("konkurenci") or [])), "innych firm wymienionych", ""),
+         f'{lacznie} {_odmiana(lacznie, "zapytanie", "zapytania", "zapytań")} łącznie'
+         if powtorzenia > 1 else ""),
+        (f"{wsp} z {odpowiedzi}", f"{co[2]} z nazwą firmy",
+         f"w {trafien} z {lacznie} zapytań" if powtorzenia > 1
+         else f'{p.get("udzial_wspomnien", 0)}% wszystkich'),
+        # Odpowiedzi, w których AI nie poleciło nikogo, to nie przegrana z
+        # konkurencją — liczone osobno. Stare audyty tego pola nie mają.
+        *([(f"{nikt} z {odpowiedzi}", f"{co[2]} bez wskazania, u kogo kupić",
+            "AI nikogo nie poleciło")] if nikt is not None else []),
+        (str(konk), _odmiana(konk, "inna firma wymieniona", "inne firmy wymienione",
+                             "innych firm wymienionych"), ""),
     ])
 
     # SKALA OD ZERA DO STU, nie do najwyższego wyniku. Przy dwóch silnikach po
@@ -125,12 +144,17 @@ def _sekcja_pomiar(raport: dict, t: dict) -> str:
         for s in silniki], maks=100)
 
     zrodlo = raport.get("zrodlo_promptow") or {}
-    metoda = (f'Metoda: {pytan} pytań, każde zadane {powtorzenia}× każdemu '
-              f'z {len(silniki)} modeli — {odpowiedzi * powtorzenia} zapytań łącznie. '
+    modele = (f"modelowi {silniki[0].get('nazwa')}" if len(silniki) == 1
+              else f"każdemu z {len(silniki)} modeli")
+    metoda = (f'Metoda: {pytan} {_odmiana(pytan, "pytanie", "pytania", "pytań")}, '
+              f'każde zadane {powtorzenia}× {modele} — {lacznie} '
+              f'{_odmiana(lacznie, "zapytanie", "zapytania", "zapytań")} łącznie. '
               f'Pytania pochodzą z podpowiedzi Google ({zrodlo.get("google", 0)}) '
               f'i z modelu ({zrodlo.get("model", 0)}). '
-              'Modele są niedeterministyczne: to samo pytanie zadane ponownie '
-              'potrafi dać inną odpowiedź, dlatego każde powtarzamy.')
+              + ('Modele są niedeterministyczne: to samo pytanie zadane ponownie '
+                 'potrafi dać inną odpowiedź, dlatego każde powtarzamy.' if powtorzenia > 1
+                 else 'Każde pytanie zadaliśmy raz, więc pojedynczy wynik może być '
+                      'przypadkowy.'))
 
     return f'''<div class="blok s-pomiar">
 <p class="brew">Wyniki pomiaru</p>
@@ -159,12 +183,19 @@ def _sekcja_konkurenci(raport: dict, t: dict) -> str:
         return ""
     slupki = _slupki([(k["marka"], k["wystapien"],
                        f'{k["wystapien"]}×') for k in konkurenci[:10]])
+    # Marki produktów nie są konkurencją — klient może je mieć na półce. Zdanie
+    # składa kod, żeby model nie dopisał ich do listy „zamiast Ciebie".
+    produkty = (raport.get("podsumowanie") or {}).get("marki_produktow") or []
+    przypis = (f'<p class="metoda">AI wymieniało też marki produktów: '
+               f'{escape(", ".join(produkty[:8]))}. To nie konkurenci — '
+               f'te produkty możesz mieć w swojej ofercie.</p>' if produkty else "")
     return f'''<div class="blok s-konkurenci">
 <p class="brew">Konkurencja w odpowiedziach</p>
 <h2>{escape(t["konkurenci_tytul"])}</h2>
 <p class="lead">{escape(t["konkurenci_wstep"])}</p>
 {slupki}
 <p class="skala">{escape(t["konkurenci_wniosek"])}</p>
+{przypis}
 </div>'''
 
 
@@ -177,21 +208,24 @@ def _sekcja_zrodla(raport: dict, t: dict) -> str:
     Was nie ma". Dlatego tabela obecności stoi tuż pod wykresem źródeł.
     """
     z = raport.get("zrodla") or {}
-    obecnosc = raport.get("obecnosc_w_zrodlach") or []
+    obecnosc = obecnosc_do_dokumentu(raport)
     if not z and not obecnosc:
         return ""
 
     kafle = _kafle_wynikow([
         (str(z.get("zrodel_lacznie", 0)), "linków w odpowiedziach", ""),
         (str(z.get("domen_unikalnych", 0)), "różnych serwisów", ""),
-        (str(z.get("nasze_cytowania", 0)), "cytowań Waszej strony", ""),
+        (str(z.get("nasze_cytowania", 0)), _odmiana(z.get("nasze_cytowania", 0) or 0,
+                                                    "cytowanie Waszej strony",
+                                                    "cytowania Waszej strony",
+                                                    "cytowań Waszej strony"), ""),
         (f'{z.get("nasze_miejsce") or "—"}', "miejsce wśród źródeł",
          f'remis z {z["remisujacych"]}' if z.get("remisujacych") else ""),
     ]) if z else ""
 
     nasza = z.get("nasze_cytowania") or 0
     pozycje = [(x["domena"], x["cytowan"], f'{x["cytowan"]}×')
-               for x in (z.get("top_zrodla") or [])[:10]]
+               for x in (z.get("top_zrodla") or [])[:6]]
     if nasza:
         pozycje.append((raport.get("firma", {}).get("domena") or "Wasza strona",
                         nasza, f'{nasza}× ◀'))
@@ -207,7 +241,7 @@ def _sekcja_zrodla(raport: dict, t: dict) -> str:
             f'<td class="szara">{x.get("cytowan", 0)}×</td>'
             f'<td><span class="znacznik {"jest" if x.get("stan") == "jest" else "brak" if x.get("stan") == "brak" else ""}">'
             f'{"marka jest" if x.get("stan") == "jest" else "brak marki" if x.get("stan") == "brak" else "nie sprawdzono"}'
-            f'</span></td></tr>' for x in obecnosc)
+            f'</span></td></tr>' for x in obecnosc[:4])
         tabela = f'''<h3 class="podtytul">Czy marka jest na stronach, które model cytuje</h3>
 <table class="tabelka"><thead><tr><th>Strona</th><th>Rodzaj</th><th>Cytowań</th><th>Marka</th></tr></thead>
 <tbody>{wiersze}</tbody></table>'''
@@ -231,19 +265,23 @@ def _sekcja_techniczne(raport: dict, t: dict) -> str:
     działające zostają na dole i też są wypisane — brak problemu to informacja,
     nie pustka.
     """
-    tech = raport.get("techniczne") or {}
-    ustalenia = tech.get("ustalenia") or []
+    ustalenia = ustalenia_do_dokumentu(raport.get("techniczne"))
     if not ustalenia:
         return ""
 
     porzadek = {"blokada": 0, "brak": 1, "ok": 2}
     posortowane = sorted(ustalenia, key=lambda u: porzadek.get(u.get("waga"), 3))
 
-    kafle = _kafle_wynikow([
-        (str(tech.get("blokady", 0)), "blokad dostępu dla robotów AI", ""),
-        (str(tech.get("braki", 0)), "braków do uzupełnienia", ""),
-        (str(tech.get("ok", 0)), "rzeczy zrobionych dobrze", ""),
-    ])
+    ile = {w: sum(1 for u in ustalenia if u.get("waga") == w) for w in ("blokada", "brak", "ok")}
+    kafle = _kafle_wynikow([x for x in (
+        (str(ile["blokada"]), _odmiana(ile["blokada"], "blokada widoczności",
+                                       "blokady widoczności", "blokad widoczności"), "")
+        if ile["blokada"] else None,
+        (str(ile["brak"]), _odmiana(ile["brak"], "brak do uzupełnienia",
+                                    "braki do uzupełnienia", "braków do uzupełnienia"), ""),
+        (str(ile["ok"]), _odmiana(ile["ok"], "rzecz zrobiona dobrze",
+                                  "rzeczy zrobione dobrze", "rzeczy zrobionych dobrze"), ""),
+    ) if x])
 
     pozycje = "".join(
         f'<div class="ustalenie {escape(u.get("waga") or "")}">'
@@ -254,7 +292,7 @@ def _sekcja_techniczne(raport: dict, t: dict) -> str:
         + '</div>' for u in posortowane)
 
     return f'''<div class="blok s-techniczne">
-<p class="brew">Dostęp i struktura strony</p>
+<p class="brew">Co strona mówi maszynie</p>
 <h2>{escape(t["techniczne_tytul"])}</h2>
 <p class="lead">{escape(t["techniczne_wstep"])}</p>
 {kafle}
@@ -340,6 +378,45 @@ def _sekcja_seo(raport: dict, t: dict) -> str:
 # ══════════════════════════════════════════════════════════════════════
 #  Składanie
 # ══════════════════════════════════════════════════════════════════════
+# Ustalenia o dostępie robotów nie idą do dokumentu (02.10.2026). Strona za
+# Cloudflare wpuszcza nasze żądanie podszyte pod GPTBota, a ten sam robot z innym
+# nagłówkiem dostaje 403 — z zewnątrz nie da się rzetelnie powiedzieć, czy prawdziwy
+# robot przechodzi. Dane rejestrowe (NIP, telefon) wypadły z audytu w ogóle.
+# Nowe audyty niosą znacznik `temat`; stare rozpoznajemy po tytułach.
+_TYTULY_POMIJANE = {
+    "Serwer odmawia dostępu robotom AI",
+    "Strona jest zamknięta dla robotów, które odpowiadają klientom",
+    "Zamknięte dla asystentów o znikomym udziale w Polsce",
+    "Roboty trenujące modele zablokowane, odpowiadające — wpuszczone",
+    "Roboty trenujące modele są zablokowane",
+    "Strona deklaruje wprost, na co pozwala modelom AI",
+    "Roboty AI mają dostęp do strony",
+    "Niepełne dane identyfikujące firmę",
+}
+
+
+def ustalenia_do_dokumentu(tech: dict | None) -> list[dict]:
+    return [u for u in ((tech or {}).get("ustalenia") or [])
+            if u.get("temat") != "dostep" and u.get("tytul") not in _TYTULY_POMIJANE]
+
+
+def obecnosc_do_dokumentu(raport: dict) -> list[dict]:
+    """Tabela „czy marka tu jest" bez urzędów, WHO, encyklopedii i sklepów z
+    aplikacjami — tam firma nie wejdzie. Nowe audyty odsiewają je już przy
+    pomiarze; tu filtr dla starych."""
+    from audyt_geo import instytucja, typ_strony
+    wynik = []
+    for x in raport.get("obecnosc_w_zrodlach") or []:
+        if instytucja(x.get("domena") or ""):
+            continue
+        # Typ liczony na nowo z tytułu — stare audyty mają zapisany typ z czasów,
+        # gdy „najlepsza" w tytule sklepu robiło z niego ranking.
+        if x.get("tytul"):
+            x = dict(x, typ=typ_strony(x.get("domena") or "", x["tytul"]))
+        wynik.append(x)
+    return wynik
+
+
 def badanie_z_raportu(raport: dict) -> dict:
     """Przepisuje wiersze audytu na kształt, którego oczekuje ramka z dokumentu.
 
@@ -358,7 +435,15 @@ def badanie_z_raportu(raport: dict) -> dict:
                         "wspomniana": w.get("wspomniana")})
         if len(wybrane) == 6:
             break
-    return {"pytania": [o["pytanie"] for o in wybrane], "odpowiedzi": wybrane}
+    p = raport.get("podsumowanie") or {}
+    return {"pytania": [o["pytanie"] for o in wybrane], "odpowiedzi": wybrane,
+            "liczba_pytan": len({w.get("prompt") for w in (raport.get("prompty") or [])}),
+            "liczba_odpowiedzi": p.get("promptow") or 0,
+            "modeli": len(raport.get("silniki") or []) or 1,
+            "powtorzenia": raport.get("powtorzenia") or 1,
+            "wspomniana": p.get("wspomniana") or 0,
+            "bez_polecen": p.get("bez_polecen"),
+            "marka": raport.get("marka")}
 
 
 def zbuduj(raport: dict, tresc: dict, badanie: dict, nadawca: str,

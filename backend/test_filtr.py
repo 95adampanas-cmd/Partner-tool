@@ -1319,6 +1319,359 @@ def sprawdz_marke() -> int:
     return bledy
 
 
+def sprawdz_prawdziwosc() -> int:
+    """Rzeczy, które dokument twierdził nieprawdziwie (weryfikacja 02.10.2026).
+
+    Na Trafice: „nie znaleźliśmy adresu ani telefonu" (są w stopce), „roboty AI
+    mają wstęp" (za Cloudflare nie do sprawdzenia z zewnątrz), gov.pl i who.int
+    jako „strona firmy", na którą „da się wejść", „4 pytań", partner z listą
+    usług, których dla klienta nie robił. Każda z tych rzeczy ma tu swój test.
+    """
+    import asyncio
+    import app
+    import audyt_geo
+    import dokument
+    import geo
+    import raport_geo
+
+    bledy = 0
+
+    # Dane rejestrowe wypadły z audytu: klient partnera nie ma researchu, więc
+    # „nie znaleźliśmy" znaczyło „nie szukaliśmy".
+    u = geo.zbuduj_ustalenia({"wyniki": []}, {"zablokowane": []},
+                             {"schema": ["Product"], "title": "Sklep"}, {"nazwa": "Trafika"})
+    ok = not any("identyfikujące" in x["tytul"] for x in u) and not any(
+        "NIP" in (x.get("co_zrobic") or "") for x in u)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | audyt nie twierdzi, że brakuje NIP-u i telefonu")
+    bledy += not ok
+
+    ok = all(x.get("temat") == "dostep" for x in u if "Roboty" in x["tytul"])
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | ustalenia o robotach oznaczone jako dostęp")
+    bledy += not ok
+
+    tech = {"ustalenia": u + [{"waga": "ok", "tytul": "Roboty AI mają dostęp do strony"},
+                              {"waga": "brak", "tytul": "Niepełne dane identyfikujące firmę"}]}
+    zostaja = raport_geo.ustalenia_do_dokumentu(tech)
+    ok = zostaja and not any("Roboty" in x["tytul"] or "identyfikujące" in x["tytul"]
+                             for x in zostaja)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | dokument pomija dostęp robotów i dane rejestrowe "
+          f"(także w starych audytach)")
+    bledy += not ok
+
+    # Urzędy, WHO, encyklopedie i sklepy z aplikacjami — tam firma nie wejdzie.
+    for d, oczekiwane in (("gov.pl", True), ("eli.gov.pl", True), ("www.who.int", True),
+                          ("play.google.com", True), ("pl.wikipedia.org", True),
+                          ("ceneo.pl", False), ("allegro.pl", False)):
+        ok = audyt_geo.instytucja(d) == oczekiwane
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {d:18} {'odsiane' if oczekiwane else 'zostaje'}")
+        bledy += not ok
+    raport = {"obecnosc_w_zrodlach": [{"domena": "gov.pl", "typ": "strona firmy"},
+                                      {"domena": "ceneo.pl", "typ": "ranking"}]}
+    ok = [x["domena"] for x in raport_geo.obecnosc_do_dokumentu(raport)] == ["ceneo.pl"]
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | stary audyt: gov.pl znika z tabeli obecności")
+    bledy += not ok
+
+    # Odpowiedź, w której AI nie poleciło nikogo, to nie przegrana z konkurencją.
+    wiersze = [{"wspomniana": False, "marki": []}, {"wspomniana": False, "marki": ["Allegro"]},
+               {"wspomniana": True, "marki": []}]
+    ok = app.bez_polecen(wiersze) == 1
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | odpowiedzi bez żadnej firmy liczone osobno")
+    bledy += not ok
+
+    # Pomiar równoległy: każde pytanie N razy, kolejność pytań zachowana.
+    licznik = []
+
+    async def falszywy(pytanie):
+        licznik.append(pytanie)
+        return {"tekst": "Polecam Trafika.pl" if pytanie == "b" else "Polecam Allegro",
+                "zrodla": []}
+
+    w = asyncio.run(app._zmierz(falszywy, ["a", "b", "c"], 2, "Trafika", "trafika.pl"))
+    ok = (len(licznik) == 6 and [x["prompt"] for x in w] == ["a", "b", "c"]
+          and [x["wspomniana"] for x in w] == [False, True, False]
+          and all(x["prob"] == 2 for x in w))
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | 3 pytania × 2 razy = 6 zapytań, kolejność zachowana")
+    bledy += not ok
+
+    # Limit na minutę: ponawiamy. Pusty portfel: przerywamy, nie gubimy pytań po cichu.
+    proby = []
+
+    async def limit_raz(pytanie):
+        proby.append(pytanie)
+        if len(proby) == 1:
+            raise RuntimeError("Error code: 429 rate_limit_exceeded")
+        return {"tekst": "Polecam Allegro", "zrodla": []}
+
+    w = asyncio.run(app._zmierz(limit_raz, ["a"], 1, "Trafika", "trafika.pl"))
+    ok = len(w) == 1 and len(proby) == 2
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | limit na minutę: pytanie ponowione, nie zgubione")
+    bledy += not ok
+
+    async def pusty_portfel(pytanie):
+        raise RuntimeError("Error code: 429 insufficient_quota credit_balance_exhausted")
+
+    try:
+        asyncio.run(app._zmierz(pusty_portfel, ["a"], 1, "Trafika", "trafika.pl"))
+        ok = False
+    except app.BrakSrodkow as e:
+        ok = "Doładuj" in str(e)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | brak środków: jasny błąd zamiast pustego pomiaru")
+    bledy += not ok
+
+    # Ranking to zestawienie, nie każdy tytuł ze słowem „najlepsza".
+    for tytul, oczekiwane in (
+            ("Kawa 100% Arabica - najlepsza ziarnista Arabika | sklep Coffeedesk", False),
+            ("4 Best Instant Coffee Brands of 2026 (I Tested 27) | The Kitchn", True),
+            ("The best weed grinders of 2026 | Leafly", True),
+            ("Ranking kaw ziarnistych 2026", True),
+            ("TOP 10 sklepów z kawą", True)):
+        ok = bool(audyt_geo._ZESTAWIENIE.search(tytul)) == oczekiwane
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'ranking' if oczekiwane else 'nie ranking'}: {tytul[:45]}")
+        bledy += not ok
+
+    # Filtr branż regulowanych — każde źródło pytań, także podpowiedzi Google.
+    for pytanie, oczekiwane in (("sklep z tytoniem online", True),
+                                ("Gdzie kupić papierosy z dostawą?", True),
+                                ("e-papierosy jednorazowe sklep", True),
+                                ("Gdzie kupić wódkę online?", True),
+                                ("Gdzie kupić dobrą kawę arabikę online?", False),
+                                ("Jaką fajkę drewnianą wybrać?", False),
+                                ("Szukam sklepu z herbatą liściastą", False)):
+        ok = app.regulowane(pytanie) == oczekiwane
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {'odsiane' if oczekiwane else 'zostaje'}: {pytanie}")
+        bledy += not ok
+    ok = (app.bez_regulowanych(["sklep z tytoniem online", "kawa arabika"]) == ["kawa arabika"]
+          and app.bez_regulowanych(["sklep z tytoniem online"]) == ["sklep z tytoniem online"])
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | cała oferta regulowana: pytania zostają, nie znika pomiar")
+    bledy += not ok
+
+    # Konkurenci osobno od marek produktów.
+    class _Wynik:
+        def __init__(self, o):
+            self.final_output = o
+
+    async def falszywe_uruchom(zadanie, wejscie):
+        return _Wynik(app.MarkiWOdpowiedziach(odpowiedzi=[
+            app.MarkiJednejOdpowiedzi(firmy=["Coffeedesk", "Trafika.pl"], produkty=["Nescafé"]),
+            app.MarkiJednejOdpowiedzi(firmy=[], produkty=["Jacobs", "Illy"])]))
+
+    oryginal = app.claude.uruchom
+    app.claude.uruchom = falszywe_uruchom
+    try:
+        w = [{"odpowiedz": "a", "wspomniana": False}, {"odpowiedz": "b", "wspomniana": False}]
+        asyncio.run(app.marki_modelem(w, "Trafika", "trafika.pl"))
+    finally:
+        app.claude.uruchom = oryginal
+    ok = (w[0]["marki"] == ["Coffeedesk"] and w[0]["marki_produktow"] == ["Nescafé"]
+          and w[1]["marki"] == [] and app.bez_polecen(w) == 1)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | Nescafé to marka produktu, nie konkurent; sama "
+          f"marka kawy = nikt nie wskazał, u kogo kupić")
+    bledy += not ok
+    import audyt
+    pods = audyt.podsumuj([dict(x, cytowana=False) for x in w], None)
+    ok = ([k["marka"] for k in pods["konkurenci"]] == ["Coffeedesk"]
+          and set(pods["marki_produktow"]) == {"Nescafé", "Jacobs", "Illy"})
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | podsumowanie: konkurenci i marki produktów osobno")
+    bledy += not ok
+    r = {"podsumowanie": {"konkurenci": [{"marka": "Coffeedesk", "wystapien": 1}],
+                          "marki_produktow": ["Nescafé", "Jacobs"]}}
+    sekcja = raport_geo._sekcja_konkurenci(r, {"konkurenci_tytul": "t", "konkurenci_wstep": "w",
+                                                "konkurenci_wniosek": "x"})
+    ok = "Coffeedesk" in sekcja and "To nie konkurenci" in sekcja and "Nescafé, Jacobs" in sekcja
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | raport: marki produktów w przypisie, nie na liście konkurentów")
+    bledy += not ok
+
+    # Dokumenty zapisują się w bazie i dają się pobrać ponownie — bez nowego pomiaru.
+    import baza
+    import pathlib
+    import tempfile
+    stary_plik, stare_pol = baza.PLIK, baza._polaczenie
+    with tempfile.TemporaryDirectory() as tmp:
+        baza.PLIK, baza._polaczenie = pathlib.Path(tmp) / "test.db", None
+        try:
+            aid = baza.zapisz_audyt("https://trafika.pl", {"firma": {"nazwa": "Trafika"},
+                                    "partner": {"nazwa": "Tebim", "url": "https://tebim.pro"}},
+                                    "partner", "material")
+            did = baza.zapisz_dokument("https://trafika.pl", "Trafika", "material",
+                                       "<html>plik</html>", "material-trafika.html",
+                                       {"nazwa": "Tebim", "url": "https://tebim.pro"}, aid)
+            lista = baza.dokumenty()
+            d = baza.dokument(did)
+            ok = (isinstance(aid, int) and len(lista) == 1 and "html" not in lista[0]
+                  and lista[0]["audyt_id"] == aid and lista[0]["partner_nazwa"] == "Tebim"
+                  and d["html"] == "<html>plik</html>" and baza.dokument(999) is None)
+
+            # Lejek: etap domyślny, zmiana z datą, notatka, odporność na research.
+            baza.zapisz_firme({"url": "https://tebim.pro", "nazwa": "Tebim"})
+            f0 = baza.firmy()[0]
+            e1 = baza.ustaw_etap("https://tebim.pro", "material")
+            e2 = baza.ustaw_etap("https://tebim.pro", "material", "wysłany 05.10")
+            baza.zapisz_firme({"url": "https://tebim.pro", "nazwa": "Tebim", "opis": "nowy"})
+            f1 = baza.firmy()[0]
+            try:
+                baza.ustaw_etap("https://tebim.pro", "zly_etap")
+                zly = False
+            except ValueError:
+                zly = True
+            ok_lejek = (f0["etap"] == "zbadany" and f0["etap_data"] == f0["zbadana"]
+                        and e1["etap"] == "material" and e2["etap_data"] == e1["etap_data"]
+                        and f1["etap"] == "material" and f1["notatka"] == "wysłany 05.10"
+                        and zly)
+        finally:
+            baza._polaczenie.close()
+            baza.PLIK, baza._polaczenie = stary_plik, stare_pol
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | dokument zapisany z pomiarem, lista bez HTML, plik do pobrania")
+    bledy += not ok
+    print(f"  {'OK  ' if ok_lejek else 'BŁĄD'} | lejek: etap zostaje po ponownym researchu, "
+          f"ten sam etap nie przestawia daty")
+    bledy += not ok_lejek
+
+    # Niepełny pomiar nie idzie do dokumentu; czekanie wg wskazówki OpenAI.
+    ok = (app.pomiar_kompletny(7, 8) and app.pomiar_kompletny(6, 8)
+          and not app.pomiar_kompletny(1, 8) and not app.pomiar_kompletny(5, 8)
+          and not app.pomiar_kompletny(0, 0))
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pomiar z 1 z 8 pytań nie trafia do dokumentu")
+    bledy += not ok
+    ok = (2 <= app._czekaj_po_limicie("Please try again in 1.068s.", 0) <= 3
+          and app._czekaj_po_limicie("try again in 745ms", 0) < 2
+          and app._czekaj_po_limicie("rate_limit_exceeded", 5) == 20)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | po limicie czekamy tyle, ile podaje OpenAI")
+    bledy += not ok
+
+    # Partner widziany przez model: tylko główna kategoria i portfolio.
+    import json
+    tebim = {"nazwa": "Tebim", "kategoria": "Sklepy internetowe",
+             "branza": "agencja PrestaShop", "uslugi": ["Pozycjonowanie", "Integracje"],
+             "opis": "…", "case_studies": ["Trafika", "Ella Boutique"]}
+    dane = json.loads(app._partner_dla_modelu(tebim, "Trafika"))
+    ok = (dane["kategoria"] == "Sklepy internetowe" and dane["klient_w_portfolio_partnera"]
+          and "uslugi" not in dane and "Pozycjonowanie" not in json.dumps(dane))
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | partner opisany główną kategorią, bez listy usług")
+    bledy += not ok
+    ok = not json.loads(app._partner_dla_modelu(tebim, "Inna Firma"))["klient_w_portfolio_partnera"]
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | klient spoza portfolio: bez twierdzeń o pracy dla niego")
+    bledy += not ok
+
+    # „Pominął kawę" o odpowiedzi, w której stało „kawa" — kontrola po rdzeniach.
+    odp = "Oferuje papierosy, tytoń fajkowy, cygara, kawa, także produkty CBD."
+    ok = (app._jest_w_tekscie("kawę", odp) and app._jest_w_tekscie("tytoń fajkowy", odp)
+          and not app._jest_w_tekscie("herbata", odp))
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pominięcie, które jest w odpowiedzi, odpada")
+    bledy += not ok
+
+    # Ocena marki pomija kontakty, rejestry, rozmiary i dostawę.
+    for tekst, oczekiwane in (("tel.: +48 724 412 305", False), ("NIP 6181520260", False),
+                              ("rozmiary 34-50", False), ("darmowa dostawa od 490 zł", False),
+                              ("ul. Górnośląska 82", False), ("sukienki na wesele", True),
+                              ("szyte w Polsce", True), ("salony w Kaliszu i Poznaniu", True)):
+        ok = app._istotne(tekst) == oczekiwane
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | ocena marki {'bierze' if oczekiwane else 'pomija'}: {tekst}")
+        bledy += not ok
+
+    # Bestsellery: dział z menu, a bez niego produkty ze strony głównej.
+    glowna = ('<a href="/31-bestsellery">Bestsellery</a><a href="/stopka">Stopka</a>'
+              '<h3 class="product-title">Sukienka z głównej</h3>')
+    bestsellery = ('<h3 class="product-title"><a>Kombinezon Mary - elegancki kombinezon</a></h3>'
+                   '<h3 class="product-title"><a>Kombinezon Mary - elegancki kombinezon</a></h3>'
+                   '<div class="product-name">Body Laura</div>')
+    pobrane = []
+    oryginal_pobierz = app.pobierz
+    app.pobierz = lambda u, *a, **k: (pobrane.append(u), bestsellery)[1]
+    try:
+        top = app.topowe_produkty("https://sklep.pl", glowna)
+        app.pobierz = lambda u, *a, **k: None
+        bez_dzialu = app.topowe_produkty("https://sklep.pl", glowna.replace("Bestsellery", "Kontakt")
+                                         .replace("bestsellery", "kontakt"))
+    finally:
+        app.pobierz = oryginal_pobierz
+    ok = (pobrane == ["https://sklep.pl/31-bestsellery"]
+          and top == ["Kombinezon Mary - elegancki kombinezon", "Body Laura"]
+          and bez_dzialu == ["Sukienka z głównej"])
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | bestsellery z działu sklepu, bez duplikatów; bez działu — strona główna")
+    bledy += not ok
+
+    # Ocena marki nie ma kategorii „błędne" — tego kod nie umie sprawdzić.
+    ok = set(app.OcenaMarki.model_fields) == {"zna_marke", "zgodne", "pominiete"}
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | ocena marki bez zarzutów, których nie da się sprawdzić")
+    bledy += not ok
+
+    # Odpowiedź o marce bez NIP-u, telefonu i adresu — reszta słowo w słowo.
+    odp = ("ellaboutique.pl to butik z sukienkami.\n\nDane firmy z kontaktu:\n"
+           "- Ella Boutique, ul. Górnośląska 82, 62-800 Kalisz\n- NIP: 6181520260\n"
+           "- tel.: +48 724 412 305\n- e-mail: sklep@ellaboutique.pl\n\n"
+           "Mają salony w Kaliszu i Poznaniu.")
+    pokaz = app.bez_danych_kontaktowych(odp)
+    ok = ("NIP" not in pokaz and "+48" not in pokaz and "@" not in pokaz and "Dane firmy" not in pokaz
+          and "butik z sukienkami" in pokaz and "salony w Kaliszu" in pokaz)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | odpowiedź o marce bez danych kontaktowych", repr(pokaz)[:120])
+    bledy += not ok
+    html_m = dokument.zbuduj({"wstep_tytul": "a", "wstep_tresc": "b", "audyt_wstep": "c",
+                              "audyt_wniosek": "d", "role_tytul": "e", "role_wstep": "f",
+                              "braki": [], "rola_partner_tytul": "g", "rola_partner": [],
+                              "rola_my": []},
+                             {"pytania": [], "marka": {"pytanie": "Co wiesz?", "odpowiedz": odp,
+                                                       "odpowiedz_pokaz": pokaz}}, "Tebim")
+    ok = "6181520260" not in html_m and "pominęliśmy tylko dane rejestrowe" in html_m
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | dokument mówi wprost, że kontakty wycięliśmy")
+    bledy += not ok
+
+    ok = app.zadanie_prompty_klienta.model == app.MOCNY
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | pytania klienta pisze mocny model — idą do dokumentu słowo w słowo")
+    bledy += not ok
+
+    # Minimum ośmiu pytań i dwóch powtórzeń w materiale.
+    ok = app.PYTAN_MATERIALU >= 8 and app.POWTORZEN_MATERIALU >= 2
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | materiał: co najmniej 8 pytań po 2 razy")
+    bledy += not ok
+
+    # Dokument: bez bloku o robotach, z linią pomiaru i stroną o marce.
+    tresc = {"wstep_tytul": "a", "wstep_tresc": "b",
+             "audyt_wstep": "Sprawdź to sam, zanim nam uwierzysz. Zapytaj AI:",
+             "audyt_wniosek": "c", "role_tytul": "d", "role_wstep": "e",
+             "braki": [{"tytul": "x", "opis": "y"}] * 3, "rola_partner_tytul": "Zostaje.",
+             "rola_partner": ["sklep"], "rola_my": ["AI"],
+             "marka_tytul": "AI zna sklep, ale nie wie, co w nim kupisz.",
+             "marka_wniosek": "Pominęło kawę."}
+    badanie = {"pytania": ["p1", "p2"], "liczba_pytan": 8, "liczba_odpowiedzi": 8,
+               "powtorzenia": 2, "wspomniana": 0, "bez_polecen": 3, "data": "02.10.2026",
+               "odpowiedzi": [{"pytanie": "p1", "odpowiedz": "o"}],
+               "marka": {"pytanie": "Co wiesz o trafika.pl?", "odpowiedz": "To sklep tytoniowy."}}
+    html = dokument.zbuduj(tresc, badanie, "Tebim")
+    ok = ('class="dostep"' not in html and "Roboty AI mają wstęp" not in html
+          and html.count("Sprawdź to sam") == 1)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | strona pytań bez robotów i bez zdublowanego nagłówka")
+    bledy += not ok
+    ok = ("Zadaliśmy 8 pytań, każde 2 razy." in html and "Marka padła przy 0 z 8 pytań." in html
+          and "Przy 3 z 8 AI nie wskazało nikogo, u kogo kupić." in html)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | linia pomiaru z liczbami z całego pomiaru")
+    bledy += not ok
+    ok = ('class="blok s-marka"' in html and "Co wiesz o trafika.pl?" in html
+          and "Pominęło kawę." in html and html.count('<section class="strona') == 9
+          and html.index('class="blok s-zmiana"') < html.index('class="blok s-marka"')
+          < html.index('class="blok s-branza"'))
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | strona „Co AI wie o marce” po stronie z pytaniami")
+    bledy += not ok
+    ok = 'class="blok s-marka"' not in dokument.zbuduj(tresc, dict(badanie, marka=None), "Tebim")
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | bez pytania o markę strony nie ma")
+    bledy += not ok
+
+    # Metoda w raporcie: odmiana i jeden model po nazwie.
+    r = {"podsumowanie": {"per_silnik": [{"nazwa": "ChatGPT", "pytan": 4, "wspomniana": 0}],
+                          "promptow": 4, "wspomniana": 0, "konkurenci": [{"marka": "A"}] * 4,
+                          "bez_polecen": 3},
+         "prompty": [{"prompt": f"p{i}"} for i in range(4)], "powtorzenia": 2,
+         "zrodlo_promptow": {"google": 1, "model": 3}}
+    t = {k: "x" for k in ("pomiar_tytul", "pomiar_wstep", "pomiar_wniosek")}
+    sekcja = raport_geo._sekcja_pomiar(r, t)
+    ok = ("4 pytania, każde zadane 2× modelowi ChatGPT" in sekcja
+          and "8 zapytań łącznie" in sekcja and "4 pytań" not in sekcja
+          and "inne firmy wymienione" in sekcja and "0 z 4" in sekcja
+          and "pytań bez wskazania, u kogo kupić" in sekcja)
+    print(f"  {'OK  ' if ok else 'BŁĄD'} | metoda i kafle w raporcie po polsku")
+    bledy += not ok
+    return bledy
+
+
 def sprawdz_nazwy() -> int:
     """Czy w kolejce i wynikach stoi nazwa FIRMY, a nie tytuł strony.
 
@@ -1448,6 +1801,12 @@ def sprawdz_regresje() -> int:
     print("NAZWY FIRM — nazwa partnera zamiast tytułu strony")
     print("=" * 74)
     bledy += sprawdz_nazwy()
+    print()
+
+    print("=" * 74)
+    print("PRAWDZIWOŚĆ — czego dokument nie może twierdzić")
+    print("=" * 74)
+    bledy += sprawdz_prawdziwosc()
     print()
 
     print("=" * 74)

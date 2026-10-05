@@ -345,7 +345,9 @@ def _zmiana(t: dict, badanie: dict) -> str:
     pytania, które zadaliśmy, i to, co ChatGPT naprawdę odpowiedział — wszystkie,
     przewijane jak slajdy, a w wydruku pod sobą, bo kartki nie da się kliknąć.
     """
-    odpowiedzi = badanie.get("odpowiedzi") or []
+    # Na stronie mieszczą się cztery pytania z odpowiedziami — przy sześciu ramka
+    # i wniosek zjeżdżały na drugą kartkę. Liczby w linii pomiaru są z całości.
+    odpowiedzi = (badanie.get("odpowiedzi") or [])[:4]
     if not odpowiedzi and badanie.get("dowod"):
         odpowiedzi = [badanie["dowod"]]
 
@@ -372,12 +374,13 @@ def _zmiana(t: dict, badanie: dict) -> str:
     pytania = "".join(
         f'<li><span class="nr">{i + 1:02d}</span>'
         f'<button class="pytanie-link" data-idx="{i}" type="button">„{escape(p)}”</button></li>'
-        for i, p in enumerate(badanie.get("pytania") or []))
+        for i, p in enumerate((badanie.get("pytania") or [])[:4]))
 
-    dostep = ""
-    if t.get("dostep_tytul"):
-        dostep = (f'<p class="dostep"><b>{escape(t["dostep_tytul"])}</b> '
-                  f'{escape(t.get("dostep_tresc") or "")}</p>')
+    # Model lubi zaczynać wstęp od nagłówka, który stoi tuż nad nim — w raporcie
+    # Trafiki „Sprawdź to sam, zanim nam uwierzysz." stało dwa razy pod sobą.
+    wstep = (t.get("audyt_wstep") or "").strip()
+    if wstep.lower().startswith("sprawdź to sam"):
+        wstep = wstep.split(".", 1)[-1].strip() or "Zapytaj AI tak, jak zapytałby Twój klient:"
 
     return f'''<div class="blok s-zmiana">
 <p class="brew">Sprawdź swoją markę</p>
@@ -387,9 +390,9 @@ wymienia kilka firm i nie pokazuje reszty.</p>
 <div class="test">
 <div class="test-tresc">
 <h3>Sprawdź to sam,<br>zanim nam uwierzysz.</h3>
-<p class="pod-h3">{escape(t["audyt_wstep"])}</p>
+<p class="pod-h3">{escape(wstep)}</p>
 <ul class="pytania-lista">{pytania}</ul>
-{dostep}
+{_linia_pomiaru(badanie)}
 </div>
 <div class="ramka"><div class="ekran" id="ekran-odpowiedzi">
 <div class="belka"><span></span><span></span><span></span>Przykład rozmowy z AI</div>
@@ -398,6 +401,69 @@ wymienia kilka firm i nie pokazuje reszty.</p>
 </div></div>
 </div>
 <p class="wyroznienie">{escape(t["audyt_wniosek"])}</p>
+</div>'''
+
+
+def _odmiana(n: int, jedna: str, kilka: str, wiele: str) -> str:
+    if n == 1:
+        return jedna
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return kilka
+    return wiele
+
+
+def _linia_pomiaru(badanie: dict) -> str:
+    """Pomiar w trzech liczbach, policzony przez kod, nie napisany przez model.
+
+    Osobno liczymy odpowiedzi, w których AI nie poleciło NIKOGO. Na Trafice trzy
+    z czterech pytań o tytoń skończyły się odmową z powodu prawa — liczone razem
+    z resztą wyglądały jak „konkurencja zajęła Twoje miejsce", a nikt go nie zajął.
+    """
+    pytan = badanie.get("liczba_pytan") or 0
+    if not pytan:
+        return ""
+    odp = badanie.get("liczba_odpowiedzi") or pytan
+    modeli = badanie.get("modeli") or 1
+    powt = badanie.get("powtorzenia") or 1
+    padla = badanie.get("wspomniana") or 0
+    zdania = [f'Zadaliśmy {pytan} {_odmiana(pytan, "pytanie", "pytania", "pytań")}'
+              + (f", każde {powt} razy" if powt > 1 else "")
+              + (f", każdemu z {modeli} modeli" if modeli > 1 else "") + ".",
+              (f'Marka padła przy {padla} z {odp} {"pytania" if odp == 1 else "pytań"}.'
+               if modeli == 1 else f"Marka padła w {padla} z {odp} odpowiedzi modeli.")]
+    nikt = badanie.get("bez_polecen")
+    if nikt:
+        zdania.append(f'Przy {nikt} z {odp} AI nie wskazało nikogo, u kogo kupić.')
+    return f'<p class="linia-pomiaru">{escape(" ".join(zdania))}</p>'
+
+
+def _marka(t: dict, badanie: dict) -> str:
+    """Co AI mówi o samej marce, zapytane wprost o adres strony.
+
+    Pomiar kategorii mówi, czy AI poleca markę. To pytanie mówi, czy w ogóle ją
+    zna i czy opisuje ją zgodnie z prawdą. Odpowiedź stoi w całości, a ocenę
+    model pisze wyłącznie przez porównanie z tekstem ze strony klienta.
+    """
+    m = badanie.get("marka") or {}
+    if not (m.get("odpowiedz") or "").strip():
+        return ""
+    pokaz = m.get("odpowiedz_pokaz") or m["odpowiedz"]
+    wyciete = pokaz != m["odpowiedz"]
+    return f'''<div class="blok s-marka">
+<p class="brew">Twoja marka w AI</p>
+<h2>{escape(t.get("marka_tytul") or "Co AI wie o Twojej firmie.")}</h2>
+<p class="lead">Zapytaliśmy ChatGPT wprost o adres Twojej strony. Tak odpowiedział{
+", słowo w słowo — pominęliśmy tylko dane rejestrowe i kontaktowe" if wyciete else ", słowo w słowo"}.</p>
+<div class="ramka"><div class="ekran">
+<div class="belka"><span></span><span></span><span></span>Rozmowa z AI</div>
+<div class="ekran-srodek">
+<div class="pytanie-klienta"><span>Pytanie</span><p class="pyt">{escape(m.get("pytanie") or "")}</p></div>
+<p class="odpowiedz-ai">✳ Odpowiedź AI</p>
+<div class="odp">{_odpowiedz_html(pokaz)}</div>
+</div>
+<p class="stopa">Prawdziwa odpowiedź ChatGPT na to zapytanie, {escape(badanie.get("data") or "")}.</p>
+</div></div>
+{f'<p class="wyroznienie">{escape(t["marka_wniosek"])}</p>' if t.get("marka_wniosek") else ""}
 </div>'''
 
 
@@ -432,8 +498,8 @@ def _branza(t: dict, partner: str | None) -> str:
 <div class="przeplyw">{kroki}</div>
 <p class="puenta">{escape(t.get("role_puenta") or "Im lepiej AI rozumie, czym zajmuje się Twoja firma, tym częściej ją wymienia.")}</p>
 <div class="role">
-<div class="rola-kol"><h3>{escape(tytul_partnera)}</h3><ul>{lista(t["rola_partner"])}</ul></div>
-<div class="rola-kol ciemna"><h3>Bierze na siebie ICEA.</h3><ul>{lista(t["rola_my"])}</ul></div>
+<div class="rola-kol"><h3>{escape(tytul_partnera)}</h3><ul>{lista(t["rola_partner"][:4])}</ul></div>
+<div class="rola-kol ciemna"><h3>Bierze na siebie ICEA.</h3><ul>{lista(t["rola_my"][:4])}</ul></div>
 </div>
 </div>'''
 
@@ -572,7 +638,8 @@ def zbuduj(tresc: dict, badanie: dict, partner: str | None,
     teraz = datetime.now()
     data = f"{MIESIACE[teraz.month - 1]} {teraz.year}"
 
-    srodek = [_epoki(), _zmiana(tresc, badanie), *strony_audytu,
+    marka = _marka(tresc, badanie)
+    srodek = [_epoki(), _zmiana(tresc, badanie), *([marka] if marka else []), *strony_audytu,
               _branza(tresc, partner), _botland(), _dowod(), _strata_i_kroki()]
     razem = len(srodek) + 2
     strony = [_okladka(tresc, partner, odbiorca, data)]

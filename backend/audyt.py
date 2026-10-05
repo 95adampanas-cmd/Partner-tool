@@ -729,11 +729,21 @@ def podsumuj(wiersze: list[dict], ai_overview: dict | None) -> dict:
     cytowana = sum(1 for w in wiersze if w["cytowana"])
 
     # najczęściej powtarzający się konkurenci w odpowiedziach AI
-    licznik: dict[str, int] = {}
-    for w in wiersze:
-        for marka in w["marki"]:
-            licznik[marka] = licznik.get(marka, 0) + 1
-    konkurenci = sorted(licznik.items(), key=lambda x: x[1], reverse=True)[:10]
+    # Nazwy scalane bez względu na wielkość liter — „Illy" i „illy" z dwóch
+    # odpowiedzi to jedna marka. Zostaje pisownia z pierwszego wystąpienia.
+    def zlicz(klucz):
+        licznik: dict[str, int] = {}
+        pisownia: dict[str, str] = {}
+        for w in wiersze:
+            for marka in w.get(klucz) or []:
+                k = marka.strip().lower()
+                pisownia.setdefault(k, marka.strip())
+                licznik[k] = licznik.get(k, 0) + 1
+        return [(pisownia[k], n) for k, n in sorted(licznik.items(), key=lambda x: -x[1])]
+
+    konkurenci = zlicz("marki")[:10]
+    # Marki produktów osobno — klient może je sprzedawać, to nie konkurencja.
+    produkty = dict(zlicz("marki_produktow"))
 
     # Rozbicie na silniki — przy kilku modelach jedna liczba zbiorcza zaciera obraz.
     # „2/10 wzmianek" nic nie mówi; „ChatGPT 0/5, Perplexity 2/5" mówi wszystko.
@@ -754,6 +764,7 @@ def podsumuj(wiersze: list[dict], ai_overview: dict | None) -> dict:
         "cytowana": cytowana,
         "udzial_wspomnien": round(100 * wspomniana / ile),
         "konkurenci": [{"marka": m, "wystapien": n} for m, n in konkurenci],
+        "marki_produktow": list(produkty)[:10],
         "wzmianki_aio": (ai_overview or {}).get("liczba_wzmianek"),
         "srednia_pozycja_aio": (ai_overview or {}).get("srednia_pozycja"),
     }

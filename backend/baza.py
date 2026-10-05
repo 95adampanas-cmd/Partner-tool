@@ -39,6 +39,7 @@ def _polacz() -> sqlite3.Connection:
         _utworz(_polaczenie)
         _przenies_konkurent_na_ma_seo(_polaczenie)
         _dodaj_kategorie_do_kolejki(_polaczenie)
+        _dodaj_etap_do_firm(_polaczenie)
     return _polaczenie
 
 
@@ -53,6 +54,26 @@ def _dodaj_kategorie_do_kolejki(db: sqlite3.Connection) -> None:
     if "kategoria" not in kolumny:
         db.execute("ALTER TABLE kolejka ADD COLUMN kategoria TEXT")
         db.commit()
+
+
+# Etapy lejka partnera. Kolejność ma znaczenie: przycisk „dalej" przesuwa o jeden.
+# „nie_teraz" stoi poza kolejnością — partner, który odmówił albo ucichł, nie może
+# wisieć w „rozmowie" i zasłaniać tych, którymi trzeba się zająć.
+ETAPY = ("zbadany", "material", "rozmowa", "wspolpraca", "nie_teraz")
+
+
+def _dodaj_etap_do_firm(db: sqlite3.Connection) -> None:
+    """Migracja: etap lejka, data jego zmiany i jednozdaniowa notatka.
+
+    Osobne kolumny, nie pole w JSON-ie firmy: ponowny research nadpisuje `dane`
+    w całości, a etap to nasza praca z partnerem — nie może zniknąć dlatego, że
+    ktoś odświeżył dane z jego strony.
+    """
+    kolumny = {r["name"] for r in db.execute("PRAGMA table_info(firmy)")}
+    for nazwa in ("etap", "etap_data", "notatka"):
+        if nazwa not in kolumny:
+            db.execute(f"ALTER TABLE firmy ADD COLUMN {nazwa} TEXT")
+    db.commit()
 
 
 def _przenies_konkurent_na_ma_seo(db: sqlite3.Connection) -> None:
@@ -151,6 +172,24 @@ def _utworz(db: sqlite3.Connection) -> None:
             data     TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_maile_url ON maile(url);
+
+        -- Wygenerowane dokumenty (materiał, raport z audytu). Do 05.10.2026 żyły
+        -- tylko w przeglądarce: zamknięcie karty kasowało plik, a ponowne pobranie
+        -- znaczyło nowy pomiar i nowe pisanie — czyli nowy rachunek. HTML trzymamy
+        -- w całości, bo to dokładnie ten plik, który poszedł do klienta.
+        CREATE TABLE IF NOT EXISTS dokumenty (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            url         TEXT NOT NULL,         -- strona, której dotyczy (klient)
+            nazwa       TEXT,                  -- nazwa klienta
+            partner_url TEXT,                  -- kto wysyła (pusty: wysyła ICEA)
+            partner_nazwa TEXT,
+            rodzaj      TEXT NOT NULL,         -- material / raport
+            audyt_id    INTEGER,               -- pomiar, z którego powstał
+            plik        TEXT,
+            html        TEXT NOT NULL,
+            data        TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dokumenty_url ON dokumenty(url);
     """)
     db.commit()
 
@@ -191,8 +230,11 @@ def firmy(tryb: str | None = None) -> list[dict]:
             w = db.execute("SELECT * FROM firmy WHERE tryb = ? ORDER BY zbadana", (tryb,))
         else:
             w = db.execute("SELECT * FROM firmy ORDER BY zbadana")
+        # Firma bez etapu to firma zbadana — od dnia researchu.
         return [{**json.loads(r["dane"]), "tryb": r["tryb"],
-                 "w_koszyku": bool(r["w_koszyku"]), "zbadana": r["zbadana"]}
+                 "w_koszyku": bool(r["w_koszyku"]), "zbadana": r["zbadana"],
+                 "etap": r["etap"] or "zbadany", "etap_data": r["etap_data"] or r["zbadana"],
+                 "notatka": r["notatka"] or ""}
                 for r in w.fetchall()]
 
 
@@ -211,19 +253,45 @@ def ustaw_koszyk(url: str, w_koszyku: bool) -> None:
         db.commit()
 
 
+def ustaw_etap(url: str, etap: str | None = None, notatka: str | None = None) -> dict:
+    """Zmienia etap (i datę zmiany) albo samą notatkę. Ten sam etap kliknięty
+    drugi raz nie przestawia daty — „od 12 dni w rozmowie" ma zostać prawdą."""
+    if etap is not None and etap not in ETAPY:
+        raise ValueError(f"Nieznany etap: {etap}")
+    with _zamek:
+        db = _polacz()
+        r = db.execute("SELECT etap, etap_data, zbadana FROM firmy WHERE url = ?",
+                       (url,)).fetchone()
+        if not r:
+            raise ValueError("Nie ma takiej firmy.")
+        if etap is not None and etap != (r["etap"] or "zbadany"):
+            db.execute("UPDATE firmy SET etap = ?, etap_data = ? WHERE url = ?",
+                       (etap, _teraz(), url))
+        if notatka is not None:
+            db.execute("UPDATE firmy SET notatka = ? WHERE url = ?",
+                       (notatka.strip()[:300], url))
+        db.commit()
+        r = db.execute("SELECT etap, etap_data, zbadana, notatka FROM firmy WHERE url = ?",
+                       (url,)).fetchone()
+        return {"etap": r["etap"] or "zbadany", "etap_data": r["etap_data"] or r["zbadana"],
+                "notatka": r["notatka"] or ""}
+
+
 # ══════════════════════════════════════════════════════════════════
 #  AUDYTY
 # ══════════════════════════════════════════════════════════════════
 def zapisz_audyt(url: str, raport: dict, tryb: str = "partner",
-                 dostawca: str = "") -> None:
+                 dostawca: str = "") -> int:
     """Historia, nie nadpisywanie: audyt tej samej domeny sprzed miesiąca i dzisiejszy
-    to dwa różne pomiary i porównanie ich jest właśnie tym, co pokazuje postęp."""
+    to dwa różne pomiary i porównanie ich jest właśnie tym, co pokazuje postęp.
+    Zwraca id — dokument zrobiony z tego pomiaru zapamiętuje, z którego powstał."""
     with _zamek:
         db = _polacz()
-        db.execute(
+        c = db.execute(
             "INSERT INTO audyty (url, tryb, dostawca, raport, data) VALUES (?, ?, ?, ?, ?)",
             (url, tryb, dostawca, json.dumps(raport, ensure_ascii=False), _teraz()))
         db.commit()
+        return c.lastrowid
 
 
 # Nazwa badanej firmy i partner wyciągane z JSON-a raportu przez SQLite, nie
@@ -253,6 +321,40 @@ def audyt(id_: int) -> dict | None:
         db = _polacz()
         r = db.execute("SELECT raport FROM audyty WHERE id = ?", (id_,)).fetchone()
         return json.loads(r["raport"]) if r else None
+
+
+# ══════════════════════════════════════════════════════════════════
+#  DOKUMENTY
+# ══════════════════════════════════════════════════════════════════
+def zapisz_dokument(url: str, nazwa: str, rodzaj: str, html: str, plik: str,
+                    partner: dict | None = None, audyt_id: int | None = None) -> int:
+    partner = partner or {}
+    with _zamek:
+        db = _polacz()
+        c = db.execute(
+            "INSERT INTO dokumenty (url, nazwa, partner_url, partner_nazwa, rodzaj, "
+            "audyt_id, plik, html, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (url, nazwa, partner.get("url") or "", partner.get("nazwa") or "", rodzaj,
+             audyt_id, plik, html, _teraz()))
+        db.commit()
+        return c.lastrowid
+
+
+def dokumenty(limit: int = 200) -> list[dict]:
+    """Same nagłówki — pliki mają po pół megabajta (zdjęcia osadzone w HTML)."""
+    with _zamek:
+        db = _polacz()
+        w = db.execute("SELECT id, url, nazwa, partner_url, partner_nazwa, rodzaj, "
+                       "audyt_id, plik, data FROM dokumenty ORDER BY data DESC LIMIT ?",
+                       (limit,))
+        return [dict(r) for r in w.fetchall()]
+
+
+def dokument(id_: int) -> dict | None:
+    with _zamek:
+        db = _polacz()
+        r = db.execute("SELECT * FROM dokumenty WHERE id = ?", (id_,)).fetchone()
+        return dict(r) if r else None
 
 
 def statystyki() -> dict:

@@ -1170,3 +1170,58 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
 .tabela-kolejki tr:hover .usun-z-kolejki, .usun-z-kolejki:focus { opacity: 1; }
 .tabela-kolejki .sim-err { margin: 6px 0 0; font-size: 12px; color: var(--zolty); white-space: normal; }
 @media (max-width: 900px) { .kol-skad { display: none; } }
+
+/* Audyty: pomiary i dokumenty w jednej karcie firmy. Przyciski wiersza po prawej,
+   w jednej linii — „Podgląd" i „Pobierz" to linki, wyglądają jak przyciski. */
+#audyty-box .tabela + .tabela { margin-top: 14px; }
+#audyty-box .akcje-wiersza { text-align: right; white-space: nowrap; }
+#audyty-box .akcje-wiersza .btn-lekki { margin-left: 6px; text-decoration: none; }
+
+/* ══ LEJEK ══════════════════════════════════════════════════════════════
+   Kolumny etapów jak tablica, ale bez przeciągania — etap zmienia przycisk
+   „dalej" albo lista. „Kim się zająć" stoi nad tablicą, bo to pierwsze
+   pytanie, z którym się tu wchodzi. */
+.lejek-pilne { margin-bottom: 16px; }
+.lejek-pilne-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px; margin-top: 12px; }
+.lejek-kolumny { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px; align-items: start; }
+.lejek-kolumna { background: var(--surface-2); border-radius: var(--r); padding: 10px;
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lejek-kolumna-head { display: flex; justify-content: space-between; align-items: center;
+  padding: 2px 4px 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.lejek-kolumna-head em { font-style: normal; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); font-variant-numeric: tabular-nums; }
+.lejek-pusta { margin: 4px; }
+.lejek-karta { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lejek-karta.pilne { border-color: var(--zolty); }
+.lejek-nazwa { all: unset; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lejek-nazwa:hover { color: var(--akcent); }
+.lejek-nazwa:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; border-radius: 4px; }
+.lejek-meta { font-size: 12px; color: var(--muted); }
+.lejek-powod { font-size: 12px; color: var(--zolty); font-weight: 500; }
+.lejek-notatka { font-size: 12px; color: var(--text); background: var(--surface-2);
+  border-radius: 6px; padding: 4px 8px; }
+.lejek-akcje { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.lejek-akcje .btn-lekki { font-size: 12px; padding: 4px 10px; white-space: nowrap; }
+.lejek-akcje select { flex: 1 1 auto; min-width: 0; }
+.lejek-akcje select { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--muted); max-width: 100%; }
+.lejek-nie-teraz { margin-top: 16px; }
+.lejek-nie-teraz summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+
+/* Pasek etapów w karcie partnera. */
+.etapy-karty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
+.etapy-pasek { display: flex; flex-wrap: wrap; gap: 4px; }
+.etap-krok { font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted); }
+.etap-krok:hover { border-color: var(--akcent); color: var(--akcent); }
+.etap-krok.zrobiony { color: var(--text); background: var(--surface-2); }
+.etap-krok.biezacy { background: var(--akcent); border-color: var(--akcent); color: #fff; }
+.etap-krok.nie-teraz.biezacy { background: var(--muted); border-color: var(--muted); }
+.etapy-dni { font-size: 12px; color: var(--faint); }
+.etap-notatka { flex: 1 1 260px; min-width: 0; font: inherit; font-size: 13px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.etap-notatka:focus { outline: 2px solid var(--akcent); outline-offset: 1px; }

@@ -82,6 +82,11 @@ window.fetch = (u, opcje) => {
       // presetow dla Map leci pusta galezia i niczego nie sprawdza.
       u.includes("/api/zrodla") ? { ok: true, zrodla: { wyszukiwarka: true, mapy: true, google: false } } :
       // Historia audytów zasila kolumnę „Praca" na liście partnerów.
+      u.includes("/api/etap") ? { ok: true, etap: "material", etap_data: "2026-10-05T10:00:00", notatka: "" } :
+      u.includes("/api/dokumenty") ? { ok: true, dokumenty: [
+        { id: 7, url: "https://trafika.pl", nazwa: "Trafika", partner_url: "https://tebim.pro",
+          partner_nazwa: "Tebim", rodzaj: "material", audyt_id: 2, plik: "material-trafika.html",
+          data: "2026-10-02T15:00:00" }] } :
       u.includes("/api/audyty") ? { ok: true, audyty: [
         { id: 1, url: "https://tebim.pro", tryb: "partner", dostawca: "geo",
           data: "2026-09-24T10:00:00" }] } :
@@ -527,7 +532,7 @@ setTimeout(() => {
     !wMenu.some((x) => ["rozmowa", "audyt", "audytgeo", "dokument", "podobne", "szukaj", "research"]
       .includes(x)), wMenu.join(", "));
   sprawdz("Menu: zostały miejsca, nie narzędzia",
-    wMenu.join(",") === "firmy,kolejka,pozyskiwanie,maile,audyty,eksport", wMenu.join(","));
+    wMenu.join(",") === "firmy,kolejka,pozyskiwanie,lejek,audyty,eksport", wMenu.join(","));
 
   nav("firmy");
   otworzKarte(0);
@@ -570,10 +575,14 @@ setTimeout(() => {
     d.querySelector(".generuj-dokument").disabled);
   klik(d.querySelector(".wroc-do-listy"));
 
-  // Maile w menu to PRZEGLĄD wszystkich szkiców, nie kolejny wybór firmy.
-  nav("maile");
-  sprawdz("Maile: przegląd nie pyta ponownie o firmę",
-    !d.getElementById("maile-box").innerHTML.includes("Do kogo piszemy"));
+  // Maile wypadły z Przeglądu (05.10.2026) — zostają tylko w karcie partnera.
+  sprawdz("Przegląd: nie ma pozycji Maile w menu",
+    !d.querySelector('.nav-item[data-sekcja="maile"]'));
+
+  // Audyty i Lejek ładują się asynchronicznie — sprawdzamy je na końcu,
+  // w łańcuchu opóźnień.
+  nav("audyty");
+  nav("lejek");
 
   // ══ FILTRY W KOLEJCE ══
   // Zmierzone na żywej kolejce: 45 firm, wszystkie w JEDNEJ kategorii, ale
@@ -655,7 +664,50 @@ setTimeout(() => {
         dodania.length === 1 && dodania[0].body.kategoria === "Sklepy internetowe",
         dodania.length ? JSON.stringify(dodania[0].body.kategoria) : "brak");
 
-      podsumuj();
+      // Audyty: pomiary i zapisane dokumenty, plik do pobrania bez nowego pomiaru.
+      const audBox = d.getElementById("audyty-box");
+      sprawdz("Audyty: zapisany materiał ma podgląd i pobieranie",
+        !!audBox.querySelector('a[href="/api/dokumenty?id=7"]')
+          && !!audBox.querySelector('a[href="/api/dokumenty?id=7&podglad=1"]'),
+        audBox.innerHTML.slice(0, 200));
+      sprawdz("Audyty: z pełnego audytu da się zrobić raport",
+        !!audBox.querySelector('.dokument-z-pomiaru[data-audyt="1"]'));
+      sprawdz("Audyty: dokument klienta stoi przy partnerze, który go wysłał",
+        audBox.innerHTML.includes("od Tebim"));
+
+      // Lejek: cztery etapy, firma bez etapu to „Zbadany", a gotowy materiał dla
+      // klienta partnera wypycha go na listę „kim się zająć".
+      const lejBox = d.getElementById("lejek-box");
+      sprawdz("Lejek: cztery kolumny etapów",
+        [...lejBox.querySelectorAll("[data-etap-kolumna]")].map((k) => k.dataset.etapKolumna).join(",")
+          === "zbadany,material,rozmowa,wspolpraca");
+      const zbadani = lejBox.querySelector('[data-etap-kolumna="zbadany"]');
+      sprawdz("Lejek: firma bez etapu stoi w „Zbadany”",
+        !!zbadani && zbadani.querySelectorAll(".lejek-karta").length > 0);
+      sprawdz("Lejek: gotowy materiał = partner na liście „kim się zająć”",
+        lejBox.querySelector(".lejek-pilne").textContent.includes("Materiał dla klienta jest gotowy"),
+        lejBox.querySelector(".lejek-pilne").textContent.slice(0, 120));
+
+      const dalejBtn = zbadani && zbadani.querySelector(".etap-dalej");
+      sprawdz("Lejek: przycisk przesuwa na następny etap", dalejBtn && dalejBtn.dataset.etap === "material");
+      klik(dalejBtn);
+
+      setTimeout(() => {
+        const zapisy = zadania.filter((z) => z.url.includes("/api/etap") && z.metoda === "POST");
+        sprawdz("Lejek: zmiana etapu idzie do /api/etap",
+          zapisy.length === 1 && zapisy[0].body.etap === "material",
+          JSON.stringify(zapisy.map((z) => z.body)));
+
+        // Pasek etapów w karcie partnera.
+        otworzKarte(0);
+        const pasek = d.querySelectorAll(".etapy-karty [data-ustaw-etap]");
+        sprawdz("Karta: pasek etapów z „Nie teraz”",
+          [...pasek].map((b) => b.dataset.ustawEtap).join(",")
+            === "zbadany,material,rozmowa,wspolpraca,nie_teraz");
+        sprawdz("Karta: jest pole na notatkę", !!d.querySelector(".etapy-karty .etap-notatka"));
+
+        podsumuj();
+      }, 60);
     }, 60);
   }, 60);
 }, 400);

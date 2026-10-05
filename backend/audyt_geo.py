@@ -112,7 +112,7 @@ def obecnosc_w_zrodlach(wiersze: list[dict], marka: str, domena: str,
     for w in wiersze:
         for u in (w.get("zrodla") or []):
             d = domena_z_url(u)
-            if not d or d == domena:
+            if not d or d == domena or instytucja(d):
                 continue
             licznik[d] += 1
             adresy.setdefault(d, u)        # pierwszy cytowany URL z tej domeny
@@ -143,16 +143,59 @@ def obecnosc_w_zrodlach(wiersze: list[dict], marka: str, domena: str,
         # wejść. Bez tego podziału lista wygląda alarmująco i nie da się z niej nic
         # zrobić. Ranking rozpoznajemy tym samym wzorcem, którym filtrujemy wyniki
         # wyszukiwania — „10 najlepszych agencji", „Top 5", „ranking".
-        from app import LISTICLE
-        ranking = bool(LISTICLE.search(tytul)) or any(
-            s in tytul.lower() for s in ("ranking", "najlepsz", "porówna", "katalog"))
-
         return {"domena": d, "url": url, "cytowan": licznik[d], "tytul": tytul,
-                "stan": "jest" if jest else "brak",
-                "typ": "ranking" if ranking else "strona firmy"}
+                "stan": "jest" if jest else "brak", "typ": typ_strony(d, tytul)}
 
     with ThreadPoolExecutor(max_workers=6) as pool:
         return list(pool.map(sprawdz, najczestsze))
+
+
+# Strony, na które firma nie wejdzie żadną pracą: urzędy, ustawy, WHO,
+# encyklopedie, sklepy z aplikacjami. Model cytuje je, gdy odmawia polecania —
+# na Trafice trzy z czterech pytań o tytoń skończyły się odsyłaczem do gov.pl
+# i who.int. Pokazane w tabeli „czy marka tam jest” dawały wniosek „na tę listę
+# da się wejść” o stronie Ministerstwa Zdrowia.
+_INSTYTUCJE = ("gov.pl", "gov", "gov.uk", "europa.eu", "who.int", "edu", "edu.pl",
+               "wikipedia.org", "play.google.com", "apps.apple.com")
+
+
+_ZESTAWIENIE = re.compile(
+    r"\branking\w*|\bzestawieni\w*|\bkatalog\w*|\btop\s*\d{1,3}\b"
+    r"|\b\d{1,3}\s+(najlepsz\w*|best)\b|\bbest\s+(\w+\s+){1,3}of\s+20\d\d"
+    r"|\bnajlepsz\w*\s+(\w+\s+){0,3}(20\d\d|ranking)", re.IGNORECASE)
+
+
+# Porównywarki i marketplace'y — tam sklep może się wystawić, więc obecność
+# albo brak to rekomendacja, tak samo jak przy rankingu.
+_RYNKI = ("ceneo.pl", "skapiec.pl", "allegro.pl", "opineo.pl", "amazon.pl",
+          "erli.pl", "empik.com", "olx.pl")
+
+
+def _rynek(domena: str) -> bool:
+    d = (domena or "").lower()
+    return any(d == x or d.endswith("." + x) for x in _RYNKI)
+
+
+def typ_strony(domena: str, tytul: str) -> str:
+    """Ranking, porównywarka czy zwykła strona — od tego zależy, czy brak marki
+    to rekomendacja („tam da się wejść"), czy po prostu cudzy sklep.
+
+    Samo „najlepsza" nie robi z tytułu rankingu: „Kawa 100% Arabica — najlepsza
+    ziarnista | sklep Coffeedesk" to karta sklepu, a dokument napisał, że to
+    „ranking, na który da się wejść". Ranking to zestawienie: liczba + najlepsze,
+    „top N", „ranking", „best … of 2026".
+    """
+    from app import LISTICLE
+    if _rynek(domena):
+        return "porównywarka / marketplace"
+    if LISTICLE.search(tytul or "") or _ZESTAWIENIE.search(tytul or ""):
+        return "ranking"
+    return "strona innej firmy"
+
+
+def instytucja(domena: str) -> bool:
+    d = (domena or "").lower()
+    return any(d == x or d.endswith("." + x) for x in _INSTYTUCJE)
 
 
 def _tytul(html: str) -> str:
