@@ -2491,12 +2491,38 @@ async def api_similar(request):
                 return JSONResponse({"ok": False, "error": str(e)})
             wyniki = [{"url": u, "title": "", "content": ""} for u in z_map["adresy"]]
             wynik = await znajdz_firmy_z_wynikow(wyniki, wlasna, pomin)
+            # Obszar wraca do usera tak jak w „Po branży" — rozpoznanie nazwy bywa
+            # nietrafione, a bez tego wyniki cicho zmieniają znaczenie.
             return JSONResponse({"ok": True, "runda": runda, "zrodlo": "mapy",
                                  "zapytanie": z_map["zapytanie"],
+                                 "obszar": z_map.get("obszar"),
+                                 "obszar_nierozpoznany": z_map.get("obszar_nierozpoznany"),
                                  "bez_strony": z_map["bez_strony"], **wynik})
 
+        # ── ŹRÓDŁO: GOOGLE ──────────────────────────────────────────────
+        # Do 05.10.2026 tej gałęzi nie było: front pozwalał wybrać „Google",
+        # a backend po cichu szukał w Tavily. Ta sama fraza, prawdziwy SERP.
+        if zrodlo == "google":
+            if not szukaj_google.dostepne():
+                return JSONResponse({"ok": False, "error":
+                    "Brak danych DataForSEO w środowisku — szukanie przez Google wyłączone."})
+            try:
+                z_g = await asyncio.to_thread(szukaj_google.szukaj, zapytanie, miasto)
+            except szukaj_google.BladGoogle as e:
+                return JSONResponse({"ok": False, "error": str(e), "typ": "api"})
+            wynik = await znajdz_firmy_z_wynikow(z_g["wyniki"], wlasna, pomin)
+            return JSONResponse({"ok": True, "runda": runda, "zrodlo": "google",
+                                 "zapytanie": z_g["zapytanie"], "koszt": z_g["koszt"],
+                                 **wynik})
+
+        # Wyszukiwarka: miasto doklejamy do frazy (Tavily nie zna obszarów).
+        # Skracanie awaryjne w znajdz_firmy obcina od końca, więc przy pustym
+        # wyniku pierwsze odpada miasto — fraza, która NAPRAWDĘ zadziałała,
+        # wraca w `zapytanie` i user widzi, czy miasto przetrwało.
         return JSONResponse({"ok": True, "runda": runda, "zrodlo": "wyszukiwarka",
-                             **await znajdz_firmy(zapytanie, wlasna, pomin, ile)})
+                             **await znajdz_firmy(
+                                 zapytanie_z_miejscem(zapytanie, miasto, limit_slow=8)
+                                 if miasto else zapytanie, wlasna, pomin, ile)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 

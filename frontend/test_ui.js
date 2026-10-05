@@ -510,6 +510,25 @@ setTimeout(() => {
       && !szerokieTagi.includes("Budowa stron i sklepów"),
     szerokieTagi.join(" | "));
 
+  // Miasto w „Podobnych". Backend je przyjmował, ale front nie miał pola — Mapy
+  // szukały po całej Polsce. Pole przeżywa przerysowanie kroku (klik w tag),
+  // a wpisana wartość idzie w zapytaniu.
+  const poleMiasta = d.getElementById("podobne-miasto");
+  sprawdz("Podobne: jest pole na miasto", !!poleMiasta);
+  if (poleMiasta) {
+    poleMiasta.value = "Poznań";
+    poleMiasta.dispatchEvent(new window.Event("input", { bubbles: true }));
+    klik(d.querySelector("#podobne-tagi .tag-szeroki"));
+    sprawdz("Podobne: wpisane miasto nie znika po kliknięciu tagu",
+      d.getElementById("podobne-miasto").value === "Poznań");
+    const przedP = zadania.length;
+    klik(d.querySelector(".szukaj-wg-tagow"));
+    const zP = zadania.slice(przedP).find((x) => x.url.includes("/api/similar"));
+    sprawdz("Podobne: miasto idzie do backendu", zP && zP.body.miasto === "Poznań",
+      JSON.stringify(zP && zP.body && zP.body.miasto));
+    klik(d.querySelector("#podobne-tagi .tag-szeroki"));   // zdejmujemy tag z powrotem
+  }
+
   pozTab("branza");
   klik(d.querySelector('[data-zrodlo="wyszukiwarka"]'));
   sprawdz("Presety: kategorie w dwoch nazwanych sekcjach",

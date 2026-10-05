@@ -1722,7 +1722,8 @@ function renderPodobne() {
     }).catch(() => {});
   }
 
-  const uslugi = (wpis.firma.uslugi || []).filter((u) => !szerokie.includes(u));
+  // BRAK to brak danych, nie usługa — jako tag dałby się kliknąć i pójść jako fraza.
+  const uslugi = (wpis.firma.uslugi || []).filter((u) => u && u !== BRAK && !szerokie.includes(u));
 
   const tagBtn = (t, szeroki) =>
     `<button class="tag${podobneTagi.has(t) ? " zaznaczony" : ""}${szeroki ? " tag-szeroki" : ""}"
@@ -1749,6 +1750,13 @@ function renderPodobne() {
       <span class="preset-etykieta-mini">Pojedyncze usługi</span>
       <div class="tagi wybieralne">${uslugi.map((u) => tagBtn(u, false)).join("")}</div>
     </div>` : ""}
+    <label class="podobne-miasto">
+      <span class="preset-etykieta-mini">Miasto (opcjonalnie)</span>
+      <input id="podobne-miasto" type="text" value="${escAttr(podobneMiasto)}"
+             placeholder="np. Poznań, powiat gnieźnieński, Wielkopolska">
+      <span class="hint">Bez miasta szukamy w całej Polsce — podobna firma nie musi
+        być tam, gdzie wzorcowa.</span>
+    </label>
     <button class="akcja glowna szukaj-wg-tagow" type="button" style="margin-top:18px">
       <svg class="ico sm"><use href="#i-search"/></svg>${
         podobneTagi.size
@@ -1763,6 +1771,19 @@ function renderPodobne() {
 // i wysyłamy to do backendu, żeby kolejna runda zwróciła coś innego.
 let podobnePokazane = [];
 let podobneRunda = 0;
+// Miasto trzymamy poza polem: renderPodobne przerysowuje krok przy każdym
+// kliknięciu tagu i wpisany tekst by znikał.
+let podobneMiasto = "";
+document.addEventListener("input", (e) => {
+  if (e.target.id === "podobne-miasto") podobneMiasto = e.target.value.trim();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target.id === "podobne-miasto" && e.key === "Enter") {
+    e.preventDefault();
+    const btn = document.querySelector(".szukaj-wg-tagow");
+    if (btn) szukajWgTagow(btn);
+  }
+});
 
 function resetPodobnychWynikow() {
   podobnePokazane = [];
@@ -1793,6 +1814,7 @@ async function szukajWgTagow(przycisk, dalej = false) {
         tagi: [...podobneTagi],
         runda: podobneRunda,
         zrodlo: zrodloPodobne,
+        miasto: podobneMiasto,
         pomin: podobnePokazane.map((f) => hostname(f.url)),
       }),
     });
@@ -1833,6 +1855,11 @@ function listaPodobnychHTML(data, ileNowych) {
   const wyczerpane = ileNowych === 0;
   return `<div class="card">
     <div class="mono"><span class="sq"></span> Podobne firmy (${podobnePokazane.length})</div>
+    ${data.obszar ? `<p class="hint">Obszar: <b>${esc(data.obszar.nazwa)}</b>
+      · ${data.obszar.km_ns} × ${data.obszar.km_we} km — tak Google zrozumiał wpisane miejsce.</p>` : ""}
+    ${data.obszar_nierozpoznany ? `<p class="ostrzezenie-inline">Nie rozpoznałem tego
+      miejsca na mapie, więc szukam po nazwie w treści — to daje ZNACZNIE mniej wyników.
+      Spróbuj nazwy miasta, powiatu albo województwa.</p>` : ""}
     <p class="hint">Runda ${data.runda}: „${esc(data.zapytanie)}"${
       ileNowych ? ` · ${ileNowych} nowych` : " · nic nowego"
     }</p>

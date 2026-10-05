@@ -1238,3 +1238,11 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
   color: var(--akcent); display: flex; gap: 10px; align-items: baseline; }
 .blok-naglowek span { color: var(--muted); text-transform: none; letter-spacing: 0; }
 .dalej-pasek { flex-wrap: wrap; }
+
+/* „Podobne do firmy": opcjonalne miasto */
+.podobne-miasto { display: grid; gap: 6px; margin-top: 16px; max-width: 460px; }
+.podobne-miasto input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px;
+  font: inherit; background: var(--surface); color: var(--text); }
+.podobne-miasto input:focus { outline: none; border-color: var(--akcent);
+  box-shadow: 0 0 0 3px rgba(var(--akcent-rgb), .15); }
+.podobne-miasto .hint { margin: 0; font-size: 12px; }
