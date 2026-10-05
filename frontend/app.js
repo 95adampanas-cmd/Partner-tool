@@ -960,22 +960,66 @@ formKryteria.addEventListener("submit", async (e) => {
   // przychodzi już sklejone i nie dałoby się go dopasować do presetu.
   kategoriaZapytania = kategoriaDlaFrazy(branza);
 
+  szukanie = { branza, miasto, bloki: [], pokazane: new Set(), uzyte: [],
+               zrodlaPierwsze: new Set(), blad: "" };
   szukajWynik.innerHTML = loadingHTML("Szukam firm i sprawdzam, które strony żyją… ~10 s.");
   btnKryteria.disabled = true;
   try {
-    const res = await fetch("/api/szukaj", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branza, miasto, tryb, zrodlo }),
-    });
-    const data = await res.json();
-    szukajWynik.innerHTML = data.ok ? listaFirmHTML(data, "Znalezione firmy") : errorHTML(data.error);
-  } catch (err) {
-    szukajWynik.innerHTML = errorHTML(err.message);
+    const blad = await szukajRunde(zrodlo, 1);
+    szukajWynik.innerHTML = blad && !szukanie.bloki.length ? errorHTML(blad) : listaSzukaniaHTML();
   } finally {
     btnKryteria.disabled = false;
   }
 });
+
+// ── Kolejne rundy szukania po branży ─────────────────────────────────
+// Wyniki NARASTAJĄ: każda runda i każde źródło dokleja blok pod spodem, a backend
+// pomija domeny już pokazane — user widzi wyłącznie NOWE firmy.
+//
+// Dwie drogi, bo „więcej tego samego" nie istnieje: Mapy oddają w pierwszej rundzie
+// wszystko, co mają (sufit 60), a Tavily nie ma kolejnych stron.
+//   „Inne ujęcie branży"   — ta sama branża, nowe frazy od modelu (synonim, węższa
+//                            specjalizacja). Mapy dopasowują słowa z wizytówki, więc
+//                            „sklepy internetowe" znajdzie innych niż „Prestashop".
+//   „To samo w innym źródle" — ta sama fraza i miasto w źródle, którego jeszcze nie
+//                            było. Mapy i wyszukiwarka pokryły się w 2 firmach na 12.
+let szukanie = null;
+
+async function szukajRunde(zrodloRundy, runda) {
+  const s = szukanie;
+  try {
+    const res = await fetch("/api/szukaj", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branza: s.branza, miasto: s.miasto, tryb, zrodlo: zrodloRundy,
+                             runda, pomin: [...s.pokazane], uzyte: s.uzyte }),
+    });
+    const data = await res.json();
+    if (!data.ok) return (s.blad = data.error || "Nie udało się wyszukać.");
+    const nowe = (data.firmy || []).filter((f) => !s.pokazane.has(hostname(f.url)));
+    nowe.forEach((f) => s.pokazane.add(hostname(f.url)));
+    (data.frazy || []).forEach((f) => s.uzyte.push(f));
+    if (runda === 1) s.zrodlaPierwsze.add(zrodloRundy);
+    s.bloki.push({ data, firmy: nowe, zrodlo: zrodloRundy, runda });
+    s.blad = "";
+    return "";
+  } catch (err) {
+    return (s.blad = err.message);
+  }
+}
+
+async function szukajDalejPoBranzy(przycisk, zrodloRundy, inneUjecie) {
+  if (!szukanie) return;
+  // Runda liczona per źródło: „Inne ujęcie" w Mapach po dwóch rundach Wyszukiwarki
+  // to dla Map dopiero druga runda, nie trzecia.
+  const runda = inneUjecie
+    ? szukanie.bloki.filter((b) => b.zrodlo === zrodloRundy).length + 1
+    : 1;
+  szukajWynik.querySelectorAll(".dalej-pasek button").forEach((b) => (b.disabled = true));
+  przycisk.textContent = "Szukam… (~15 s)";
+  await szukajRunde(zrodloRundy, runda);
+  szukajWynik.innerHTML = listaSzukaniaHTML();
+}
 
 // ══ SEKCJA: Firmy — lista, a po kliknięciu szczegóły ══
 function otworzFirme(firma) {
@@ -1462,6 +1506,12 @@ document.addEventListener("click", (e) => {
   if (usM) { e.stopPropagation(); return zmienStanMaila(Number(usM.closest(".mail-draft").dataset.mailId), "DELETE", {}); }
   const dalej = e.target.closest(".szukaj-dalej");
   if (dalej) return szukajWgTagow(dalej, true);
+  // Własne atrybuty, NIE data-zrodlo: ten należy do przełącznika źródeł i jego
+  // warunek stoi wyżej — tak zginął kiedyś przycisk „Dodaj do kolejki".
+  const inaczej = e.target.closest("[data-szukaj-inaczej]");
+  if (inaczej) return szukajDalejPoBranzy(inaczej, inaczej.dataset.szukajInaczej, true);
+  const inneZr = e.target.closest("[data-inne-zrodlo]");
+  if (inneZr) return szukajDalejPoBranzy(inneZr, inneZr.dataset.inneZrodlo, false);
 
   const wg = e.target.closest(".wybierz-geo");
   if (wg) {
@@ -1809,35 +1859,59 @@ function listaPodobnychHTML(data, ileNowych) {
   </div>`;
 }
 
-function listaFirmHTML(data, naglowek) {
-  if (!data.firmy.length) {
-    return `<div class="card"><p class="sim-err">Nie znalazłem firm dla „${esc(data.zapytanie)}".
-      Spróbuj innej branży albo bez miasta.</p></div>`;
-  }
-  return `<div class="card">
-    <div class="mono"><span class="sq"></span> ${esc(naglowek)} (${data.firmy.length})</div>
-    ${data.obszar ? `<p class="hint">Obszar: <b>${esc(data.obszar.nazwa)}</b>
-      · ${data.obszar.km_ns} × ${data.obszar.km_we} km — tak Google zrozumiał wpisane
-      miejsce. Nie zgadza się? Wpisz precyzyjniej (np. „powiat gnieźnieński").</p>` : ""}
-    ${data.obszar_nierozpoznany ? `<p class="ostrzezenie-inline">Nie rozpoznałem tego
-      miejsca na mapie, więc szukam po nazwie w treści — to daje ZNACZNIE mniej wyników.
-      Spróbuj nazwy miasta, powiatu albo województwa.</p>` : ""}
-    <p class="hint">Zapytanie: „${esc(data.zapytanie)}"${
-      data.z_seo ? ` · ${data.z_seo} z SEO w ofercie` : ""
-    }${data.odsiane_martwe ? ` · ${data.odsiane_martwe} martwych stron` : ""
-    }${data.bez_strony ? ` · ${data.bez_strony} firm z Map bez strony WWW (pomijamy — nie ma czego zbadać)` : ""
-    }${data.juz_zbadane ? ` · ${data.juz_zbadane} już masz` : ""}</p>
-    <div class="similar-list">${data.firmy.map(wierszHTML).join("")}</div>
-    <div class="dalej-pasek">
+function listaSzukaniaHTML() {
+  const s = szukanie;
+  const wszystkie = s.bloki.reduce((n, b) => n + b.firmy.length, 0);
+  const ostatni = s.bloki[s.bloki.length - 1];
+  const wiele = s.bloki.length > 1;
+
+  const bloki = s.bloki.map((b) => {
+    const d = b.data;
+    const zr = ZRODLA[b.zrodlo]?.nazwa || b.zrodlo;
+    return `<div class="blok-wynikow">
+      ${wiele ? `<div class="blok-naglowek">${esc(zr)}${b.runda > 1 ? " · inne ujęcie" : ""}
+        <span>${b.firmy.length ? `${b.firmy.length} nowych` : "nic nowego"}</span></div>` : ""}
+      ${d.obszar ? `<p class="hint">Obszar: <b>${esc(d.obszar.nazwa)}</b>
+        · ${d.obszar.km_ns} × ${d.obszar.km_we} km — tak Google zrozumiał wpisane
+        miejsce. Nie zgadza się? Wpisz precyzyjniej (np. „powiat gnieźnieński").</p>` : ""}
+      ${d.obszar_nierozpoznany ? `<p class="ostrzezenie-inline">Nie rozpoznałem tego
+        miejsca na mapie, więc szukam po nazwie w treści — to daje ZNACZNIE mniej wyników.
+        Spróbuj nazwy miasta, powiatu albo województwa.</p>` : ""}
+      <p class="hint">Zapytanie: „${esc(d.zapytanie)}"${
+        d.z_seo ? ` · ${d.z_seo} z SEO w ofercie` : ""
+      }${d.odsiane_martwe ? ` · ${d.odsiane_martwe} martwych stron` : ""
+      }${d.bez_strony ? ` · ${d.bez_strony} firm z Map bez strony WWW (pomijamy — nie ma czego zbadać)` : ""
+      }${d.juz_zbadane ? ` · ${d.juz_zbadane} już masz` : ""}</p>
+      ${b.firmy.length ? `<div class="similar-list">${b.firmy.map(wierszHTML).join("")}</div>
       <button class="btn-lekki do-kolejki-wszystkie" type="button"
-              data-zapytanie="${escAttr(data.zapytanie || "")}"
-              data-kolejka-zrodlo="${escAttr(data.zrodlo || "wyszukiwarka")}"
+              data-zapytanie="${escAttr(d.zapytanie || "")}"
+              data-kolejka-zrodlo="${escAttr(b.zrodlo)}"
               data-kolejka-kategoria="${escAttr(kategoriaZapytania)}">
-        <svg class="ico xs"><use href="#i-inbox"/></svg>Dodaj wszystkie do kolejki
+        <svg class="ico xs"><use href="#i-inbox"/></svg>${wiele ? "Dodaj te do kolejki" : "Dodaj wszystkie do kolejki"}
+      </button>` : `<p class="sim-err">${b.runda > 1 || b.data.wyczerpane
+        ? "Ta runda nie dała nic nowego."
+        : `Nie znalazłem firm dla „${esc(d.zapytanie || s.branza)}".`}</p>`}
+    </div>`;
+  }).join("");
+
+  // Źródła, w których tej frazy jeszcze nie było — tylko podłączone.
+  const inne = Object.keys(ZRODLA)
+    .filter((k) => zrodlaDostepne[k] && !s.zrodlaPierwsze.has(k));
+
+  return `<div class="card">
+    <div class="mono"><span class="sq"></span> Znalezione firmy (${wszystkie})</div>
+    ${bloki}
+    ${s.blad ? errorHTML(s.blad) : ""}
+    ${ostatni ? `<div class="dalej-pasek">
+      <button class="btn-lekki" type="button" data-szukaj-inaczej="${escAttr(ostatni.zrodlo)}">
+        <svg class="ico xs"><use href="#i-search"/></svg>Inne ujęcie branży — ${esc(ZRODLA[ostatni.zrodlo]?.nazwa || ostatni.zrodlo)}
       </button>
-      <span class="hint">Wyniki znikają razem z zapytaniem. W kolejce zostaną,
-        dopóki ich nie zbadasz.</span>
-    </div>
+      ${inne.map((k) => `<button class="btn-lekki" type="button" data-inne-zrodlo="${escAttr(k)}">
+        <svg class="ico xs"><use href="#i-${ZRODLA[k].ikona}"/></svg>To samo w: ${esc(ZRODLA[k].nazwa)}
+      </button>`).join("")}
+      <span class="hint">Każde kolejne szukanie pomija firmy już pokazane${
+        wiele ? "" : ". Wyniki znikają razem z zapytaniem — w kolejce zostaną, dopóki ich nie zbadasz"}.</span>
+    </div>` : ""}
   </div>`;
 }
 
@@ -2643,7 +2717,8 @@ renderResearchPanel();  // stan startowy
 async function dodajWszystkieDoKolejki(przycisk) {
   // Zbieramy z aktualnie wyświetlonej listy, a nie z zapamiętanej odpowiedzi —
   // user mógł w międzyczasie kliknąć „Szukaj dalej" i lista urosła.
-  const wiersze = [...przycisk.closest(".card").querySelectorAll(".sim-row[data-url]")];
+  const wiersze = [...(przycisk.closest(".blok-wynikow") || przycisk.closest(".card"))
+    .querySelectorAll(".sim-row[data-url]")];
   const firmy = wiersze.map((w) => ({
     url: w.dataset.url,
     nazwa: (w.querySelector(".sim-name")?.textContent || "").replace(/\s*(SEO|JUŻ ZBADANA[^]*)$/, "").trim(),

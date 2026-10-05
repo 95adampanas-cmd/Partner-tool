@@ -470,6 +470,23 @@ def sprawdz_mapy() -> int:
               and 15_000 < k.get("radius", 0) < 22_000)
         print(f"  {'OK  ' if ok else 'BŁĄD'} | obszar jako koło opisane na mieście, nie prostokąt")
         bledy += not ok
+        # „Inne ujęcie branży": frazy, które już padły, nie wracają — model dostaje
+        # je w poleceniu, ale powtórka to płatne zapytanie o firmy już pokazane.
+        import asyncio, types
+        prawdziwe_uruchom = app.claude.uruchom
+        async def udawany(zadanie, tresc):
+            return types.SimpleNamespace(final_output=types.SimpleNamespace(zapytania=[
+                "Prestashop", "sklepy internetowe PrestaShop", "moduły PrestaShop Poznań",
+                "SKLEPY  internetowe prestashop"]))
+        app.claude.uruchom = udawany
+        try:
+            nowe = asyncio.run(app.frazy_kolejnej_rundy("Prestashop", 2, ["Prestashop"]))
+        finally:
+            app.claude.uruchom = prawdziwe_uruchom
+        ok = nowe == ["sklepy internetowe PrestaShop", "moduły PrestaShop"]
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | kolejna runda: bez powtórek fraz i bez miasta  {nowe}")
+        bledy += not ok
+
         duzy = mapy.kolo({"low": {"latitude": 51.1, "longitude": 15.8},
                           "high": {"latitude": 53.6, "longitude": 19.1}})
         ok = duzy["radius"] == mapy.MAX_PROMIEN_M

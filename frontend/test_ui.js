@@ -706,7 +706,47 @@ setTimeout(() => {
             === "zbadany,material,rozmowa,wspolpraca,nie_teraz");
         sprawdz("Karta: jest pole na notatkę", !!d.querySelector(".etapy-karty .etap-notatka"));
 
-        podsumuj();
+        // ── Szukanie po branży: kolejne rundy i inne źródło ────────────────
+        // „Więcej tego samego" nie istnieje (Mapy oddają wszystko w 1. rundzie,
+        // Tavily nie ma stron), więc są dwie drogi: inne ujęcie i inne źródło.
+        // Oba przyciski mają WŁASNE atrybuty — data-zrodlo należy do przełącznika.
+        const wyn = () => d.getElementById("szukaj-wynik");
+        const gora = () => (d.querySelector("#zrodla-wyboru .zrodlo-wiersz.zaznaczony") || {}).dataset?.zrodlo;
+        const zrodloGory = gora();
+        const inaczejBtn = wyn().querySelector("[data-szukaj-inaczej]");
+        sprawdz("Szukanie: pod wynikami jest „Inne ujęcie branży”", !!inaczejBtn);
+        sprawdz("Szukanie: „To samo w” tylko dla źródeł, w których jeszcze nie szukano",
+          !!wyn().querySelector('[data-inne-zrodlo="mapy"]')
+            && !wyn().querySelector('[data-inne-zrodlo="wyszukiwarka"]'));
+        const przed1 = zadania.length;
+        klik(inaczejBtn);
+
+        setTimeout(() => {
+          const z1 = zadania.slice(przed1).find((x) => x.url.includes("/api/szukaj"));
+          sprawdz("Szukanie: inne ujęcie to runda 2 z pominięciem pokazanych firm",
+            z1 && z1.body.runda === 2 && z1.body.zrodlo === "wyszukiwarka"
+              && ZNALEZIONE.every((f) => z1.body.pomin.includes(new URL(f.url).hostname)),
+            JSON.stringify(z1 && z1.body));
+          sprawdz("Szukanie: runda bez nowych firm mówi to wprost i nie dubluje listy",
+            wyn().textContent.includes("nic nowego")
+              && wyn().querySelectorAll(".sim-row").length === ZNALEZIONE.length,
+            `${wyn().querySelectorAll(".sim-row").length} wierszy`);
+          const przed2 = zadania.length;
+          klik(wyn().querySelector('[data-inne-zrodlo="mapy"]'));
+
+          setTimeout(() => {
+            const z2 = zadania.slice(przed2).find((x) => x.url.includes("/api/szukaj"));
+            sprawdz("Szukanie: „To samo w: Mapy” to runda 1 w Mapach z tą samą frazą",
+              z2 && z2.body.zrodlo === "mapy" && z2.body.runda === 1
+                && z2.body.branza === "tworzenie sklepów internetowych",
+              JSON.stringify(z2 && z2.body));
+            sprawdz("Szukanie: przycisk źródła nie przestawia przełącznika na górze",
+              gora() === zrodloGory, `${zrodloGory} -> ${gora()}`);
+            sprawdz("Szukanie: po Mapach nie proponujemy Map drugi raz",
+              !wyn().querySelector('[data-inne-zrodlo="mapy"]'));
+            podsumuj();
+          }, 60);
+        }, 60);
       }, 60);
     }, 60);
   }, 60);

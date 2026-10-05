@@ -1229,3 +1229,12 @@ div.firma-row:hover, .sim-row.wybierz-wzor:hover { border-color: var(--border-mo
 .etap-notatka { flex: 1 1 260px; min-width: 0; font: inherit; font-size: 13px; padding: 6px 10px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .etap-notatka:focus { outline: 2px solid var(--akcent); outline-offset: 1px; }
+
+/* ══ Szukanie po branży: kolejne rundy i źródła jako bloki ══ */
+.blok-wynikow { display: grid; gap: 10px; }
+.blok-wynikow + .blok-wynikow { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-soft); }
+.blok-wynikow > .do-kolejki-wszystkie { justify-self: start; }
+.blok-naglowek { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--akcent); display: flex; gap: 10px; align-items: baseline; }
+.blok-naglowek span { color: var(--muted); text-transform: none; letter-spacing: 0; }
+.dalej-pasek { flex-wrap: wrap; }

@@ -2203,6 +2203,46 @@ async def znajdz_firmy_z_wynikow(wyniki: list, wlasna_domena: str = "",
     }
 
 
+async def frazy_kolejnej_rundy(branza: str, runda: int, uzyte: list[str]) -> list[str]:
+    """Nowe ujęcia tej samej branży dla rundy 2, 3, … — bez miasta i bez powtórek.
+
+    PO CO. „Szukaj więcej" tym samym zapytaniem nie da nic nowego: Mapy oddają
+    wszystko, co mają, już w pierwszej rundzie (do sufitu 60), a Tavily nie ma
+    kolejnych stron. Nowe firmy daje tylko INNA FRAZA — w Mapach szczególnie, bo
+    Google dopasowuje słowa z wizytówki: firma z „sklepy internetowe" w nazwie
+    nie wyjdzie na „Prestashop". Ten sam mechanizm od dawna działa w „Podobne do firmy".
+
+    Frazy, które już padły, odsiewamy także w Pythonie — model dostaje je w poleceniu,
+    ale „nie powtarzaj" bywa ignorowane, a powtórzona fraza to płatne zapytanie
+    zwracające firmy, które user już widział.
+    """
+    polecenie = (f"Typ firmy: {branza}." + _NOWA_LINIA + _NOWA_LINIA
+                 + f"To już {runda}. podejście do tej branży. Te frazy już były: "
+                 + "; ".join(f"„{u}”" for u in uzyte) + "." + _NOWA_LINIA
+                 + "Zaproponuj INNE ujęcia: synonim nazwy branży, węższą specjalizację, "
+                   "konkretną usługę albo pokrewny typ firmy, który robi to samo. "
+                   "Żadna fraza nie może powtarzać tych, które już były." + _NOWA_LINIA
+                 # Zmierzone 05.10.2026: „Prestashop" → „sklep internetowy PHP",
+                 # „e-commerce open source" — i Mapy oddały same sklepy (agdsklep,
+                 # fritz-shop), czyli KLIENTÓW agencji. Mapy dopasowują słowa
+                 # z wizytówki, więc fraza musi brzmieć jak wizytówka wykonawcy.
+                 + "Każda fraza ma nazywać FIRMĘ, KTÓRA TĘ USŁUGĘ ŚWIADCZY — tak, jak "
+                   "taka firma nazwałaby się na wizytówce (agencja, wdrożenia, programista, "
+                   "studio). Nie opisuj jej klientów ani produktu: „sklep internetowy” to "
+                   "klient agencji, nie agencja. Zachowaj rdzeń branży — jeśli to nazwa "
+                   "technologii albo platformy, każda fraza ma ją zawierać.")
+    r = await claude.uruchom(zadanie_warianty, polecenie)
+    juz = {" ".join(u.lower().split()) for u in uzyte}
+    nowe = []
+    for z in (r.final_output.zapytania or []):
+        f = bez_lokalizacji(z)
+        klucz = " ".join(f.lower().split())
+        if f and klucz not in juz:
+            juz.add(klucz)
+            nowe.append(f)
+    return nowe
+
+
 async def api_szukaj(request):
     """TRYB B — szukanie po kryteriach (branża + miasto), bez firmy wejściowej.
 
@@ -2217,6 +2257,20 @@ async def api_szukaj(request):
         zrodlo = (body.get("zrodlo") or "wyszukiwarka").lower()
         if not branza:
             return JSONResponse({"ok": False, "error": "Podaj branżę lub typ firmy."})
+
+        # Runda 1 = zwykłe szukanie. Runda 2+ = „Inne ujęcie branży": nowe frazy
+        # od modelu. `pomin` to domeny już pokazane (też z innych źródeł — przy
+        # „To samo w innym źródle" user ma zobaczyć wyłącznie NOWE firmy).
+        runda = max(1, int(body.get("runda") or 1))
+        pomin = {d for d in (body.get("pomin") or []) if isinstance(d, str) and d} or None
+        uzyte = [u for u in (body.get("uzyte") or []) if isinstance(u, str) and u.strip()][:30]
+        frazy_rundy = None
+        if runda > 1:
+            frazy_rundy = await frazy_kolejnej_rundy(branza, runda, uzyte or [branza])
+            if not frazy_rundy:
+                return JSONResponse({"ok": True, "runda": runda, "zrodlo": zrodlo,
+                                     "firmy": [], "frazy": [], "zapytanie": "",
+                                     "wyczerpane": True})
 
         # ── ŹRÓDŁO: MAPY GOOGLE ─────────────────────────────────────────────
         # Wyszukiwarka pokazuje to, co wypozycjonowane. Firma bez SEO tam nie
@@ -2233,20 +2287,30 @@ async def api_szukaj(request):
                 # nextPageToken po 60 firmach, niezależnie od wielkości rynku.
                 # Zmierzone: Warszawa 60, Leszno 60, Wielkopolska 60. Braliśmy dwie,
                 # czyli dwie trzecie tego, co i tak jesteśmy w stanie dostać.
-                z_map = await asyncio.to_thread(mapy.szukaj, branza, miasto, 3)
+                # Runda 2+: dwie nowe frazy, każda do sufitu 60 firm. Dwie, nie
+                # cztery — każda fraza to do trzech płatnych zapytań do Map.
+                frazy = frazy_rundy[:2] if frazy_rundy else [branza]
+                partie = await asyncio.gather(*[
+                    asyncio.to_thread(mapy.szukaj, f, miasto, 3) for f in frazy])
             except mapy.BladMap as e:
                 return JSONResponse({"ok": False, "error": str(e)})
+            z_map = {**partie[0],
+                     "adresy": [a for p in partie for a in p["adresy"]],
+                     "bez_strony": sum(p["bez_strony"] for p in partie),
+                     "zapytan": sum(p["zapytan"] for p in partie),
+                     "zapytanie": " | ".join(p["zapytanie"] for p in partie)}
 
             # Mapy nie dają opisu firmy, więc filtr dostaje sam adres. Tytuł
             # spadnie do domeny, a tag SEO będzie pusty — do czasu researchu
             # naprawdę nie wiemy, czym firma się zajmuje. To uczciwy stan,
             # nie brak funkcji.
             wyniki = [{"url": u, "title": "", "content": ""} for u in z_map["adresy"]]
-            wynik = await znajdz_firmy_z_wynikow(wyniki)
+            wynik = await znajdz_firmy_z_wynikow(wyniki, "", pomin)
             # Obszar pokazujemy użytkownikowi: rozpoznanie nazwy bywa nietrafione
             # („powiat leszczyński" Google rozumie jako miasto Leszno), a bez tego
             # wyniki cicho zmieniają znaczenie i nie ma jak tego zauważyć.
             return JSONResponse({"ok": True, "zapytanie": z_map["zapytanie"],
+                                 "runda": runda, "frazy": frazy,
                                  "zrodlo": "mapy", "bez_strony": z_map["bez_strony"],
                                  "zapytan_do_map": z_map["zapytan"],
                                  "obszar": z_map.get("obszar"),
@@ -2264,17 +2328,21 @@ async def api_szukaj(request):
                     "Brak GOOGLE_CSE_KEY lub GOOGLE_CSE_ID w .env — szukanie przez Google wyłączone."})
             # Warianty frazy jak przy Tavily: jedno zapytanie zwraca tylko czołówkę,
             # a szukamy firm słabiej widocznych. Miasto dokleja Python, nie model.
-            r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
-            frazy = [q for q in (bez_lokalizacji(z) for z in
-                                 (r.final_output.zapytania or [])) if q][:3] or [branza]
+            if frazy_rundy:
+                frazy = frazy_rundy[:3]
+            else:
+                r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
+                frazy = [q for q in (bez_lokalizacji(z) for z in
+                                     (r.final_output.zapytania or [])) if q][:3] or [branza]
             try:
                 partie = await asyncio.gather(*[
                     asyncio.to_thread(szukaj_google.szukaj, f, miasto) for f in frazy])
             except szukaj_google.BladGoogle as e:
                 return JSONResponse({"ok": False, "error": str(e), "typ": "api"})
             surowe = [w for p in partie for w in p["wyniki"]]
-            wynik = await znajdz_firmy_z_wynikow(surowe)
+            wynik = await znajdz_firmy_z_wynikow(surowe, "", pomin)
             return JSONResponse({"ok": True, "zrodlo": "google",
+                                 "runda": runda, "frazy": frazy,
                                  "zapytanie": " | ".join(p["zapytanie"] for p in partie),
                                  "koszt": round(sum(p["koszt"] for p in partie), 4),
                                  **wynik})
@@ -2286,9 +2354,13 @@ async def api_szukaj(request):
         # najlepiej wypozycjonowanych, a szukamy tych mniej widocznych (główny ból z PRD).
         # Agent dostaje SAMĄ branżę — o mieście nie ma prawa wiedzieć, więc nie ma go
         # skąd zmyślić. Miejsce doklejamy niżej, już poza modelem.
-        r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
-        warianty = [q for q in (zapytanie_z_miejscem(z, miasto)
-                                for z in (r.final_output.zapytania or [])) if q][:4]
+        if frazy_rundy:
+            frazy = frazy_rundy[:4]
+        else:
+            r = await claude.uruchom(zadanie_warianty, f"Typ firmy: {branza}.")
+            frazy = [bez_lokalizacji(z) for z in (r.final_output.zapytania or [])]
+        frazy = [f for f in frazy if f]
+        warianty = [q for q in (zapytanie_z_miejscem(z, miasto) for z in frazy) if q][:4]
         if not warianty:
             # Ostatnia deska: sama branża od usera. Jego słów nie filtrujemy — gdyby
             # wpisał w to pole miasto, to jego decyzja, a pusty string do Tavily nie idzie.
@@ -2300,8 +2372,10 @@ async def api_szukaj(request):
             partie = list(pool.map(lambda q: tavily_search(q, max_results=10), warianty))
         wszystkie = [w for partia in partie for w in partia]
 
-        wynik = await znajdz_firmy_z_wynikow(wszystkie)
-        return JSONResponse({"ok": True, "zapytanie": " | ".join(warianty), **wynik})
+        wynik = await znajdz_firmy_z_wynikow(wszystkie, "", pomin)
+        return JSONResponse({"ok": True, "zapytanie": " | ".join(warianty),
+                             "zrodlo": "wyszukiwarka", "runda": runda,
+                             "frazy": frazy[:4] or [branza], **wynik})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
