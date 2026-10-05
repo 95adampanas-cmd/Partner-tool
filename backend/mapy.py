@@ -163,6 +163,40 @@ def obszar(nazwa: str) -> dict | None:
     return wynik
 
 
+# Google przyjmuje koło o promieniu najwyżej 50 km.
+MAX_PROMIEN_M = 50_000
+
+
+def kolo(prostokat: dict) -> dict:
+    """Koło opisane na prostokącie obszaru: środek i połowa przekątnej.
+
+    DLACZEGO KOŁO, A NIE PROSTOKĄT. Zmierzone 05.10.2026 na „Prestashop" / Poznań,
+    ten sam klucz, ten sam kod, jedna strona wyników:
+
+        wariant                     lokalnie         serwer (Render, Frankfurt)
+        prostokąt (locationBias)    20 + dalej       6, koniec
+        koło 15 km (locationBias)   20 + dalej       20 + dalej
+        prostokąt (restriction)     12               12
+
+    Z serwera prostokąt dawał 6 firm zamiast 46 i nic tego nie zgłaszało — wyniki
+    przychodziły, tylko było ich mało. Koło działa tak samo z obu miejsc.
+
+    Promień: połowa przekątnej, czyli koło obejmuje cały prostokąt. Dla Poznania
+    to ok. 17 km. Województwo (283 x 225 km) przekracza limit Google i dostaje
+    50 km od środka — to wciąż PREFERENCJA, nie granica, więc firmy dalej od
+    środka mogą przyjść, tylko wyżej stoją te bliżej.
+    """
+    lo, hi = prostokat["low"], prostokat["high"]
+    srodek = {"latitude": (lo["latitude"] + hi["latitude"]) / 2,
+              "longitude": (lo["longitude"] + hi["longitude"]) / 2}
+    # 111 km na stopień szerokości; 0.61 to cosinus szerokości Polski (południki
+    # się zbiegają) — ta sama przybliżona miara, co przy km_ns/km_we w obszar().
+    ns = (hi["latitude"] - lo["latitude"]) * 111_000
+    we = (hi["longitude"] - lo["longitude"]) * 111_000 * 0.61
+    promien = min(((ns ** 2 + we ** 2) ** 0.5) / 2, MAX_PROMIEN_M)
+    return {"center": srodek, "radius": round(promien)}
+
+
 def szukaj(fraza: str, miasto: str = "", stron: int = 3) -> dict:
     """Zwraca adresy stron firm z Map.
 
@@ -183,9 +217,9 @@ def szukaj(fraza: str, miasto: str = "", stron: int = 3) -> dict:
         tresc = {"textQuery": fraza, "languageCode": "pl", "regionCode": "PL",
                  "pageSize": 20,
                  # BIAS, nie RESTRICTION: firma tuż za granicą miasta to nadal dobry
-                 # trop, a twarde odcięcie by ją wyrzuciło. Zmierzone: bias 22 firmy,
-                 # restriction 21 — różnicą są właśnie te z obrzeży.
-                 "locationBias": {"rectangle": gdzie["prostokat"]}}
+                 # trop, a twarde odcięcie by ją wyrzuciło (restriction: 12 firm
+                 # zamiast 20 na pierwszej stronie). KOŁO, nie prostokąt — patrz kolo().
+                 "locationBias": {"circle": kolo(gdzie["prostokat"])}}
     else:
         # Nie rozpoznaliśmy obszaru (albo nie podano miasta) — stary sposób.
         # Wołający ma o tym POWIEDZIEĆ użytkownikowi: przy nierozpoznanej nazwie
@@ -222,31 +256,3 @@ def szukaj(fraza: str, miasto: str = "", stron: int = 3) -> dict:
             "obszar": gdzie,
             "obszar_nierozpoznany": bool(miasto.strip()) and gdzie is None}
 
-
-# ── DIAGNOSTYKA (tymczasowa, 05.10.2026) ────────────────────────────────
-# Na Renderze to samo zapytanie co lokalnie zwracało 6 firm zamiast 46 —
-# ten sam klucz, ten sam region UE. Porównujemy warianty zapytania z obu
-# miejsc, po jednej stronie każdy. Do usunięcia po wyborze wariantu.
-def diagnoza(fraza: str, miasto: str) -> dict:
-    gdzie = obszar(miasto)
-    prost = gdzie["prostokat"]
-    srodek = {"latitude": (prost["low"]["latitude"] + prost["high"]["latitude"]) / 2,
-              "longitude": (prost["low"]["longitude"] + prost["high"]["longitude"]) / 2}
-    baza = {"textQuery": fraza, "languageCode": "pl", "regionCode": "PL", "pageSize": 20}
-    warianty = {
-        "bias_prostokat": {**baza, "locationBias": {"rectangle": prost}},
-        "restriction_prostokat": {**baza, "locationRestriction": {"rectangle": prost}},
-        "bias_kolo_15km": {**baza, "locationBias": {"circle": {"center": srodek, "radius": 15000}}},
-        "miasto_w_tekscie": {**baza, "textQuery": f"{fraza} {miasto}"},
-        "bias_bez_jezyka": {"textQuery": fraza, "pageSize": 20,
-                            "locationBias": {"rectangle": prost}},
-    }
-    wynik = {}
-    for nazwa, tresc in warianty.items():
-        try:
-            d = _zapytaj(tresc)
-            wynik[nazwa] = {"firm": len(d.get("places") or []),
-                            "kolejna_strona": bool(d.get("nextPageToken"))}
-        except BladMap as e:
-            wynik[nazwa] = {"blad": str(e)[:120]}
-    return wynik

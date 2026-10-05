@@ -463,6 +463,19 @@ def sprawdz_mapy() -> int:
             print("  BŁĄD | brak locationBias — szukamy po całej Polsce")
             bledy += 1
 
+        # Koło, nie prostokąt: z serwera prostokąt dawał 6 firm zamiast 46 (05.10.2026).
+        k = (t.get("locationBias") or {}).get("circle") or {}
+        ok = ("rectangle" not in (t.get("locationBias") or {})
+              and abs(k.get("center", {}).get("latitude", 0) - 52.35) < 0.01
+              and 15_000 < k.get("radius", 0) < 22_000)
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | obszar jako koło opisane na mieście, nie prostokąt")
+        bledy += not ok
+        duzy = mapy.kolo({"low": {"latitude": 51.1, "longitude": 15.8},
+                          "high": {"latitude": 53.6, "longitude": 19.1}})
+        ok = duzy["radius"] == mapy.MAX_PROMIEN_M
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | województwo: promień przycięty do limitu Google (50 km)")
+        bledy += not ok
+
         # Gdy obszaru nie da się rozpoznać, wracamy do starego sposobu — ale wtedy
         # front MUSI o tym powiedzieć, inaczej user widzi jeden wynik bez wyjaśnienia.
         wyslane.clear()
