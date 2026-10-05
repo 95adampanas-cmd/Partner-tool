@@ -221,3 +221,32 @@ def szukaj(fraza: str, miasto: str = "", stron: int = 3) -> dict:
             "bez_strony": bez_strony, "zapytan": zapytan, "zapytanie": zapytanie,
             "obszar": gdzie,
             "obszar_nierozpoznany": bool(miasto.strip()) and gdzie is None}
+
+
+# ── DIAGNOSTYKA (tymczasowa, 05.10.2026) ────────────────────────────────
+# Na Renderze to samo zapytanie co lokalnie zwracało 6 firm zamiast 46 —
+# ten sam klucz, ten sam region UE. Porównujemy warianty zapytania z obu
+# miejsc, po jednej stronie każdy. Do usunięcia po wyborze wariantu.
+def diagnoza(fraza: str, miasto: str) -> dict:
+    gdzie = obszar(miasto)
+    prost = gdzie["prostokat"]
+    srodek = {"latitude": (prost["low"]["latitude"] + prost["high"]["latitude"]) / 2,
+              "longitude": (prost["low"]["longitude"] + prost["high"]["longitude"]) / 2}
+    baza = {"textQuery": fraza, "languageCode": "pl", "regionCode": "PL", "pageSize": 20}
+    warianty = {
+        "bias_prostokat": {**baza, "locationBias": {"rectangle": prost}},
+        "restriction_prostokat": {**baza, "locationRestriction": {"rectangle": prost}},
+        "bias_kolo_15km": {**baza, "locationBias": {"circle": {"center": srodek, "radius": 15000}}},
+        "miasto_w_tekscie": {**baza, "textQuery": f"{fraza} {miasto}"},
+        "bias_bez_jezyka": {"textQuery": fraza, "pageSize": 20,
+                            "locationBias": {"rectangle": prost}},
+    }
+    wynik = {}
+    for nazwa, tresc in warianty.items():
+        try:
+            d = _zapytaj(tresc)
+            wynik[nazwa] = {"firm": len(d.get("places") or []),
+                            "kolejna_strona": bool(d.get("nextPageToken"))}
+        except BladMap as e:
+            wynik[nazwa] = {"blad": str(e)[:120]}
+    return wynik

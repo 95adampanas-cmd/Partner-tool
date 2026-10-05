@@ -3530,6 +3530,17 @@ async def api_login(request):
     return odp
 
 
+async def api_diag_mapy(request):
+    """TYMCZASOWE (05.10.2026): porównanie wariantów zapytania do Map z serwera.
+    Za logowaniem jak całe API. Do usunięcia razem z mapy.diagnoza()."""
+    fraza = request.query_params.get("fraza") or "Prestashop"
+    miasto = request.query_params.get("miasto") or "Poznań"
+    try:
+        return JSONResponse({"ok": True, **await asyncio.to_thread(mapy.diagnoza, fraza, miasto)})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:200]})
+
+
 async def api_wyloguj(request):
     odp = JSONResponse({"ok": True})
     odp.delete_cookie(logowanie.CIASTECZKO, path="/")
@@ -3540,6 +3551,7 @@ app = Starlette(middleware=[Middleware(Straznik)], routes=[
     Route("/login", strona_logowania, methods=["GET"]),
     Route("/api/login", api_login, methods=["POST"]),
     Route("/api/wyloguj", api_wyloguj, methods=["POST"]),
+    Route("/api/diag-mapy", api_diag_mapy, methods=["GET"]),
     Route("/api/research", api_research, methods=["POST"]),
     Route("/api/similar", api_similar, methods=["POST"]),
     Route("/api/frazy", api_frazy, methods=["POST"]),
