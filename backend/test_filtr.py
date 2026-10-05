@@ -28,6 +28,11 @@ import inspect
 import app
 import profil
 
+# app.py wczytał .env — razem z adresem Supabase. Testy zapisują firmy, audyty
+# i dokumenty, więc idą WYŁĄCZNIE na lokalny SQLite, nigdy na prawdziwą bazę.
+import os
+os.environ.pop("DATABASE_URL", None)
+
 # ══════════════════════════════════════════════════════════════════════
 #  REGRESJA OFFLINE
 # ══════════════════════════════════════════════════════════════════════
@@ -1745,6 +1750,74 @@ def sprawdz_nazwy() -> int:
     return bledy
 
 
+def sprawdz_logowanie() -> int:
+    """Jedno hasło na całe narzędzie. Hasło testowe ustawiane tylko na czas testu —
+    prawdziwe siedzi w .env/Renderze i test go nie zna."""
+    import os
+    import logowanie
+    from starlette.testclient import TestClient
+
+    bledy = 0
+
+    def sprawdz(ok, opis):
+        nonlocal bledy
+        print(f"  {'OK  ' if ok else 'BŁĄD'} | {opis}")
+        bledy += not ok
+
+    stare = {k: os.environ.get(k) for k in ("HASLO_DOSTEPU", "RENDER")}
+    try:
+        os.environ.pop("RENDER", None)
+        os.environ.pop("HASLO_DOSTEPU", None)
+        sprawdz(not logowanie.wlaczone(), "lokalnie bez hasła narzędzie jest otwarte")
+        os.environ["RENDER"] = "true"
+        sprawdz(logowanie.wlaczone() and not logowanie.sprawdz_haslo(""),
+                "na Renderze bez hasła — zamknięte, puste hasło nie wpuszcza")
+        k = TestClient(app.app, follow_redirects=False)
+        sprawdz(k.get("/api/firmy").status_code == 401, "na Renderze bez hasła API odpowiada 401")
+
+        os.environ["HASLO_DOSTEPU"] = "test-haslo"
+        t = logowanie.utworz_sesje(teraz=1000)
+        sprawdz(logowanie.sesja_wazna(t, teraz=2000)
+                and not logowanie.sesja_wazna(t, teraz=1000 + logowanie.WAZNOSC_SESJI + 1)
+                and not logowanie.sesja_wazna(t.split(".")[0] + ".zly", teraz=2000)
+                and not logowanie.sesja_wazna(str(10**12) + "." + t.split(".")[1], teraz=2000),
+                "sesja: ważna, wygasa, podrobiony podpis i przedłużony termin odrzucone")
+        os.environ["HASLO_DOSTEPU"] = "inne-haslo"
+        sprawdz(not logowanie.sesja_wazna(t, teraz=2000), "zmiana hasła wylogowuje wszystkich")
+        os.environ["HASLO_DOSTEPU"] = "test-haslo"
+
+        k = TestClient(app.app, follow_redirects=False)
+        sprawdz(k.get("/").status_code == 302 and k.get("/").headers["location"] == "/login"
+                and k.get("/app.js").status_code == 302 and k.get("/login.html").status_code == 302,
+                "bez sesji strony i pliki frontu przekierowują na /login")
+        sprawdz(k.get("/api/firmy").status_code == 401, "bez sesji API odpowiada 401")
+        sprawdz(k.get("/login").status_code == 200, "strona logowania dostępna bez sesji")
+        sprawdz(k.post("/api/login", json={"haslo": "zle"}).status_code == 401, "złe hasło nie wpuszcza")
+        r = k.post("/api/login", json={"haslo": "test-haslo"})
+        ciastko = r.headers.get("set-cookie", "")
+        sprawdz(r.status_code == 200 and "httponly" in ciastko.lower() and "samesite=lax" in ciastko.lower(),
+                "dobre hasło daje ciasteczko HttpOnly, SameSite=Lax")
+        sprawdz(k.get("/api/zrodla").status_code == 200 and k.get("/").status_code == 200,
+                "po zalogowaniu API i front działają")
+        k.post("/api/wyloguj")
+        k.cookies.clear()
+        sprawdz(k.get("/api/zrodla").status_code == 401, "po wylogowaniu znów 401")
+
+        k = TestClient(app.app, follow_redirects=False, client=("10.0.0.9", 50000))
+        kody = [k.post("/api/login", json={"haslo": f"zgaduje{i}"}).status_code
+                for i in range(logowanie.MAX_PROB + 1)]
+        sprawdz(kody[-1] == 429 and k.post("/api/login", json={"haslo": "test-haslo"}).status_code == 429,
+                "po 10 błędnych próbach blokada — nawet dobre hasło czeka kwadrans")
+        logowanie.wyczysc_proby("10.0.0.9")
+    finally:
+        for k_, v in stare.items():
+            if v is None:
+                os.environ.pop(k_, None)
+            else:
+                os.environ[k_] = v
+    return bledy
+
+
 def sprawdz_regresje() -> int:
     """Zwraca liczbę błędów. 0 = wszystko zgodne z oczekiwaniem."""
     bledy = 0
@@ -1807,6 +1880,12 @@ def sprawdz_regresje() -> int:
     print("PRAWDZIWOŚĆ — czego dokument nie może twierdzić")
     print("=" * 74)
     bledy += sprawdz_prawdziwosc()
+    print()
+
+    print("=" * 74)
+    print("LOGOWANIE — jedno hasło, nic nie wychodzi bez sesji")
+    print("=" * 74)
+    bledy += sprawdz_logowanie()
     print()
 
     print("=" * 74)

@@ -1,59 +1,143 @@
 """
-Pamięć narzędzia — SQLite.
+Pamięć narzędzia — Postgres (Supabase) na serwerze, SQLite lokalnie.
 
 Do tej pory zbadane firmy żyły wyłącznie w pamięci przeglądarki: odświeżenie strony
 albo zamknięcie karty kasowało cały dzień pracy. Research jednej firmy to ~30 sekund
 i kilka groszy, więc utrata dwudziestu to realna strata.
 
-Dlaczego SQLite, a nie Postgres: to narzędzie jednego działu, jeden użytkownik naraz,
-dane idą i tak do Pipedrive. Jeden plik, zero konfiguracji, wbudowany w Pythona.
+KTÓRA BAZA. Jest DATABASE_URL w .env → Supabase. Nie ma → plik dane.db obok.
+Od 05.10.2026 narzędzie idzie na Render, a tam dysk jest efemeryczny: plik SQLite
+znikałby przy każdym deployu razem ze wszystkimi firmami i dokumentami. SQLite
+zostaje do pracy bez sieci i do testów — testy NIGDY nie dotykają Supabase
+(test_filtr.py usuwa DATABASE_URL przed pierwszym zapytaniem).
 
-UWAGA PRZY WDROŻENIU: dysk na Render jest efemeryczny — plik bazy zniknie przy
-każdym deployu. Lokalnie to nie problem, ale przed wdrożeniem trzeba albo podpiąć
-dysk trwały, albo przenieść się na Postgres. Zapisane w ROADMAP.
+Reszta pliku pisze SQL raz, w składni wspólnej dla obu baz (znaki zapytania,
+ON CONFLICT, RETURNING). Różnice — typ klucza, odczyt pól z JSON-a, dodawanie
+kolumn — siedzą w kilku miejscach oznaczonych `_postgres(db)`.
 
-Plik trafia do .gitignore razem z fixtures — trzyma NIP-y, maile i telefony firm.
+Plik dane.db trafia do .gitignore razem z fixtures — trzyma maile i telefony firm.
 """
 
 from pathlib import Path
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime
 
 PLIK = Path(__file__).resolve().parent / "dane.db"
 
-# sqlite3 nie lubi dzielenia połączenia między wątkami, a Starlette woła nas
-# z puli wątków (asyncio.to_thread). Jedno połączenie + zamek jest tu prostsze
-# i zupełnie wystarczające przy jednym użytkowniku.
+# Jedno połączenie + zamek: Starlette woła nas z puli wątków (asyncio.to_thread),
+# a ani sqlite3, ani połączenie psycopg nie lubią równoległych zapytań z wielu
+# wątków. Przy kilku osobach z jednego działu to zupełnie wystarcza.
 _zamek = threading.Lock()
-_polaczenie: sqlite3.Connection | None = None
+_polaczenie = None   # sqlite3.Connection albo _Postgres
 
 
-def _polacz() -> sqlite3.Connection:
+class _Postgres:
+    """Supabase z tym samym interfejsem, którego reszta pliku używa na sqlite3:
+    execute / executemany / executescript / commit.
+
+    autocommit, bo każda funkcja tu to jedno-dwa zapytania, a commit() woła się
+    i tak po każdym zapisie. Wiersze jako słowniki — r["url"] działa jak na
+    sqlite3.Row.
+    """
+
+    def __init__(self, adres: str):
+        self.adres = adres
+        self.c = None
+
+    # Hak dla testu na Postgresie (test_baza_pg.py): ustawia schemat tymczasowy,
+    # żeby test nie pisał do prawdziwych tabel.
+    @staticmethod
+    def przygotuj(polaczenie) -> None:
+        pass
+
+    def _c(self):
+        if self.c is None or self.c.closed or self.c.broken:
+            import psycopg
+            from psycopg.rows import dict_row
+            self.c = psycopg.connect(self.adres, autocommit=True, row_factory=dict_row,
+                                     connect_timeout=15)
+            self.przygotuj(self.c)
+        return self.c
+
+    def execute(self, sql: str, param=None):
+        import psycopg
+        # Bez parametrów psycopg puszcza kilka poleceń naraz (tworzenie tabel);
+        # z parametrami — jedno, a znaczniki to %s zamiast ?.
+        zapytanie = (lambda c: c.execute(sql)) if param is None else \
+                    (lambda c: c.execute(sql.replace("?", "%s"), param))
+        try:
+            return zapytanie(self._c())
+        except psycopg.OperationalError:
+            # Pooler Supabase zamyka bezczynne połączenia. Zerwane połączenie
+            # = zapytanie nie doszło, więc jedna próba na świeżym jest bezpieczna.
+            # Każdy inny błąd (zła składnia, limit czasu) idzie dalej bez powtórki.
+            if self.c is None or not self.c.broken:
+                raise
+            return zapytanie(self._c())
+
+    def executemany(self, sql: str, wiersze) -> None:
+        with self._c().cursor() as kur:
+            kur.executemany(sql.replace("?", "%s"), wiersze)
+
+    def executescript(self, sql: str) -> None:
+        self.execute(sql)
+
+    def commit(self) -> None:
+        pass    # autocommit
+
+    def close(self) -> None:
+        if self.c is not None:
+            self.c.close()
+
+
+def _postgres(db) -> bool:
+    return isinstance(db, _Postgres)
+
+
+def _polacz():
     global _polaczenie
     if _polaczenie is None:
-        _polaczenie = sqlite3.connect(PLIK, check_same_thread=False)
-        _polaczenie.row_factory = sqlite3.Row
-        _polaczenie.execute("PRAGMA journal_mode=WAL")
-        _utworz(_polaczenie)
-        _przenies_konkurent_na_ma_seo(_polaczenie)
-        _dodaj_kategorie_do_kolejki(_polaczenie)
-        _dodaj_etap_do_firm(_polaczenie)
+        # Czytane dopiero tu, nie przy imporcie: app.py importuje baza.py,
+        # zanim wczyta .env.
+        adres = os.environ.get("DATABASE_URL", "").strip()
+        if adres:
+            db = _Postgres(adres)
+        else:
+            db = sqlite3.connect(PLIK, check_same_thread=False)
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA journal_mode=WAL")
+        _utworz(db)
+        if not _postgres(db):
+            # Dane w Supabase przyszły z już zmigrowanego dane.db — tu nie ma
+            # czego przepisywać, a to czytanie wszystkich firm przy każdym starcie.
+            _przenies_konkurent_na_ma_seo(db)
+        _dodaj_kategorie_do_kolejki(db)
+        _dodaj_etap_do_firm(db)
+        _polaczenie = db
     return _polaczenie
 
 
-def _dodaj_kategorie_do_kolejki(db: sqlite3.Connection) -> None:
+def _dodaj_kolumne(db, tabela: str, kolumna: str) -> None:
+    if _postgres(db):
+        db.execute(f"ALTER TABLE {tabela} ADD COLUMN IF NOT EXISTS {kolumna} TEXT")
+        return
+    kolumny = {r["name"] for r in db.execute(f"PRAGMA table_info({tabela})")}
+    if kolumna not in kolumny:
+        db.execute(f"ALTER TABLE {tabela} ADD COLUMN {kolumna} TEXT")
+        db.commit()
+
+
+def _dodaj_kategorie_do_kolejki(db) -> None:
     """Migracja: kolumna `kategoria` w kolejce.
 
     CREATE TABLE IF NOT EXISTS nie dopisuje kolumn do tabeli, ktora juz istnieje —
     u kazdego, kto uzywal narzedzia wczesniej, kolejka zostalaby bez tego pola
     i kazdy INSERT konczylby sie bledem. Stad jawny ALTER, wykonywany raz.
     """
-    kolumny = {r["name"] for r in db.execute("PRAGMA table_info(kolejka)")}
-    if "kategoria" not in kolumny:
-        db.execute("ALTER TABLE kolejka ADD COLUMN kategoria TEXT")
-        db.commit()
+    _dodaj_kolumne(db, "kolejka", "kategoria")
 
 
 # Etapy lejka partnera. Kolejność ma znaczenie: przycisk „dalej" przesuwa o jeden.
@@ -62,21 +146,18 @@ def _dodaj_kategorie_do_kolejki(db: sqlite3.Connection) -> None:
 ETAPY = ("zbadany", "material", "rozmowa", "wspolpraca", "nie_teraz")
 
 
-def _dodaj_etap_do_firm(db: sqlite3.Connection) -> None:
+def _dodaj_etap_do_firm(db) -> None:
     """Migracja: etap lejka, data jego zmiany i jednozdaniowa notatka.
 
     Osobne kolumny, nie pole w JSON-ie firmy: ponowny research nadpisuje `dane`
     w całości, a etap to nasza praca z partnerem — nie może zniknąć dlatego, że
     ktoś odświeżył dane z jego strony.
     """
-    kolumny = {r["name"] for r in db.execute("PRAGMA table_info(firmy)")}
     for nazwa in ("etap", "etap_data", "notatka"):
-        if nazwa not in kolumny:
-            db.execute(f"ALTER TABLE firmy ADD COLUMN {nazwa} TEXT")
-    db.commit()
+        _dodaj_kolumne(db, "firmy", nazwa)
 
 
-def _przenies_konkurent_na_ma_seo(db: sqlite3.Connection) -> None:
+def _przenies_konkurent_na_ma_seo(db) -> None:
     """Migracja: pole `konkurent` (osąd) → `ma_seo` (fakt).
 
     Firmy zbadane przed zmianą mają w JSON-ie `konkurent` i `konkurent_uzasadnienie`.
@@ -113,8 +194,25 @@ def _przenies_konkurent_na_ma_seo(db: sqlite3.Connection) -> None:
         print(f"[baza] migracja konkurent -> ma_seo: {len(do_zmiany)} firm")
 
 
-def _utworz(db: sqlite3.Connection) -> None:
-    db.executescript("""
+TABELE = ("firmy", "audyty", "kolejka", "maile", "dokumenty")
+
+
+def _utworz(db) -> None:
+    db.executescript(_SCHEMAT.replace("INTEGER PRIMARY KEY AUTOINCREMENT",
+                                      "BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY")
+                     if _postgres(db) else _SCHEMAT)
+    if _postgres(db):
+        # RLS bez żadnej polityki = tabela zamknięta dla wszystkich poza
+        # właścicielem. Narzędzie łączy się jako właściciel, więc nic nie traci,
+        # a gdyby ktoś kiedyś włączył Data API, tabele nie wyjdą przez nie na zewnątrz.
+        db.execute("".join(f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY;" for t in TABELE))
+    db.commit()
+
+
+# Schemat w składni SQLite. Postgres dostaje ten sam tekst z jedną podmianą typu
+# klucza (patrz _utworz) — dwie kopie schematu rozjechałyby się przy pierwszej
+# nowej kolumnie.
+_SCHEMAT = """
         CREATE TABLE IF NOT EXISTS firmy (
             url        TEXT PRIMARY KEY,
             tryb       TEXT NOT NULL DEFAULT 'partner',
@@ -190,8 +288,7 @@ def _utworz(db: sqlite3.Connection) -> None:
             data        TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_dokumenty_url ON dokumenty(url);
-    """)
-    db.commit()
+"""
 
 
 def _teraz() -> str:
@@ -287,21 +384,26 @@ def zapisz_audyt(url: str, raport: dict, tryb: str = "partner",
     Zwraca id — dokument zrobiony z tego pomiaru zapamiętuje, z którego powstał."""
     with _zamek:
         db = _polacz()
-        c = db.execute(
-            "INSERT INTO audyty (url, tryb, dostawca, raport, data) VALUES (?, ?, ?, ?, ?)",
-            (url, tryb, dostawca, json.dumps(raport, ensure_ascii=False), _teraz()))
+        r = db.execute(
+            "INSERT INTO audyty (url, tryb, dostawca, raport, data) VALUES (?, ?, ?, ?, ?) "
+            "RETURNING id",
+            (url, tryb, dostawca, json.dumps(raport, ensure_ascii=False), _teraz())).fetchone()
         db.commit()
-        return c.lastrowid
+        return r["id"]
 
 
-# Nazwa badanej firmy i partner wyciągane z JSON-a raportu przez SQLite, nie
+# Nazwa badanej firmy i partner wyciągane z JSON-a raportu przez bazę, nie
 # w Pythonie — lista ma zostać lekka. Audyt klienta partnera zapisuje się pod
 # adresem KLIENTA (trafika.pl), więc bez partnera w nagłówku widok „Audyty" nie
 # wiedziałby, do której karty partnera prowadzić.
-_NAGLOWKI_AUDYTU = ("SELECT id, url, tryb, dostawca, data, "
-                    "json_extract(raport, '$.firma.nazwa') AS nazwa, "
-                    "json_extract(raport, '$.partner.nazwa') AS partner_nazwa, "
-                    "json_extract(raport, '$.partner.url') AS partner_url FROM audyty ")
+def _naglowki_audytu(db) -> str:
+    if _postgres(db):
+        pole = lambda sciezka: f"(raport::jsonb #>> '{{{sciezka.replace('.', ',')}}}')"
+    else:
+        pole = lambda sciezka: f"json_extract(raport, '$.{sciezka}')"
+    return (f"SELECT id, url, tryb, dostawca, data, {pole('firma.nazwa')} AS nazwa, "
+            f"{pole('partner.nazwa')} AS partner_nazwa, "
+            f"{pole('partner.url')} AS partner_url FROM audyty ")
 
 
 def audyty(url: str | None = None, limit: int = 50) -> list[dict]:
@@ -309,10 +411,10 @@ def audyty(url: str | None = None, limit: int = 50) -> list[dict]:
     with _zamek:
         db = _polacz()
         if url:
-            w = db.execute(_NAGLOWKI_AUDYTU + "WHERE url = ? ORDER BY data DESC LIMIT ?",
+            w = db.execute(_naglowki_audytu(db) + "WHERE url = ? ORDER BY data DESC LIMIT ?",
                            (url, limit))
         else:
-            w = db.execute(_NAGLOWKI_AUDYTU + "ORDER BY data DESC LIMIT ?", (limit,))
+            w = db.execute(_naglowki_audytu(db) + "ORDER BY data DESC LIMIT ?", (limit,))
         return [dict(r) for r in w.fetchall()]
 
 
@@ -333,11 +435,11 @@ def zapisz_dokument(url: str, nazwa: str, rodzaj: str, html: str, plik: str,
         db = _polacz()
         c = db.execute(
             "INSERT INTO dokumenty (url, nazwa, partner_url, partner_nazwa, rodzaj, "
-            "audyt_id, plik, html, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "audyt_id, plik, html, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
             (url, nazwa, partner.get("url") or "", partner.get("nazwa") or "", rodzaj,
-             audyt_id, plik, html, _teraz()))
+             audyt_id, plik, html, _teraz())).fetchone()
         db.commit()
-        return c.lastrowid
+        return c["id"]
 
 
 def dokumenty(limit: int = 200) -> list[dict]:
@@ -360,8 +462,8 @@ def dokument(id_: int) -> dict | None:
 def statystyki() -> dict:
     with _zamek:
         db = _polacz()
-        f = db.execute("SELECT tryb, COUNT(*) n FROM firmy GROUP BY tryb").fetchall()
-        a = db.execute("SELECT COUNT(*) n FROM audyty").fetchone()
+        f = db.execute("SELECT tryb, COUNT(*) AS n FROM firmy GROUP BY tryb").fetchall()
+        a = db.execute("SELECT COUNT(*) AS n FROM audyty").fetchone()
         return {"firmy": {r["tryb"]: r["n"] for r in f}, "audyty": a["n"] if a else 0}
 
 
@@ -436,12 +538,12 @@ def zapisz_mail(url: str, styl: str, tresc: str, tryb: str = "partner",
     """Dopisuje wersje maila. Zwraca jej id — front potrzebuje go do poprawiania."""
     with _zamek:
         db = _polacz()
-        kur = db.execute(
+        r = db.execute(
             "INSERT INTO maile (url, tryb, styl, tresc, polecenie, data) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (url, tryb, styl, tresc, polecenie, _teraz()))
+            "VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+            (url, tryb, styl, tresc, polecenie, _teraz())).fetchone()
         db.commit()
-        return kur.lastrowid
+        return r["id"]
 
 
 def maile(url: str | None = None, tryb: str | None = None, limit: int = 200) -> list[dict]:

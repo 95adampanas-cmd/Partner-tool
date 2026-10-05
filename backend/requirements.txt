@@ -21,6 +21,9 @@ beautifulsoup4
 # Szukaj podobnych
 tavily-python==0.7.25
 
+# Baza na serwerze: Supabase (Postgres). Lokalnie bez DATABASE_URL — SQLite z Pythona.
+psycopg[binary]==3.2.10
+
 # Konfiguracja i walidacja
 python-dotenv
 pydantic==2.13.4

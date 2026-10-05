@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Partner Tool — ICEA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <!-- Style w pliku, nie w style.css: przed zalogowaniem serwer nie wydaje
+       niczego poza tą stroną, więc arkusz aplikacji by się nie wczytał. -->
+  <style>
+    :root {
+      --akcent: #4653EA;
+      --akcent-jasny: #5768ff;
+      --bg: #F9F9F9;
+      --surface: #ffffff;
+      --border: #e3e5ec;
+      --text: #000623;
+      --muted: #5b6070;
+      --faint: #8a90a0;
+      --blad: #b3261e;
+      --nav-bg: #000623;
+      --nav-muted: #9aa0c0;
+      --sans: "Inter", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+      --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      background: var(--bg); color: var(--text);
+      font: 14.5px/1.6 var(--sans); -webkit-font-smoothing: antialiased;
+    }
+    .marka {
+      background: var(--nav-bg); color: #fff;
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: 48px 56px;
+    }
+    .marka .znak { font: 500 12px var(--mono); letter-spacing: .14em; color: var(--nav-muted); }
+    .marka h1 {
+      font: 400 clamp(44px, 6vw, 76px)/1.02 var(--serif); margin: 0;
+      letter-spacing: -0.01em; text-wrap: balance;
+    }
+    .marka h1 em { color: var(--akcent-jasny); }
+    .marka p { margin: 18px 0 0; color: var(--nav-muted); max-width: 34ch; }
+    .marka .stopka { font: 500 11px var(--mono); color: var(--nav-muted); letter-spacing: .08em; }
+
+    main { display: flex; align-items: center; justify-content: center; padding: 48px 24px; }
+    form { width: 100%; max-width: 340px; display: grid; gap: 14px; }
+    form h2 { font: 600 20px/1.3 var(--sans); margin: 0 0 6px; letter-spacing: -0.01em; }
+    label { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    input {
+      width: 100%; margin-top: 6px; padding: 12px 14px;
+      font: 15px var(--sans); color: var(--text);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    }
+    input:focus { outline: none; border-color: var(--akcent); box-shadow: 0 0 0 3px rgba(87, 104, 255, .18); }
+    button {
+      padding: 12px 16px; border: 0; border-radius: 10px; cursor: pointer;
+      background: var(--akcent); color: #fff; font: 600 14.5px var(--sans);
+    }
+    button:hover { background: var(--akcent-jasny); }
+    button:focus-visible { outline: 3px solid rgba(87, 104, 255, .4); outline-offset: 2px; }
+    button:disabled { opacity: .6; cursor: progress; }
+    .blad { color: var(--blad); font-size: 13.5px; min-height: 1.6em; margin: 0; }
+
+    @media (max-width: 760px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .marka { padding: 28px 16px; gap: 28px; }
+      .marka .stopka { display: none; }
+      main { align-items: flex-start; padding: 32px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="marka">
+    <div class="znak">ICEA</div>
+    <div>
+      <h1>Partner <em>Tool</em></h1>
+      <p>Research partnerów, audyty widoczności w AI i materiały dla klientów.</p>
+    </div>
+    <div class="stopka">© 2026 ICEA</div>
+  </section>
+
+  <main>
+    <form id="logowanie">
+      <h2>Zaloguj się</h2>
+      <div>
+        <label for="haslo">Hasło</label>
+        <input id="haslo" name="haslo" type="password" autocomplete="current-password" required autofocus>
+      </div>
+      <button type="submit">Wejdź</button>
+      <p class="blad" id="blad" role="alert"></p>
+    </form>
+  </main>
+
+  <script>
+    const form = document.getElementById("logowanie");
+    const blad = document.getElementById("blad");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const przycisk = form.querySelector("button");
+      przycisk.disabled = true;
+      blad.textContent = "";
+      try {
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ haslo: form.haslo.value }),
+        });
+        const d = await res.json();
+        if (d.ok) { location.href = "/"; return; }
+        blad.textContent = d.error || "Nie udało się zalogować.";
+        form.haslo.select();
+      } catch {
+        blad.textContent = "Brak połączenia z serwerem. Spróbuj ponownie.";
+      }
+      przycisk.disabled = false;
+    });
+  </script>
+</body>
+</html>

@@ -28,8 +28,10 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, RedirectResponse, FileResponse
 from starlette.staticfiles import StaticFiles
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import json as _json
 from datetime import datetime as _dt
 import time as _time
@@ -50,6 +52,7 @@ import dokument
 import nazwy
 import raport_geo
 import geo
+import logowanie
 import profil
 import szukaj_google
 
@@ -3465,7 +3468,78 @@ class FrontBezCache(StaticFiles):
         return odpowiedz
 
 
-app = Starlette(routes=[
+# ══════════════════════════════════════════════════════════════════════
+#  LOGOWANIE — jedno hasło dla działu (szczegóły: logowanie.py)
+# ══════════════════════════════════════════════════════════════════════
+# Bez sesji przechodzi tylko strona logowania i samo logowanie.
+_PUBLICZNE = {"/login", "/api/login"}
+
+
+def _adres_klienta(request) -> str:
+    # Za proxy Rendera prawdziwy adres jest OSTATNI w X-Forwarded-For — pierwsze
+    # wpisy klient może dopisać sam i każdą próbą udawać kogoś innego.
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[-1].strip()
+    return request.client.host if request.client else "?"
+
+
+class Straznik(BaseHTTPMiddleware):
+    """Każde żądanie poza stroną logowania wymaga ważnej sesji. API dostaje 401
+    (front sam przechodzi na /login), strony — przekierowanie na /login."""
+
+    async def dispatch(self, request, call_next):
+        sciezka = request.url.path
+        if not logowanie.wlaczone() or sciezka in _PUBLICZNE:
+            return await call_next(request)
+        if logowanie.sesja_wazna(request.cookies.get(logowanie.CIASTECZKO)):
+            return await call_next(request)
+        if sciezka.startswith("/api/"):
+            return JSONResponse({"ok": False, "error": "Zaloguj się."}, status_code=401)
+        return RedirectResponse("/login", status_code=302)
+
+
+async def strona_logowania(request):
+    if not logowanie.wlaczone():
+        return RedirectResponse("/", status_code=302)     # lokalnie bez hasła
+    return FileResponse(frontend_dir / "login.html", headers={"cache-control": "no-cache"})
+
+
+async def api_login(request):
+    if not logowanie.haslo():
+        return JSONResponse({"ok": False, "error": "Na serwerze nie ustawiono hasła "
+                             "(HASLO_DOSTEPU) — nikt się nie zaloguje."}, status_code=503)
+    adres = _adres_klienta(request)
+    if logowanie.zablokowany(adres):
+        return JSONResponse({"ok": False, "error": "Za dużo błędnych prób. "
+                             "Spróbuj za kwadrans."}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not logowanie.sprawdz_haslo(str(body.get("haslo") or "")):
+        logowanie.nieudana_proba(adres)
+        return JSONResponse({"ok": False, "error": "Złe hasło."}, status_code=401)
+    logowanie.wyczysc_proby(adres)
+    odp = JSONResponse({"ok": True})
+    odp.set_cookie(logowanie.CIASTECZKO, logowanie.utworz_sesje(),
+                   max_age=logowanie.WAZNOSC_SESJI, httponly=True, samesite="lax",
+                   secure=(request.url.scheme == "https"
+                           or request.headers.get("x-forwarded-proto") == "https"),
+                   path="/")
+    return odp
+
+
+async def api_wyloguj(request):
+    odp = JSONResponse({"ok": True})
+    odp.delete_cookie(logowanie.CIASTECZKO, path="/")
+    return odp
+
+
+app = Starlette(middleware=[Middleware(Straznik)], routes=[
+    Route("/login", strona_logowania, methods=["GET"]),
+    Route("/api/login", api_login, methods=["POST"]),
+    Route("/api/wyloguj", api_wyloguj, methods=["POST"]),
     Route("/api/research", api_research, methods=["POST"]),
     Route("/api/similar", api_similar, methods=["POST"]),
     Route("/api/frazy", api_frazy, methods=["POST"]),
@@ -3493,3 +3567,8 @@ app = Starlette(routes=[
     Route("/api/export", api_export, methods=["POST"]),
     Mount("/", app=FrontBezCache(directory=str(frontend_dir), html=True), name="frontend"),
 ])
+
+if logowanie.na_serwerze() and not logowanie.haslo():
+    print("  UWAGA: brak HASLO_DOSTEPU — narzędzie zamknięte, nikt się nie zaloguje.")
+elif not logowanie.wlaczone():
+    print("  Logowanie wyłączone (brak HASLO_DOSTEPU w .env) — tylko do pracy lokalnej.")

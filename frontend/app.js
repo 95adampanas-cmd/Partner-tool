@@ -1,6 +1,20 @@
 // Partner Tool — aplikacja (sekcje + zakładki firm)
 const BRAK = "nie do ustalenia";
 
+// Wygasła sesja: serwer odpowiada 401 na każde zapytanie do API. Zamiast
+// pilnować tego w trzydziestu miejscach — jedno opakowanie fetch, które
+// odsyła na stronę logowania.
+const _fetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const res = await _fetch(...args);
+  if (res.status === 401) location.href = "/login";
+  return res;
+};
+document.getElementById("wyloguj").addEventListener("click", async () => {
+  await _fetch("/api/wyloguj", { method: "POST" });
+  location.href = "/login";
+});
+
 let tabs = [];       // [{id, nazwa, firma}]
 let activeId = null;
 let tabSeq = 0;
